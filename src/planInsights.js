@@ -1,4 +1,4 @@
-import { monthStats, categorySettings } from './ledger.js';
+import { monthStats, reportingMonthStats, categorySettings } from './ledger.js';
 import { monthOf, previousMonths, daysInMonth, k_calendarDateLength } from './calendar.js';
 import { hasRecordedFinancialActivity } from './reportingHistory.js';
 import { k_defaultHistoryWindow, k_reportingPeriods, k_spendingBehaviors, k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
@@ -81,7 +81,7 @@ export function planInsights(state, month, today = new Date().toISOString().slic
   });
   const plan = state.plan?.months[month] || null;
   const period = reportingPeriod(month, monthOf(today));
-  const actual = monthStats(recordedState, month);
+  const actual = reportingMonthStats(state, month, today);
   const days = daysInMonth(month);
   const elapsed = elapsedDays(period, days, today);
   const remainingMonthFraction = (days - elapsed) / days;

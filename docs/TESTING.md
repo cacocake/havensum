@@ -35,7 +35,9 @@ Native tests substitute only the external AsyncStorage, Expo document-picker, fi
 
 ## Interpreting coverage
 
-Local verification on 17 November 2026, using Node 24.18: 108 Node tests (including subtests) passed; 14 browser scenarios passed in all three viewport projects, totaling 42 browser checks. Measured coverage was 98.75% lines, 95.31% branches and 95.71% functions. Web production build and Android Metro/Hermes export also passed. These results do not establish Android installation or physical-device behavior.
+Before review, 108 Node tests and 42 browser checks passed. Claude's review and subsequent fixes are recorded in [REVIEWS.md](REVIEWS.md); the review added regressions for reporting consistency, storage access/retry, merge-baseline guidance, preview copy, plan-month isolation and CSV row errors. These results do not establish Android installation or physical-device behavior.
+
+Final verification after both reviews: 113 Node tests and 57 browser checks (19 scenarios across three viewport projects) passed. Measured loaded-JavaScript coverage is 98.33% lines, 94.99% branches and 95.17% functions. Web production build and Android Metro/Hermes export passed again.
 
 The Node report measures **loaded JavaScript under `src`**. It excludes React components and modules not loaded by that runner. Browser scenarios exercise the real React Native Web application separately; their coverage must not be added to the Node percentage or described as whole-app coverage.
 
@@ -52,6 +54,14 @@ The checked thresholds are 95% lines, 90% branches and 90% functions across meas
 - Floating-point multiplication could add a cent when converting a large, representable two-decimal euro amount.
 - Loan/account forms accepted monetary values outside safe integer cents; non-finite loan amounts could be saved.
 - Editing a zero-rate savings account changed the rate field to the default 3%.
+
+## Reporting and file contracts
+
+Current/past dashboard, plan and category reports use transactions through the reporting date, including only paybacks received by that date. Future-month entries views retain registered future entries; those are not a claim that future cash has posted. Account ledgers and raw transaction/export data retain their explicitly documented all-entry behavior. The posted/planned cash model remains an open decision.
+
+CSV fields remain text so UTF-8 names, identifiers and ISO dates survive parsing; XLSX retains decoded cell types, including numeric euro values and Date cells. The reviewed import flow normalizes both. CSV dates must be ISO YYYY-MM-DD; locale-date coercion is deliberately not promised. Validation errors identify the one-based data row, excluding headers and physical line breaks inside quoted fields. An invalid batch cannot partially append.
+
+Corrupt saved data and unavailable device storage have distinct startup messages and a retry action. Neither is treated as proof of an empty ledger, and neither automatically writes sample data. The full reviewed restore workflow remains pending.
 
 ## Pending requirements stay pending
 

@@ -1,6 +1,6 @@
 import { accountBalance } from './ledger.js';
 export { monthOf } from './calendar.js';
-export { categorySettings, netExpenses, monthStats, accountBalance } from './ledger.js';
+export { categorySettings, netExpenses, monthStats, reportingMonthStats, accountBalance } from './ledger.js';
 export { buildPlan, driftAlerts } from './planning.js';
 import { validateTransaction } from './transactionValidation.js';
 export { validateTransaction } from './transactionValidation.js';
@@ -30,12 +30,32 @@ export function mergeThreeWay(base,local,remote){
  return {result,conflicts};
 }
 export function fingerprint(t){return t.externalId?`external:${t.externalId}`:[t.date,t.type,t.title?.trim().toLowerCase(),t.amount,t.account,t.category||'',t.note||''].join('|');}
-export function importUnique(state,rows){
- const seen=new Set(state.transactions.map(fingerprint)),ids=new Set(state.transactions.map(t=>t.id)),added=[];
- for(const row of rows){const key=fingerprint(row);if((row.id&&ids.has(row.id))||seen.has(key))continue;const t={...row,id:row.id||`import-${hash(key)}`};seen.add(key);ids.add(t.id);added.push(t);}
- const combined={...state,transactions:[...state.transactions,...added]};
- for(const row of added)validateTransaction(combined,row);
- return {added,skipped:rows.length-added.length};
+export function importUnique(state, rows) {
+  const seenFingerprints = new Set(state.transactions.map(fingerprint));
+  const existingIds = new Set(state.transactions.map(transaction => transaction.id));
+  const sourceRowNumbers = new Map();
+  const added = [];
+  for (const [rowIndex, row] of rows.entries()) {
+    const rowFingerprint = fingerprint(row);
+    if ((row.id && existingIds.has(row.id)) || seenFingerprints.has(rowFingerprint)) {
+      continue;
+    }
+    const transaction = { ...row, id: row.id || `import-${hash(rowFingerprint)}` };
+    seenFingerprints.add(rowFingerprint);
+    existingIds.add(transaction.id);
+    sourceRowNumbers.set(transaction.id, rowIndex + 1);
+    added.push(transaction);
+  }
+
+  const combinedState = { ...state, transactions: [...state.transactions, ...added] };
+  for (const transaction of added) {
+    try {
+      validateTransaction(combinedState, transaction);
+    } catch (error) {
+      throw Error(`Row ${sourceRowNumbers.get(transaction.id)}: ${error.message}`);
+    }
+  }
+  return { added, skipped: rows.length - added.length };
 }
 export function hash(str){let h=2166136261;for(let i=0;i<str.length;i++)h=Math.imul(h^str.charCodeAt(i),16777619);return (h>>>0).toString(36);}
 export function compoundSavings(state,through){

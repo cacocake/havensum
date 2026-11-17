@@ -86,3 +86,11 @@ test('known future loans and occasional expenses establish floors without becomi
   assert.equal(insights.actual.spent, 0);
   assert.equal(insights.forecast.expense, 50000);
 });
+
+test('a future-month entries view retains transactions registered for that month', () => {
+  const state = createFinancialState({ transactions: [
+    createTransaction({ amount: 10000, date: '2026-12-20' })
+  ] });
+
+  assert.equal(planInsights(state, '2026-12', '2026-11-17').actual.spent, 10000);
+});

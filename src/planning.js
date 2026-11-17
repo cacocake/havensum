@@ -7,6 +7,11 @@ const k_defaultPlanIncome = 245000;
 const k_defaultPlanCushion = 12000;
 const k_defaultFixedTolerance = 200;
 const k_defaultVariableDrift = 0.3;
+const k_completedMonthsForDrift = 2;
+const k_driftReasons = {
+  fixed: 'Fixed spending moved outside its tolerance.',
+  variable: 'Variable spending moved outside the configured drift band for two completed months.'
+};
 
 export function buildPlan(state, {
   year,
@@ -56,7 +61,10 @@ export function buildPlan(state, {
     });
   });
 
-  const months = { ...(state.plan?.year === year ? state.plan.months : {}) };
+  const carriedMonths = state.plan?.year === year ? (state.plan.months ?? {}) : {};
+  // Plans are JSON data. Clone carried history too, using the same operation on
+  // Hermes and web, so a returned revision cannot mutate the source snapshot.
+  const months = JSON.parse(JSON.stringify(carriedMonths));
   const monthlyLines = lines.filter(line => line.category !== k_systemCategoryIds.loan);
   for (let monthNumber = fromMonth; monthNumber <= k_monthsPerYear; monthNumber += 1) {
     const month = `${year}-${String(monthNumber).padStart(2, '0')}`;
@@ -77,7 +85,8 @@ export function buildPlan(state, {
       .filter(event => event.month === monthNumber && (!event.year || event.year === year))
       .reduce((total, event) => total + event.amount, 0);
     const expense = monthlyLines.reduce((total, line) => total + line.amount, 0) + monthlyLoan + cushion + event;
-    months[month] = { income: monthlyIncome, expense, cushion, loan: monthlyLoan, event, lines: monthlyLines, balance: monthlyIncome - expense };
+    const monthLines = monthlyLines.map(line => ({ ...line }));
+    months[month] = { income: monthlyIncome, expense, cushion, loan: monthlyLoan, event, lines: monthLines, balance: monthlyIncome - expense };
   }
   return {
     year, incomeChanges, loanChanges, createdAt: new Date().toISOString(), window,
@@ -86,12 +95,6 @@ export function buildPlan(state, {
     months, revision: (state.plan?.revision || 0) + 1
   };
 }
-const k_completedMonthsForDrift = 2;
-const k_driftReasons = {
-  fixed: 'Fixed spending moved outside its tolerance.',
-  variable: 'Variable spending moved outside the configured drift band for two completed months.'
-};
-
 function spendingForLine(state, month, line) {
   return netExpenses(state.transactions, month)
     .filter(expense => {

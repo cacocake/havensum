@@ -8,30 +8,52 @@ import {useInsets} from './insets';
 import {useMeloFonts} from './fonts';
 import {upgradeCategoryVisuals} from './categoryVisuals.js';
 import {seed} from './seed.js';
-import {compoundSavings} from './engine.js';
+import {compoundSavings, monthOf} from './engine.js';
 import {readState,writeState} from './storage';
 import Dashboard from './Dashboard.jsx';
 import {Transactions,Accounts,Categories,Reimbursements,YearPlan,Loans,Settings} from './Screens.jsx';
 import {AccountDetail,TransactionDetail} from './Details.jsx';
-import {TransactionForm,CategoryForm,AccountForm,LoanForm,PlanForm} from './Forms.jsx';
+import {TransactionForm,CategoryForm,LoanForm,PlanForm} from './Forms.jsx';
+import { AccountForm } from './AccountForm.jsx';
+const k_startupErrors = {
+  unreadableData: {
+    title: 'Stored data could not be read',
+    description: 'Your saved data has been left untouched. Keep this browser or device data while recovering a verified backup.'
+  },
+  unavailableStorage: {
+    title: 'Device storage is unavailable',
+    description: 'The app could not access device storage. Check storage permissions or try again. Existing saved data has not been replaced.'
+  }
+};
+const k_startupErrorLayout = { flex: 1, justifyContent: 'center', padding: 24, gap: 16 };
 const nav=[['Overview','LayoutDashboard'],['Transactions','ArrowLeftRight'],['Accounts','Wallet'],['Categories','Shapes'],['Year Plan','CalendarRange'],['Reimbursements','Link2'],['Loans','Landmark']];
 const descriptions={Overview:'A little clarity for your everyday.',Transactions:'The full story, one movement at a time.',Accounts:'Different pockets. One clear picture.',Categories:'A home for every little thing.', 'Year Plan':'Make room for what matters.',Reimbursements:'Because paybacks are not a pay rise.',Loans:'Small steps toward lighter days.',Settings:'Make yourself at home.'};
 export default function App(){
- const [loadError, setLoadError] = useState(false);
+ const [loadError, setLoadError] = useState(null);
  const [filters,setFilters]=useState({}),[searchFocus,setSearchFocus]=useState(0),[accountId,setAccountId]=useState(null),[pickerYear,setPickerYear]=useState(null);
  const searchRequest=useRef(0);
  const [fontsLoaded]=useMeloFonts();const insets=useInsets();const scrollRef=useRef(null);
  const [state,setState]=useState(null),[screen,setScreen]=useState('Overview'),[month,setMonth]=useState(new Date().toISOString().slice(0,7)),[modal,setModal]=useState(null),[toast,setToast]=useState(''),[search,setSearch]=useState(''),[mobileMenu,setMobileMenu]=useState(false),[monthOpen,setMonthOpen]=useState(false),[saveError,setSaveError]=useState(false);const {width}=useWindowDimensions(),wide=width>=1130,desktop=width>=850,c=state?.theme==='dark'?dark:light;
- useEffect(() => {
-   readState().then(savedState => {
-     const currentMonth = new Date().toISOString().slice(0, 7);
+ async function loadStoredState() {
+   setLoadError(null);
+   let savedState;
+   try {
+     savedState = await readState();
+   } catch (error) {
+     const failure = error instanceof SyntaxError ? k_startupErrors.unreadableData : k_startupErrors.unavailableStorage;
+     setLoadError(failure);
+     return;
+   }
+   try {
+     const currentMonth = monthOf(new Date().toISOString());
      const initialState = savedState || seed();
      setState(upgradeCategoryVisuals(compoundSavings(initialState, currentMonth)));
-   }).catch(() => {
-     // Leave the saved bytes untouched; sample state must never overwrite a failed load.
-     setLoadError(true);
-   });
- }, []);
+   } catch {
+     // An invalid saved structure must not be replaced with sample state either.
+     setLoadError(k_startupErrors.unreadableData);
+   }
+ }
+ useEffect(() => { loadStoredState(); }, []);
  useEffect(()=>{if(state)writeState(state).then(()=>setSaveError(false)).catch(()=>setSaveError(true))},[state]);
  useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(''),4200);return()=>clearTimeout(timer)},[toast]);
  useEffect(()=>{if(Platform.OS==='web'){document.body.style.background=c.bg;document.title=`Melo · ${screen}`}},[c,screen]);
@@ -46,9 +68,10 @@ export default function App(){
  if (loadError) {
    return (
      <Theme.Provider value={c}>
-       <View accessibilityRole="alert" style={{ flex: 1, backgroundColor: c.bg, justifyContent: 'center', padding: 24, gap: 16 }}>
-         <H>Stored data could not be read</H>
-         <T>Your saved data has been left untouched. Keep this browser or device data while recovering a verified backup.</T>
+       <View accessibilityRole="alert" style={{ ...k_startupErrorLayout, backgroundColor: c.bg }}>
+         <H>{loadError.title}</H>
+         <T>{loadError.description}</T>
+         <Button onPress={loadStoredState}>Retry loading</Button>
        </View>
      </Theme.Provider>
    );

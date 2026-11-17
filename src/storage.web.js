@@ -1,32 +1,33 @@
 import { k_stateStorageKey, k_snapshotStorageKey } from './storageKeys.js';
+import { parseMergeBaseline } from './storageSerialization.js';
 
-function isDemo() {
+export function isDemoSession() {
   return new URLSearchParams(window.location.search).get('demo') === '1';
 }
 
 export async function readState() {
-  if (isDemo()) {
+  if (isDemoSession()) {
     return null;
   }
   return JSON.parse(localStorage.getItem(k_stateStorageKey));
 }
 
 export async function writeState(state) {
-  if (isDemo()) {
+  if (isDemoSession()) {
     return;
   }
   localStorage.setItem(k_stateStorageKey, JSON.stringify(state));
 }
 
 export async function readSnapshot() {
-  if (isDemo()) {
+  if (isDemoSession()) {
     return null;
   }
-  return JSON.parse(localStorage.getItem(k_snapshotStorageKey));
+  return parseMergeBaseline(localStorage.getItem(k_snapshotStorageKey));
 }
 
 export async function writeSnapshot(state) {
-  if (isDemo()) {
+  if (isDemoSession()) {
     return;
   }
   localStorage.setItem(k_snapshotStorageKey, JSON.stringify(state));

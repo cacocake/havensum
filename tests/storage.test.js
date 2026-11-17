@@ -69,3 +69,16 @@ test('demo previews cannot read or overwrite the real merge baseline', async con
   await writeSnapshot(createFinancialState({ accounts: [] }));
   assert.equal(storage.getItem('melo-sync-base'), JSON.stringify(baseline));
 });
+
+test('storage access denial is reported distinctly and leaves the saved ledger intact', async context => {
+  const storage = installBrowserStorage(context);
+  const state = createFinancialState();
+  await writeState(state);
+  const unavailableRead = context.mock.method(storage, 'getItem', () => {
+    throw new DOMException('Storage access is blocked', 'SecurityError');
+  });
+
+  await assert.rejects(readState(), { name: 'SecurityError' });
+  unavailableRead.mock.restore();
+  assert.deepEqual(await readState(), state);
+});

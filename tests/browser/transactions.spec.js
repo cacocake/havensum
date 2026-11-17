@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createFinancialState } from '../helpers/financialFixtures.js';
+import { createFinancialState, createTransaction } from '../helpers/financialFixtures.js';
 import { addTransaction, editTransaction, openMoreSection, returnHome } from '../helpers/userFlows.js';
 import { readFile } from 'node:fs/promises';
 
@@ -13,8 +13,15 @@ test.beforeEach(async ({ page }) => {
   await page.clock.install({ time: new Date(k_testDate) });
   const state = createFinancialState();
   await page.addInitScript(initialState => {
-    if (!localStorage.getItem('melo-state-v1')) {
-      localStorage.setItem('melo-state-v1', JSON.stringify(initialState));
+    try {
+      if (!localStorage.getItem('melo-state-v1')) {
+        localStorage.setItem('melo-state-v1', JSON.stringify(initialState));
+      }
+    } catch (error) {
+      // The storage-denial scenario also denies the synthetic setup adapter.
+      if (error.name !== 'SecurityError') {
+        throw error;
+      }
     }
   }, state);
   await page.goto('/');
@@ -133,12 +140,12 @@ test('selected loan proceeds credit cash without becoming income', async ({ page
   await expect(page.getByLabel('View income transactions')).toContainText('€0.00');
 });
 
-async function previewCsvImport(page) {
+async function previewCsvImport(page, csvContent) {
   const k_csv = 'id,title,type,amount,date,account,category\nsynthetic-import,Café imported,expense,12.34,2026-11-17,everyday,groceries\n';
   const choosingFile = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Import transactions', exact: true }).click();
   const fileChooser = await choosingFile;
-  await fileChooser.setFiles({ name: 'synthetic.csv', mimeType: 'text/csv', buffer: Buffer.from(k_csv) });
+  await fileChooser.setFiles({ name: 'synthetic.csv', mimeType: 'text/csv', buffer: Buffer.from(csvContent ?? k_csv) });
   await page.getByRole('dialog').getByRole('button', { name: 'Preview import', exact: true }).click();
 }
 
@@ -249,4 +256,81 @@ test('conflicting backup edits cannot apply until the owner selects the field va
   await returnHome(page);
 
   await expect(page.getByLabel('View net spending transactions')).toContainText('€20.00');
+});
+
+test('past-month summaries, wheel and category budgets share the same payback cutoff', async ({ page }) => {
+  const state = createFinancialState({ transactions: [
+    createTransaction({ id: 'october-purchase', amount: 10000, date: '2026-10-05' }),
+    createTransaction({ id: 'future-payback', type: 'reimbursement', amount: 4000, date: '2026-11-30', linkedId: 'october-purchase' })
+  ] });
+  await page.evaluate(savedState => localStorage.setItem('melo-state-v1', JSON.stringify(savedState)), state);
+  await page.reload();
+  await page.getByRole('button', { name: 'Choose month', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Oct', exact: true }).click();
+
+  await expect(page.getByLabel('View net spending transactions')).toContainText('€100.00');
+  await expect(page.getByTestId('spending-breakdown').getByText('€100.00', { exact: true }).first()).toBeVisible();
+  await page.getByLabel('View net spending transactions').click();
+  await expect(page.getByText('€100.00', { exact: true })).toBeVisible();
+  await returnHome(page);
+  await openMoreSection(page, 'Categories');
+  await expect(page.getByText('€100.00 spent', { exact: true })).toBeVisible();
+});
+
+test('temporary storage denial offers retry and recovers the saved ledger without seeding over it', async ({ page }) => {
+  await addTransaction(page, { title: 'Keep through storage outage', amount: '12.34' });
+  await page.addInitScript(() => {
+    const originalGetItem = Storage.prototype.getItem;
+    Storage.prototype.getItem = function getItem(key) {
+      if (!window.g_allowStorageReads) {
+        throw new DOMException('Storage access is blocked', 'SecurityError');
+      }
+      return originalGetItem.call(this, key);
+    };
+  });
+  await page.reload();
+  await expect(page.getByText('Device storage is unavailable', { exact: true })).toBeVisible();
+  await page.evaluate(() => { window.g_allowStorageReads = true; });
+  await page.getByRole('button', { name: 'Retry loading', exact: true }).click();
+
+  await expect(page.getByLabel('View Keep through storage outage', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('View net spending transactions')).toContainText('€12.34');
+});
+
+test('an unreadable merge baseline produces recovery guidance instead of a parser error', async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem('melo-sync-base', '{broken-baseline'));
+  await openMoreSection(page, 'Settings');
+  const choosingFile = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Review backup merge', exact: true }).click();
+  const fileChooser = await choosingFile;
+  await fileChooser.setFiles({
+    name: 'synthetic-backup.json', mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(createFinancialState()))
+  });
+
+  await expect(page.getByText('Your saved merge baseline is unreadable. Export a new baseline.', { exact: true })).toBeVisible();
+});
+
+test('preview exports explain that merge baselines are unavailable', async ({ page }) => {
+  await page.goto('/?demo=1');
+  await expect(page.getByLabel('Add expense', { exact: true })).toBeVisible();
+  await openMoreSection(page, 'Settings');
+  await expect(page.getByRole('button', { name: 'Review backup merge', exact: true })).toBeDisabled();
+  await expect(page.getByText('Merge baselines are unavailable in preview mode. Open the main app to review a backup merge.', { exact: true })).toBeVisible();
+  const downloading = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Full JSON backup', exact: true }).click();
+  await downloading;
+
+  await expect(page.getByText('Example backup exported · merge baselines are unavailable in preview mode.', { exact: true })).toBeVisible();
+});
+
+test('non-ISO CSV dates identify the rejected data row and cannot partially import', async ({ page }) => {
+  const k_csv = 'title,amount,date,account,category\nValid purchase,10.00,2026-11-10,everyday,groceries\nInvalid date purchase,20.00,15/11/2026,everyday,groceries\n';
+  await openMoreSection(page, 'Settings');
+  await previewCsvImport(page, k_csv);
+  await expect(page.getByRole('dialog').getByText('Row 2: Choose a valid date.', { exact: true })).toBeVisible();
+  await page.getByRole('dialog').getByLabel('Close dialog', { exact: true }).click();
+  await returnHome(page);
+
+  await expect(page.getByLabel('View net spending transactions')).toContainText('€0.00');
 });

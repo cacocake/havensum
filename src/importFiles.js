@@ -22,6 +22,8 @@ export async function parseImportContent(fileName, content) {
   }
 
   const XLSX = await import('xlsx');
+  // CSV yields textual fields; XLSX retains decoded cell types (numbers/Dates).
+  // Both formats are normalized by the reviewed transaction-import flow.
   // Decode CSV as text before parsing; byte-mode guesses can corrupt UTF-8 names.
   // Keep CSV fields as text so identifiers and ISO dates survive spreadsheet guessing.
   const isCsv = normalizedName.endsWith(k_csvExtension);

@@ -88,3 +88,15 @@ test('native corrupt data fails visibly and absent data returns null', async () 
   await assert.rejects(readState(), SyntaxError);
   await assert.rejects(readSnapshot(), SyntaxError);
 });
+
+test('native read failures are not mistaken for absent state and retain the saved ledger', async context => {
+  const state = createFinancialState();
+  await writeState(state);
+  const unavailableRead = context.mock.method(g_storageAdapter, 'getItem', async () => {
+    throw Error('Device storage unavailable');
+  });
+
+  await assert.rejects(readState(), /storage unavailable/);
+  unavailableRead.mock.restore();
+  assert.deepEqual(await readState(), state);
+});

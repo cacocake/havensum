@@ -106,3 +106,23 @@ test('current-month activity cannot itself trigger a completed-month drift alert
 
   assert.deepEqual(driftAlerts(state, '2027-01'), []);
 });
+
+test('editing one month of a returned plan cannot rewrite another month of that snapshot', () => {
+  const plan = buildPlan(createFinancialState(), { ...k_planOptions, fromMonth: 1 });
+  const originalDecember = structuredClone(plan.months['2026-12']);
+  plan.months['2026-01'].lines[0].amount = 99999;
+  plan.months['2026-01'].lines.push({ id: 'january-only', amount: 1234 });
+
+  assert.deepEqual(plan.months['2026-12'], originalDecember);
+});
+
+test('a returned revision cannot mutate the earlier plan through carried historical months', () => {
+  const state = createFinancialState();
+  const frozenPlan = buildPlan(state, { ...k_planOptions, fromMonth: 1 });
+  const originalJanuary = structuredClone(frozenPlan.months['2026-01']);
+  const revisedPlan = buildPlan({ ...state, plan: frozenPlan }, { ...k_planOptions, fromMonth: 6 });
+  revisedPlan.months['2026-01'].lines[0].amount = 99999;
+  revisedPlan.months['2026-01'].lines.push({ id: 'revision-only', amount: 1234 });
+
+  assert.deepEqual(frozenPlan.months['2026-01'], originalJanuary);
+});

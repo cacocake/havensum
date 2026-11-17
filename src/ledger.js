@@ -1,4 +1,4 @@
-import { monthOf } from './calendar.js';
+import { monthOf, k_calendarDateLength } from './calendar.js';
 import { k_spendingBehaviors, k_transactionTypes } from './domainConstants.js';
 
 const k_allDatesCutoff = '9999-12-31';
@@ -35,6 +35,19 @@ export function monthStats(state, month) {
   const spent = expenses.reduce((total, expense) => total + expense.net, 0);
   const reimbursed = expenses.reduce((total, expense) => total + expense.refunded, 0);
   return { income, spent, balance: income - spent, expenses, reimbursed };
+}
+
+export function reportingMonthStats(state, month, today = new Date().toISOString().slice(0, k_calendarDateLength)) {
+  // Future months show registered entries. Past/current reports use received cash
+  // and expenses through the reporting date, including original-month paybacks.
+  if (month > monthOf(today)) {
+    return monthStats(state, month);
+  }
+  const recordedState = {
+    ...state,
+    transactions: state.transactions.filter(transaction => transaction.date <= today)
+  };
+  return monthStats(recordedState, month);
 }
 
 export function accountBalance(state, accountId, until = k_allDatesCutoff) {
