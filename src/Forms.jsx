@@ -10,14 +10,22 @@ import Icon,{iconNames} from './Icon';
 import {categorySettings,cents,euro,validateTransaction,buildPlan} from './engine.js';
 import {palette} from './seed.js';
 import { isPositiveCentAmount, k_centsPerEuro } from './money.js';
-import { k_transactionTypes, k_systemCategoryIds } from './domainConstants.js';
+import { k_transactionTypes, k_systemCategoryIds, k_entityIdPrefixes } from './domainConstants.js';
+import { createEntityId } from './identifiers';
 
 const k_percentageScale = 100;
+const k_draftEventId = 'event-draft';
+const k_invalidPlanAmountsMessage = 'Use valid non-negative amounts.';
 const k_transactionAmountPattern = /^\d+([.,]\d{1,2})?$/;
 const k_transactionFormMessages = {
   invalidAmount: 'Use a positive amount with at most two decimal places.',
   updated: 'Transaction updated',
   added: 'Transaction added'
+};
+const k_categoryFormMessages = {
+  missingName: 'Give the category a name.',
+  invalidBudget: 'Use a positive budget or leave it empty.',
+  saved: 'Category saved'
 };
 const k_loanMonthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const k_loanFormMessages = {
@@ -37,7 +45,7 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
      }
      const isTransfer = type === k_transactionTypes.transfer;
      const transaction = {
-       id: item?.id || `tx-${Date.now()}`,
+       id: item?.id || createEntityId(k_entityIdPrefixes.transaction),
        type, title: title.trim(), amount: cents(amount), account, date, note,
        category: isTransfer ? null : category,
        loanId: category === k_systemCategoryIds.loan ? (item?.loanId || draft?.loanId) : undefined,
@@ -83,7 +91,32 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
 export function CategoryForm({item,onClose}){
  const {state,setState,notify}=useApp(),c=useContext(Theme);const [name,setName]=useState(item?.name||''),[icon,setIcon]=useState(item?.icon||'Shapes'),[color,setColor]=useState(item?.color||palette[0]),[kind,setKind]=useState(item?.kind||'Variable'),[budget,setBudget]=useState(item?.budget?String(item.budget/k_centsPerEuro):''),[parentId,setParent]=useState(item?.parentId||''),[inherit,setInherit]=useState({icon:item?.parentId&&!item?.icon,color:item?.parentId&&!item?.color,kind:item?.parentId&&!item?.kind,budget:item?.parentId&&item?.budget==null}),[search,setSearch]=useState(''),[error,setError]=useState('');
  const changeParent=id=>{setParent(id);if(id&&!parentId)setInherit({icon:true,color:true,kind:true,budget:true});};
- function save(){if(!name.trim()){setError('Give the category a name.');return;}if(budget&&(!Number.isFinite(Number(budget))||Number(budget)<0)){setError('Use a positive budget or leave it empty.');return;}const v={id:item?.id||`cat-${Date.now()}`,name:name.trim(),parentId:parentId||null,icon:parentId&&inherit.icon?null:icon,color:parentId&&inherit.color?null:color,kind:parentId&&inherit.kind?null:kind,budget:parentId&&inherit.budget?null:budget?cents(budget):0};setState(s=>({...s,categories:item?.id?s.categories.map(x=>x.id===item.id?v:x):[...s.categories,v]}));notify('Category saved');onClose();}
+ function save() {
+   if (!name.trim()) {
+     setError(k_categoryFormMessages.missingName);
+     return;
+   }
+   if (budget && (!Number.isFinite(Number(budget)) || Number(budget) < 0)) {
+     setError(k_categoryFormMessages.invalidBudget);
+     return;
+   }
+   const category = {
+     id: item?.id || createEntityId(k_entityIdPrefixes.category),
+     name: name.trim(), parentId: parentId || null,
+     icon: parentId && inherit.icon ? null : icon,
+     color: parentId && inherit.color ? null : color,
+     kind: parentId && inherit.kind ? null : kind,
+     budget: parentId && inherit.budget ? null : (budget ? cents(budget) : 0)
+   };
+   setState(currentState => ({
+     ...currentState,
+     categories: item?.id
+       ? currentState.categories.map(record => record.id === item.id ? category : record)
+       : [...currentState.categories, category]
+   }));
+   notify(k_categoryFormMessages.saved);
+   onClose();
+ }
  const toggle=field=><Toggle value={!!inherit[field]} onChange={v=>setInherit(x=>({...x,[field]:v}))} label={`Inherit ${field==='kind'?'behaviour':field} from parent`}/>;
  const isDirty = useDirtyForm([name,icon,color,kind,budget,parentId,inherit]);
  return <Dialog dirty={isDirty} title={item?.id?'Make it yours':'A new category'} subtitle="A little personality for every part of your spending." onClose={onClose}>
@@ -108,7 +141,7 @@ export function LoanForm({item,onClose}){
      return;
    }
 
-   const loanId = item?.id || `loan-${Date.now()}`;
+   const loanId = item?.id || createEntityId(k_entityIdPrefixes.loan);
    const loanFields = { name, remaining: remainingInCents, payment: paymentInCents, start, end, account };
    setState(currentState => {
      const loans = item
@@ -134,15 +167,44 @@ export function PlanForm({onClose}){
  const dismissRef=useRef(null);
  const {state,setState,month,notify}=useApp(),c=useContext(Theme);const [step,setStep]=useState(0),[income,setIncome]=useState(String((state.plan?.months[month]?.income||245000)/k_centsPerEuro)),[cushion,setCushion]=useState(String((state.plan?.months[month]?.cushion||12000)/k_centsPerEuro)),[window,setWindow]=useState(String(state.plan?.window||6)),[eventName,setEventName]=useState(''),[eventAmount,setEventAmount]=useState(''),[eventMonth,setEventMonth]=useState('12'),[overrides,setOverrides]=useState(()=>Object.fromEntries((state.plan?.months[month]?.lines||[]).filter(l=>l.override).map(l=>[l.id||l.category,String(l.amount/k_centsPerEuro)]))),[error,setError]=useState('');const year=Number(month.slice(0,4)),currentMonth=new Date().toISOString().slice(0,7),from=year===new Date().getFullYear()?Math.max(Number(month.slice(5,7)),Number(currentMonth.slice(5,7))):1;
  const [incomeChangeFrom,setIncomeChangeFrom]=useState(''),[incomeChangeAmount,setIncomeChangeAmount]=useState(''),[loanEdits,setLoanEdits]=useState({}),[loanChangeFrom,setLoanChangeFrom]=useState(String(from)),[tolerance,setTolerance]=useState(String((state.plan?.tolerance??200)/k_centsPerEuro)),[drift,setDrift]=useState(String(Math.round((state.plan?.drift??.3)*k_percentageScale))),[draftEvents,setDraftEvents]=useState([]);
- const candidateEvent=eventName.trim()&&cents(eventAmount)>0?{id:`event-draft`,name:eventName.trim(),year,month:Number(eventMonth),amount:cents(eventAmount)}:null;
+ const candidateEvent=eventName.trim()&&cents(eventAmount)>0?{id:k_draftEventId,name:eventName.trim(),year,month:Number(eventMonth),amount:cents(eventAmount)}:null;
  const plannedEvents=[...(state.events||[]),...draftEvents,...(candidateEvent?[candidateEvent]:[])];
  const preview=buildPlan({...state,events:plannedEvents},{year,fromMonth:from,income:cents(income)||0,cushion:cents(cushion)||0,window:Number(window),incomeChanges:[...(state.plan?.incomeChanges||[]),...(incomeChangeFrom&&cents(incomeChangeAmount)>=0?[{since:`${year}-${incomeChangeFrom.padStart(2,'0')}`,amount:cents(incomeChangeAmount)}]:[])],loanChanges:[...(state.plan?.loanChanges||[]),...Object.entries(loanEdits).filter(([,v])=>v!==''&&cents(v)>=0).map(([loanId,v])=>({loanId,since:`${year}-${loanChangeFrom.padStart(2,'0')}`,amount:cents(v)}))],overrides:Object.fromEntries(Object.entries(overrides).filter(([,v])=>v!=='').map(([k,v])=>[k,cents(v)]))});
- function save(){if(!(cents(tolerance)>=0)||!(Number(drift)>0)||Number(drift)>k_percentageScale||incomeChangeFrom&&!(cents(incomeChangeAmount)>=0)||Object.values(loanEdits).some(v=>v!==''&&!(cents(v)>=0))||!(cents(income)>=0)||!(cents(cushion)>=0)||Object.values(overrides).some(v=>v!==''&&!(cents(v)>=0))||eventAmount&&!(cents(eventAmount)>0)){setError('Use valid non-negative amounts.');return;}preview.tolerance=cents(tolerance);preview.drift=Number(drift)/k_percentageScale;setState(s=>({...s,plan:preview,events:plannedEvents.map((e,i)=>e.id==='event-draft'?{...e,id:`event-${Date.now()}-${i}`}:e)}));notify(`Plan frozen · ${from===1?'January':new Date(year,from-1,1).toLocaleString('en',{month:'long'})} onwards`);onClose();}
+ function addPlannedEvent() {
+   if (!candidateEvent) {
+     return;
+   }
+   const event = { ...candidateEvent, id: createEntityId(k_entityIdPrefixes.event) };
+   setDraftEvents(events => [...events, event]);
+   setEventName('');
+   setEventAmount('');
+ }
+ function save() {
+   const validBaseAmounts = cents(tolerance) >= 0 && cents(income) >= 0 && cents(cushion) >= 0;
+   const validDrift = Number(drift) > 0 && Number(drift) <= k_percentageScale;
+   const validIncomeChange = !incomeChangeFrom || cents(incomeChangeAmount) >= 0;
+   const validLoanChanges = Object.values(loanEdits).every(value => value === '' || cents(value) >= 0);
+   const validOverrides = Object.values(overrides).every(value => value === '' || cents(value) >= 0);
+   const validEvent = !eventAmount || cents(eventAmount) > 0;
+   if (!validBaseAmounts || !validDrift || !validIncomeChange || !validLoanChanges || !validOverrides || !validEvent) {
+     setError(k_invalidPlanAmountsMessage);
+     return;
+   }
+   preview.tolerance = cents(tolerance);
+   preview.drift = Number(drift) / k_percentageScale;
+   const events = plannedEvents.map(event => event.id === k_draftEventId
+     ? { ...event, id: createEntityId(k_entityIdPrefixes.event) }
+     : event);
+   setState(currentState => ({ ...currentState, plan: preview, events }));
+   const firstRevisedMonthName = from === 1 ? 'January' : new Date(year, from - 1, 1).toLocaleString('en', { month: 'long' });
+   notify(`Plan frozen · ${firstRevisedMonthName} onwards`);
+   onClose();
+ }
  const isDirty = useDirtyForm([income,cushion,window,eventName,eventAmount,eventMonth,overrides,incomeChangeFrom,incomeChangeAmount,loanEdits,loanChangeFrom,tolerance,drift,draftEvents]);
  return <Dialog dismissRef={dismissRef} dirty={isDirty} title={step===0?'Make room for your year':step===1?'The things coming up':'Your plan, your call'} subtitle={`Step ${step+1} of 3 · Only ${new Date(year,from-1,1).toLocaleString('en',{month:'long'})}–December will change.`} onClose={onClose} width={550}>
  <Row style={{gap:6,marginBottom:25}}>{[0,1,2].map(i=><View key={i} style={{height:4,flex:1,borderRadius:4,backgroundColor:i<=step?c.accent:c.line}}/>)}</Row>
  {step===0&&<><Field label="Expected monthly income · EUR" value={income} onChangeText={setIncome} keyboardType="decimal-pad"/><Field label="Monthly occasional-spending cushion · EUR" value={cushion} onChangeText={setCushion} keyboardType="decimal-pad"/><Select label="Variable spending history" value={window} onChange={setWindow} options={[{value:'3',label:'3 completed months'},{value:'6',label:'6 completed months · recommended'},{value:'12',label:'12 completed months'}]}/><Row style={{gap:12}}><Field label="Fixed tolerance · ± EUR" value={tolerance} onChangeText={setTolerance} style={{flex:1}}/><Field label="Variable drift trigger · %" value={drift} onChangeText={setDrift} style={{flex:1}}/></Row><View style={{backgroundColor:c.soft,padding:15,borderRadius:12}}><T style={{fontSize:12,color:c.sub}}>Fixed costs use their latest completed month. Variable costs use your rolling net average. Occasional spending uses its own cushion. Loan repayments get a separate line.</T></View></>}
- {step===1&&<><H size={19} style={{marginBottom:16}}>Changes to your regular income</H><Select label="Income changes from" value={incomeChangeFrom} onChange={setIncomeChangeFrom} options={[{value:'',label:'No change planned'},...Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))]}/>{incomeChangeFrom&&<Field label="New monthly income · EUR" value={incomeChangeAmount} onChangeText={setIncomeChangeAmount} placeholder="e.g. 2600"/>}<Divider/><H size={19} style={{marginBottom:16}}>The bigger things</H><Field label="A trip, a big purchase, a seasonal cost · optional" value={eventName} onChangeText={setEventName} placeholder="e.g. Summer in the Azores"/><Row style={{gap:14}}><Field label="One-off amount · EUR" value={eventAmount} onChangeText={setEventAmount} style={{flex:1}}/><Select label="Month" value={eventMonth} onChange={setEventMonth} options={Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))} style={{flex:1}}/></Row>{candidateEvent&&<Button small kind="soft" icon="Plus" onPress={()=>{setDraftEvents(es=>[...es,{...candidateEvent,id:`event-${Date.now()}`}]);setEventName('');setEventAmount('')}}>Add another event</Button>}{[...state.events,...draftEvents].filter(e=>e.month>=from&&(!e.year||e.year===year)).map(e=><Row key={e.id} style={{justifyContent:'space-between',paddingVertical:9}}><T style={{fontSize:12}}>{e.name} · month {e.month}</T><T style={{fontSize:12}}>{euro(e.amount)}</T></Row>)}<Divider/><H size={18} style={{marginBottom:10}}>Loans already accounted for</H>{state.loans.map(l=><Row key={l.id} style={{justifyContent:'space-between',paddingVertical:8}}><T style={{fontSize:12}}>{l.name}</T><T style={{fontSize:12}}>{euro(l.payment)}/month</T></Row>)}{state.loans.length>0&&<><Select label="Loan payment changes from" value={loanChangeFrom} onChange={setLoanChangeFrom} options={Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))}/>{state.loans.map(l=><Field key={l.id} label={`${l.name} · new monthly payment, optional`} value={loanEdits[l.id]||''} onChangeText={v=>setLoanEdits(es=>({...es,[l.id]:v}))} placeholder={`${l.payment/k_centsPerEuro} · unchanged`}/>)}</>}</>}
+ {step===1&&<><H size={19} style={{marginBottom:16}}>Changes to your regular income</H><Select label="Income changes from" value={incomeChangeFrom} onChange={setIncomeChangeFrom} options={[{value:'',label:'No change planned'},...Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))]}/>{incomeChangeFrom&&<Field label="New monthly income · EUR" value={incomeChangeAmount} onChangeText={setIncomeChangeAmount} placeholder="e.g. 2600"/>}<Divider/><H size={19} style={{marginBottom:16}}>The bigger things</H><Field label="A trip, a big purchase, a seasonal cost · optional" value={eventName} onChangeText={setEventName} placeholder="e.g. Summer in the Azores"/><Row style={{gap:14}}><Field label="One-off amount · EUR" value={eventAmount} onChangeText={setEventAmount} style={{flex:1}}/><Select label="Month" value={eventMonth} onChange={setEventMonth} options={Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))} style={{flex:1}}/></Row>{candidateEvent&&<Button small kind="soft" icon="Plus" onPress={addPlannedEvent}>Add another event</Button>}{[...state.events,...draftEvents].filter(e=>e.month>=from&&(!e.year||e.year===year)).map(e=><Row key={e.id} style={{justifyContent:'space-between',paddingVertical:9}}><T style={{fontSize:12}}>{e.name} · month {e.month}</T><T style={{fontSize:12}}>{euro(e.amount)}</T></Row>)}<Divider/><H size={18} style={{marginBottom:10}}>Loans already accounted for</H>{state.loans.map(l=><Row key={l.id} style={{justifyContent:'space-between',paddingVertical:8}}><T style={{fontSize:12}}>{l.name}</T><T style={{fontSize:12}}>{euro(l.payment)}/month</T></Row>)}{state.loans.length>0&&<><Select label="Loan payment changes from" value={loanChangeFrom} onChange={setLoanChangeFrom} options={Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))}/>{state.loans.map(l=><Field key={l.id} label={`${l.name} · new monthly payment, optional`} value={loanEdits[l.id]||''} onChangeText={v=>setLoanEdits(es=>({...es,[l.id]:v}))} placeholder={`${l.payment/k_centsPerEuro} · unchanged`}/>)}</>}</>}
  {step===2&&<><H size={18} style={{marginBottom:15}}>Fine-tune the monthly amounts</H>{preview.months[`${year}-${String(from).padStart(2,'0')}`]?.lines.filter(l=>!['salary','interest','loan'].includes(l.category)).map(l=><Row key={l.id||l.category} style={{gap:14,marginBottom:6}}><View style={{flex:1}}><T style={{fontSize:12}}>{l.name}</T><T style={{fontSize:10,color:c.muted}}>{l.kind} · calculated {euro(l.amount)}</T></View><Field value={overrides[l.id||l.category]??''} onChangeText={v=>setOverrides(o=>({...o,[l.id||l.category]:v}))} placeholder={(l.amount/k_centsPerEuro).toFixed(2)} label={`Override ${l.name}`} style={{width:150,marginBottom:6}}/></Row>)}<Divider/><Row style={{justifyContent:'space-between',marginBottom:15}}><T style={{fontSize:12}}>First revised month's balance</T><H size={24}>{euro(preview.months[`${year}-${String(from).padStart(2,'0')}`]?.balance||0)}</H></Row><T style={{fontSize:12,color:c.sub}}>Overrides take priority and are marked in the plan. Past months stay untouched. New transactions never silently rewrite this snapshot.</T></>}
  {error&&<T style={{color:c.negative,marginTop:15}}>{error}</T>}<Row style={{justifyContent:'space-between',marginTop:25}}><Button kind="soft" onPress={()=>step?setStep(step-1):dismissRef.current?.()}>{step?'Back':'Cancel'}</Button><Button icon={step===2?'LockKeyhole':'ArrowRight'} onPress={()=>step<2?setStep(step+1):save()}>{step===2?'Freeze my plan':'Continue'}</Button></Row>
  </Dialog>;

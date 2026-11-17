@@ -5,6 +5,8 @@ import { cents, k_centsPerEuro } from './money.js';
 import { monthOf } from './calendar.js';
 import { palette } from './seed.js';
 import { useDirtyForm } from './useDirtyForm.js';
+import { createEntityId } from './identifiers';
+import { k_entityIdPrefixes } from './domainConstants.js';
 
 const k_accountTypes = { personal: 'Personal', joint: 'Joint', savings: 'Savings', investment: 'Investment' };
 const k_defaultInterestRate = 3;
@@ -46,7 +48,7 @@ export function AccountForm({ item, onClose }) {
     const account = {
       ...item,
       ...k_accountAppearance[tag],
-      id: item?.id || `account-${Date.now()}`,
+      id: item?.id || createEntityId(k_entityIdPrefixes.account),
       name: name.trim(),
       tag,
       openingBalance: openingBalanceInCents,

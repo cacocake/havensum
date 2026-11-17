@@ -26,3 +26,11 @@ export const k_systemCategoryIds = Object.freeze({
 
 export const k_defaultHistoryWindow = 6;
 export const k_monthsPerYear = 12;
+
+export const k_entityIdPrefixes = Object.freeze({
+  transaction: 'tx',
+  account: 'account',
+  category: 'cat',
+  loan: 'loan',
+  event: 'event'
+});

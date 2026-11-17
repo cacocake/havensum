@@ -4,6 +4,8 @@
 
 The imported baseline now has additional financial, file, storage/native-adapter and browser regression coverage. Tests exposed and fixed validation, history/receipt-date, persistence, CSV decoding, monetary conversion and account-edit defects. See [docs/TESTING.md](docs/TESTING.md) for the test boundaries, commands and limits. Financial code touched by these fixes has been separated into readable modules; `src/engine.js` retains its public compatibility exports. The new Havensum handoff features remain pending. The historical package/source verification statements below describe the imported baseline.
 
+Ongoing implementation is tracked in [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md). Local Git Flow now uses `develop` for integration and `master` for releases. New user-created record IDs are being moved off timestamps without renumbering existing data; schema migration/recovery and the requested product features remain separate tasks.
+
 Prepared 17 November 2026. Verified published source baseline: `0ac7b234bab14ea7fd80926e48466ab7aa808117`.
 
 **Read [docs/HAVENSUM_REQUIREMENTS.md](docs/HAVENSUM_REQUIREMENTS.md) first for the latest owner requests.** The source still displays Melo. Havensum is the new product name; rename/logo, CSV export/template/bank adapters, expected-payback tasks, and independent expected-savings calculation are specified but not implemented in this snapshot. Preserve this distinction in progress reports.
@@ -103,7 +105,7 @@ These are grounded in the present code; they have not been fixed by the handoff 
 3. **Fixed-cost granularity:** fixed baselines and tolerance are category/behaviour totals, not individually recognized rent/contracts. Offsetting changes can mask each other, and a cancelled cost can retain its older non-zero baseline.
 4. **Drift/data completeness:** no explicit complete-month marker exists. Missing/incomplete imported months can produce misleading drift recommendations. Suggestions are also relative to the selected month rather than a fully modeled reporting period.
 5. **Interest corrections:** existing monthly interest IDs are deliberately not regenerated. Backdated transactions or rate edits do not revise past interest. There is no reconciliation workflow yet.
-6. **Identifiers and import identity:** new objects often use `Date.now()` IDs. Adopt collision-resistant IDs before two-person sync. External import identifiers need a source namespace. Content deduplication cannot distinguish two legitimate identical rows lacking IDs.
+6. **Identifiers and import identity:** new user-created objects now use collision-resistant IDs while existing and imported IDs remain unchanged. External import identifiers still need a source namespace. Content deduplication cannot distinguish two legitimate identical rows lacking IDs; import reconciliation remains pending.
 7. **Full restore:** JSON export contains the state, but transaction import only imports transactions. Manual merge requires an established baseline. Add a reviewed full-state restore path with schema validation and recovery protection.
 8. **Persistence schema:** JSON loading has limited structural validation. Add explicit migrations and robust invalid-data recovery before release.
 9. **Repository maintainability:** several large components remain densely formatted. Split by feature as work proceeds; do not replace the shared React Native implementation with a separate web mockup.
