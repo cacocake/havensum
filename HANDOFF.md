@@ -1,5 +1,9 @@
 # Havensum — developer handoff
 
+## Local test hardening — 17 November 2026
+
+The imported baseline now has additional financial, file, storage/native-adapter and browser regression coverage. Tests exposed and fixed validation, history/receipt-date, persistence, CSV decoding, monetary conversion and account-edit defects. See [docs/TESTING.md](docs/TESTING.md) for the test boundaries, commands and limits. Financial code touched by these fixes has been separated into readable modules; `src/engine.js` retains its public compatibility exports. The new Havensum handoff features remain pending. The historical package/source verification statements below describe the imported baseline.
+
 Prepared 17 November 2026. Verified published source baseline: `0ac7b234bab14ea7fd80926e48466ab7aa808117`.
 
 **Read [docs/HAVENSUM_REQUIREMENTS.md](docs/HAVENSUM_REQUIREMENTS.md) first for the latest owner requests.** The source still displays Melo. Havensum is the new product name; rename/logo, CSV export/template/bank adapters, expected-payback tasks, and independent expected-savings calculation are specified but not implemented in this snapshot. Preserve this distinction in progress reports.

@@ -25,3 +25,30 @@ The new-repo handoff intentionally excludes the original hosting project identit
 - Closing an expected-payback task without payment changes task metadata only. Only recorded reimbursements change cash/net spending.
 - Treat bank statement samples and real financial backups as private runtime data. Commit only synthetic or carefully sanitized fixtures.
 - Preserve old melo-state-v1/melo-sync-base data through an explicit migration. Do not lose data merely to complete the rename.
+
+## Owner's code style
+
+- Use clear, obvious, descriptive variable and function names. Prefer a longer name when it makes the intent easier to understand.
+- Use camelCase for JavaScript variables and functions, and PascalCase for React components and classes.
+- Keep logic shallow and human readable. Prefer early returns and guard clauses over nested conditionals.
+- Put opening braces on the same line as the statement or declaration. Put the body on subsequent lines and the closing brace on its own line. Do not compress functions or control flow into one line.
+- Apply DRY pragmatically. When something is used in more than one place, consider centralizing it in a shared utility module named for its responsibility. Avoid a miscellaneous utilities god file.
+- Keep files focused and responsibilities separate. Do not introduce god files.
+- Replace magic numbers and strings with clearly named constants.
+- Prefix private members with `_`, globals with `g_`, static members with `s_`, and constants with `k_`. Use SNAKE_UPPERCASE for preprocessor defines where the language supports them.
+- Use inheritance where applicable and where it represents a clear relationship. Follow React's component and hook conventions for the existing functional UI.
+- Leave touched logic better than you found it: when modifying existing logic that does not follow these conventions, clean up the affected code as part of the work, preserving behavior and test coverage. Keep unrelated formatting or structural rewrites separate from test-driven defect fixes.
+
+## Agreed testing workflow
+
+- Use the owner's TDD skill: public behavior tests, one failing test followed by the minimal fix, one slice at a time. Do not mock internal collaborators or derive expected results by repeating the implementation.
+- The owner approved these test boundaries: ledger calculations/validation; frozen plans/drift alerts; outlook/historical averages; savings interest; import/export/merge; storage/startup; user transaction flows.
+- Strengthen coverage of the existing behavior before implementing the pending handoff features. Minimal fixes for defects exposed by the tests are authorized.
+- Keep unimplemented requirements explicit. Do not turn known limitations into accepted product contracts merely to make tests pass, and do not claim exhaustive correctness from a coverage percentage.
+
+## Branches, fixes and review
+
+- Fix bugs exposed by coverage or review immediately, before beginning the next feature or task. Add a failing regression first and verify the fix.
+- Create a dedicated `codex/` branch for each task or independently opened bug before making its changes. Keep all bugs caught by that task's tests or review on the same task branch; do not split those fixes into separate branches. Merge the branch into the main branch once the work and relevant checks are complete.
+- Request a read-only Claude review at the end of each task when Claude is available. Resolve actionable findings and rerun the affected checks before merging. If Claude cannot review, report the attempt and the reason; do not imply that an independent review happened.
+- Do not push changes or recreate hosting bindings unless the owner requests it.
