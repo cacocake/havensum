@@ -17,11 +17,21 @@ import {TransactionForm,CategoryForm,AccountForm,LoanForm,PlanForm} from './Form
 const nav=[['Overview','LayoutDashboard'],['Transactions','ArrowLeftRight'],['Accounts','Wallet'],['Categories','Shapes'],['Year Plan','CalendarRange'],['Reimbursements','Link2'],['Loans','Landmark']];
 const descriptions={Overview:'A little clarity for your everyday.',Transactions:'The full story, one movement at a time.',Accounts:'Different pockets. One clear picture.',Categories:'A home for every little thing.', 'Year Plan':'Make room for what matters.',Reimbursements:'Because paybacks are not a pay rise.',Loans:'Small steps toward lighter days.',Settings:'Make yourself at home.'};
 export default function App(){
+ const [loadError, setLoadError] = useState(false);
  const [filters,setFilters]=useState({}),[searchFocus,setSearchFocus]=useState(0),[accountId,setAccountId]=useState(null),[pickerYear,setPickerYear]=useState(null);
  const searchRequest=useRef(0);
  const [fontsLoaded]=useMeloFonts();const insets=useInsets();const scrollRef=useRef(null);
  const [state,setState]=useState(null),[screen,setScreen]=useState('Overview'),[month,setMonth]=useState(new Date().toISOString().slice(0,7)),[modal,setModal]=useState(null),[toast,setToast]=useState(''),[search,setSearch]=useState(''),[mobileMenu,setMobileMenu]=useState(false),[monthOpen,setMonthOpen]=useState(false),[saveError,setSaveError]=useState(false);const {width}=useWindowDimensions(),wide=width>=1130,desktop=width>=850,c=state?.theme==='dark'?dark:light;
- useEffect(()=>{readState().then(s=>setState(upgradeCategoryVisuals(compoundSavings(s||seed(),new Date().toISOString().slice(0,7))))).catch(()=>{setState(seed());setToast('Stored data could not be read. Example data loaded.');})},[]);
+ useEffect(() => {
+   readState().then(savedState => {
+     const currentMonth = new Date().toISOString().slice(0, 7);
+     const initialState = savedState || seed();
+     setState(upgradeCategoryVisuals(compoundSavings(initialState, currentMonth)));
+   }).catch(() => {
+     // Leave the saved bytes untouched; sample state must never overwrite a failed load.
+     setLoadError(true);
+   });
+ }, []);
  useEffect(()=>{if(state)writeState(state).then(()=>setSaveError(false)).catch(()=>setSaveError(true))},[state]);
  useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(''),4200);return()=>clearTimeout(timer)},[toast]);
  useEffect(()=>{if(Platform.OS==='web'){document.body.style.background=c.bg;document.title=`Melo · ${screen}`}},[c,screen]);
@@ -33,6 +43,16 @@ export default function App(){
  function startSearch(){openActivity();setSearchFocus(++searchRequest.current);}
  const moreSelected=!['Overview','Transactions','Year Plan'].includes(screen);
  const selected=n=>n==='More'?moreSelected:screen===n;
+ if (loadError) {
+   return (
+     <Theme.Provider value={c}>
+       <View accessibilityRole="alert" style={{ flex: 1, backgroundColor: c.bg, justifyContent: 'center', padding: 24, gap: 16 }}>
+         <H>Stored data could not be read</H>
+         <T>Your saved data has been left untouched. Keep this browser or device data while recovering a verified backup.</T>
+       </View>
+     </Theme.Provider>
+   );
+ }
  if(!state||!fontsLoaded)return <Theme.Provider value={c}><View style={{flex:1,minHeight:600,backgroundColor:c.bg,alignItems:'center',justifyContent:'center',gap:20}}><H size={42}>melo</H><ActivityIndicator color={c.accent}/></View></Theme.Provider>;
  const ctx={state,setState,screen,setScreen:navigate,month,setMonth,modal,setModal,notify:setToast,wide,desktop,search,setSearch,filters,setFilters,searchFocus,openActivity,openAccount,accountId};const Content={Overview:Dashboard,'Account detail':AccountDetail,Transactions,Accounts,Categories,'Year Plan':YearPlan,Reimbursements,Loans,Settings}[screen];
  const navItem=([label,icon])=><Pressable accessibilityRole="button" accessibilityState={{selected:screen===label}} key={label} onPress={()=>navigate(label)} style={{flexDirection:'row',alignItems:'center',gap:13,paddingVertical:12,paddingHorizontal:16,borderRadius:10,marginBottom:5,backgroundColor:screen===label?c.nav:'transparent'}}><Icon name={icon} size={18} color={screen===label?c.peachText:c.sub}/><T style={{fontSize:12.5,color:screen===label?c.peachText:c.sub,fontWeight:screen===label?'600':'400'}}>{label}</T>{screen===label&&<View style={{width:5,height:5,borderRadius:5,backgroundColor:c.accent,marginLeft:'auto'}}/>}</Pressable>;

@@ -8,7 +8,10 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "test": "node --test tests/*.test.js",
+    "test": "node --experimental-test-module-mocks --test tests/*.test.js tests/native/*.test.js",
+    "test:browser": "playwright test",
+    "test:coverage": "node --experimental-test-module-mocks --test --experimental-test-coverage --test-coverage-include=src/** --test-coverage-lines=95 --test-coverage-branches=90 --test-coverage-functions=90 tests/*.test.js tests/native/*.test.js",
+    "test:all": "npm run test:coverage && npm run test:browser",
     "android": "expo start --android",
     "check:android": "expo export --platform android --output-dir android-bundle"
   },
@@ -38,7 +41,8 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "vite": "^6.1.0",
-    "@vitejs/plugin-react": "^4.3.4"
+    "@playwright/test": "^1.65.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.1.0"
   }
 }

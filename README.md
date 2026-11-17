@@ -1,6 +1,6 @@
 # Havensum — local development package
 
-Android-first React Native/Expo expense tracker for Hugo and Marina, with a responsive PC browser display. The source in this package is the last verified published **Melo** implementation. **Havensum branding and the newly requested features are documented work to implement**, not completed functionality.
+Android-first React Native/Expo expense tracker for Hugo and Marina, with a responsive PC browser display. The project starts from the last verified published **Melo** implementation, with subsequent local test hardening documented below. **Havensum branding and the newly requested features are documented work to implement**, not completed functionality.
 
 ## License
 
@@ -14,13 +14,15 @@ Private and proprietary. All rights reserved to the project owner. See [LICENSE]
 
 ## Run locally
 
-Use Node satisfying React Native's recorded engine requirement, **>=20.19.4**, with npm. Android execution also needs a compatible Expo runtime or Android development environment.
+Use **Node 24.18 or later** with npm for the development/test harness. This also satisfies React Native's recorded engine minimum of 20.19.4. Android execution needs a compatible Expo runtime or Android development environment.
 
 ```sh
 npm ci
 npm test
 npm run dev
 ```
+
+For browser regressions, install Chromium with `npx playwright install chromium`, then run `npm run test:all`. See [docs/TESTING.md](docs/TESTING.md) for the agreed boundaries, coverage gates and verification limits.
 
 Use the address printed by Vite. Open `/phone.html` at that address to inspect 320/360/396/412 px phone layouts. Its `?demo=1` iframe resets synthetic example data on reload. The ordinary root persists browser data separately. Browser and Android storage do not automatically sync.
 
@@ -50,7 +52,7 @@ Source transfer does **not** copy the ledger in the hosted app's browser storage
 
 ## Current capabilities and gaps
 
-25 domain tests cover the existing accounting, merge/import and current outlook behavior. They certify the **current plan-derived outlook**, not the proposed independent Expected savings algorithm. The package retains the tested source rather than an unfinished edit. The web build and Android bundle succeeded for this exact upstream baseline earlier in this conversation; this handoff records its own checks in BUNDLE-MANIFEST.json.
+The original 25 tests have been expanded with financial invariants, native adapter checks and browser flows. Local test hardening and the defects it exposed are documented in [docs/TESTING.md](docs/TESTING.md). The outlook remains **plan-derived**, not the proposed independent Expected savings algorithm. BUNDLE-MANIFEST.json records the original imported package's provenance; it is not a manifest of later local edits.
 
 Generic CSV/XLSX import, XLSX export and JSON backup exist. Downloadable Havensum templates, CSV export, verified bank adapters, expected-payback tasks and the rebrand are pending. Drive sync, ETF prices, exact Cashew compatibility, automatic annual interview and physical Android certification are also unfinished.
 

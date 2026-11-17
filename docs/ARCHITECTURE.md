@@ -10,7 +10,11 @@ React 19.1, React Native 0.81.5 and Expo SDK 54 form the native application. Vit
 | `src/main.jsx`, `index.html` | Browser root, global styles and web font loading |
 | `src/App.jsx` | State ownership, screen routing, navigation, dialogs, current month, persistence, notices |
 | `src/context.js` | UI access to state, update functions and navigation |
-| `src/engine.js` | Integer-money calculations, validation, projections, drift, compounding, merge and import deduplication |
+| `src/engine.js` | Compatibility exports for the financial core; compounding, merge and legacy import deduplication |
+| `src/ledger.js`, `src/money.js`, `src/transactionValidation.js` | Cash/net-spending calculations, decimal conversion and shared transaction constraints |
+| `src/planning.js`, `src/calendar.js`, `src/reportingHistory.js` | Frozen plan/drift, calendar boundaries and relevant recorded-month selection |
+| `src/AccountForm.jsx`, `src/useDirtyForm.js` | Account editor and shared dirty-form tracking |
+| `src/importFiles.js`, `src/storageKeys.js`, `src/domainConstants.js` | Shared file parsing, legacy storage identities and named domain constants |
 | `src/Dashboard.jsx` | Activity-first home; quick entry, transactions, pockets, wheel and chart |
 | `src/Screens.jsx` | Transactions, accounts, categories, reimbursements, loans, plan, settings/import/merge UI |
 | `src/Forms.jsx` | Transaction/category/account/loan editors and the planning interview |
@@ -26,7 +30,7 @@ React 19.1, React Native 0.81.5 and Expo SDK 54 form the native application. Vit
 | `src/DateControl.*.jsx` | Browser date input / native Android date picker |
 | `src/fonts.*.js`, `src/insets.*.js`, `src/Icon.*.jsx` | Platform font, safe-area and icon adapters |
 | `src/seed.js` | Illustrative state; never a real user ledger |
-| `tests/engine.test.js` | Seventeen domain invariants and edge-case tests |
+| `tests/`, `tests/native/`, `tests/browser/` | Financial regressions, native boundary adapters and browser user flows; see TESTING.md |
 | `public/phone.html` | Browser review shell, selectable phone widths, isolated demo iframe |
 
 There is no server-side financial database, authentication model for two household members, Google Drive adapter, investment quote adapter or scheduled backend worker in this repo.
