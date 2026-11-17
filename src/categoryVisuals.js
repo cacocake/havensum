@@ -1,0 +1,3 @@
+const upgrades={home:['#E69973','#E88A5B'],groceries:['#82ADBF','#5B91C4'],dining:['#B9B878','#C8A448'],transport:['#B3A0CA','#A084D0'],fun:['#CAA1BE','#C47DA3'],health:['#91B6A9','#45A2B2'],subs:['#91A4CE','#8A88CC'],travel:['#D8B36B','#D99941'],shopping:['#D59CA4','#C68C95'],loan:['#C3A58D','#A78669'],salary:['#91B6A9','#45A2B2'],interest:['#B9B878','#C8A448']};
+// Upgrade only the original example palette. User-picked colours and inherited fields stay intact.
+export function upgradeCategoryVisuals(state){return {...state,categories:state.categories.map(c=>upgrades[c.id]&&c.color===upgrades[c.id][0]?{...c,color:upgrades[c.id][1]}:c)};}

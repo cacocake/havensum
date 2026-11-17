@@ -1,0 +1,326 @@
+{
+  "product": "Havensum",
+  "source_branding": "Melo (rename pending)",
+  "prepared_date": "2026-11-17",
+  "source_commit": "0ac7b234bab14ea7fd80926e48466ab7aa808117",
+  "scope": "Verified published source + updated local development handoff; no live-site changes",
+  "verification_this_package": {
+    "domain_tests": 25,
+    "result": "passed",
+    "source_matches_published_commit": true,
+    "web_android_builds": "Succeeded for this source baseline earlier; not rerun for this documentation-only packaging"
+  },
+  "pending": [
+    "Havensum rename and logo",
+    "Independent Expected savings",
+    "Downloadable CSV template",
+    "CSV primary export and reviewed append/reconciliation",
+    "Verified owner bank adapters (samples needed)",
+    "Expected-payback task lifecycle"
+  ],
+  "excluded": [
+    "Git history and remotes",
+    "Hosted project binding",
+    "Dependencies and build outputs",
+    "Browser screenshots",
+    "Real ledger and bank statements",
+    "Credentials and signing keys"
+  ],
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha256": "88fe2298c76da26c1657f25b79a89bf209ae929b5cabfd829a3461dea6b49a6d",
+      "bytes": 99
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "f08a0645cbcc433dc553be819239511a8bfa91bf7a398c9eecf45437ef1a4e7a",
+      "bytes": 2966
+    },
+    {
+      "path": "DECISIONS.md",
+      "sha256": "22e1d6e5d73561fbbbb904da2af1064fdb8b1ebefb309c8492f12b9c74cfb12b",
+      "bytes": 11777
+    },
+    {
+      "path": "HANDOFF.md",
+      "sha256": "e5ada063ab0427ab26fac3b972af8eb90bfd9dcfb16992b12c2d8d489795a29e",
+      "bytes": 15769
+    },
+    {
+      "path": "NEXT_AGENT_PROMPT.md",
+      "sha256": "807f86d23c53224b25ea1bba48cbaaaca71fb8aabee563525f5e43d69b024b05",
+      "bytes": 3225
+    },
+    {
+      "path": "README.md",
+      "sha256": "176ab774be433e40b30d442d86abcf058f1ced7b0fc703e9292c2e572b251771",
+      "bytes": 3524
+    },
+    {
+      "path": "app.json",
+      "sha256": "dd69c64b68802b70d8f9d801313cbe00b3a1d897ebb517ddc08daa072fbed63c",
+      "bytes": 190
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "sha256": "c148d2a62dfc46ae12c0f4b189ccb67b4ee285ff8a47921ad3277188a5e82c34",
+      "bytes": 8205
+    },
+    {
+      "path": "docs/CSV_SPEC.md",
+      "sha256": "3f9412461e1b518df05bfb92dd3d297eff1bb3154aca81de85468cfa6181bf8d",
+      "bytes": 6521
+    },
+    {
+      "path": "docs/HAVENSUM_REQUIREMENTS.md",
+      "sha256": "48e8a4a011d4d2c05d6fb151f994205f5bd778a9779483c4e4b04dfb8a38e842",
+      "bytes": 15196
+    },
+    {
+      "path": "docs/IMPLEMENTATION_PLAN.md",
+      "sha256": "9c8cf930fbd4f7c3e34e843196623596d4d7c486e3fdce35aa36c56ddc05772b",
+      "bytes": 5744
+    },
+    {
+      "path": "docs/UX_UPDATE.md",
+      "sha256": "d73c2696c7904622bc70ceacfee54f2a1529e0de30e296316521b2b3f81e741a",
+      "bytes": 7703
+    },
+    {
+      "path": "eas.json",
+      "sha256": "6b361aacb2d8cfab9d076278042a386b7497e4b8a9be0b7d06fac78c0c596549",
+      "bytes": 132
+    },
+    {
+      "path": "index.html",
+      "sha256": "6693454ee2307a748517fb5fef7b86ee9c0914d0fb1e53621792e4d9cbbc6716",
+      "bytes": 833
+    },
+    {
+      "path": "index.native.js",
+      "sha256": "41bbcf102722a1832822b7ddf423adcceb0a07abd04a5f5991e01800a332d540",
+      "bytes": 263
+    },
+    {
+      "path": "metro.config.cjs",
+      "sha256": "eb54280f49d8f9ac5d6d30d0065c965ec9dd1d8646146a527975df605fb882d0",
+      "bytes": 202
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "bc1f07cfda533c4fbec15e667fc7913f2b7e8f6449878aa5b96c41acd21c967f",
+      "bytes": 438173
+    },
+    {
+      "path": "package.json",
+      "sha256": "5408c82b40ab17fcc1b561dc11e500d22bffd1389e1796ee6a01ca413d68f87f",
+      "bytes": 1284
+    },
+    {
+      "path": "public/favicon.svg",
+      "sha256": "f3fd567d0e1fb42d63e827e604be48e2d3ee7cd68b997172fa0f5dfb39be4a11",
+      "bytes": 251
+    },
+    {
+      "path": "public/phone.html",
+      "sha256": "202b5a1759e9ebb20cf557d56b956df1c25ca2a8e9894f2726ba9aef0864e6e3",
+      "bytes": 1733
+    },
+    {
+      "path": "src/App.jsx",
+      "sha256": "626db4dcc6489a1221dee29775463ba4d8887a6f21dda6c5c39bf8faa1dd64b5",
+      "bytes": 14363
+    },
+    {
+      "path": "src/CategoryGlyph.jsx",
+      "sha256": "716a1551f56de10131b97acbca9828416cf54494007f631f1078eee4d096315e",
+      "bytes": 374
+    },
+    {
+      "path": "src/CategorySelect.jsx",
+      "sha256": "f00feb9df6d6610d5fb92c716b74b008b3cbc3278b0b3a65d4ed0fff2bd4bd97",
+      "bytes": 2592
+    },
+    {
+      "path": "src/Charts.native.jsx",
+      "sha256": "6ec196212ee36c1c4d74a4795461063a50fc9d5ea4dafa5605ac0498a44b2f16",
+      "bytes": 2712
+    },
+    {
+      "path": "src/Charts.web.jsx",
+      "sha256": "3fd7cfd78a9fa26c035b35ca62294665efc9173327c0d2eb227a019bde6a8ad0",
+      "bytes": 4356
+    },
+    {
+      "path": "src/Dashboard.jsx",
+      "sha256": "2bc98b2302a46278cb27b6e07d3f4f5c783b31cfb027788cee6005e0bd857fa9",
+      "bytes": 19385
+    },
+    {
+      "path": "src/DateControl.native.jsx",
+      "sha256": "0c271c8505601046f4cf799aace2820df1264544e414b1e67bc74d443b86c972",
+      "bytes": 910
+    },
+    {
+      "path": "src/DateControl.web.jsx",
+      "sha256": "e8edcdb09910ec4c67581f7e3e48c4fcea4f8444f04eaa6902eae05682f713de",
+      "bytes": 189
+    },
+    {
+      "path": "src/Details.jsx",
+      "sha256": "732c90980876d854930e42eb7befb1e810bc68559d9c3303f643121643c6c4e1",
+      "bytes": 5450
+    },
+    {
+      "path": "src/Forms.jsx",
+      "sha256": "981e971c2fbc9e8af8af1d60b9048c158c26b7a41a307fd80722a38dc98ea80f",
+      "bytes": 25736
+    },
+    {
+      "path": "src/Icon.native.jsx",
+      "sha256": "330c19e470d9dc01296a86ccb3516df4bb6038be1a54e24533de302dcff9ccbc",
+      "bytes": 3629
+    },
+    {
+      "path": "src/Icon.web.jsx",
+      "sha256": "ddf0afc8a56fc9af317cde21d6c1790ef6bae1f73f026dc47b81b3598b9a949a",
+      "bytes": 3622
+    },
+    {
+      "path": "src/Motion.native.jsx",
+      "sha256": "7b2cfeea1bc0e86afbee83b5fe8ec64652a8f297e878a0e446f7da253c213bd5",
+      "bytes": 1469
+    },
+    {
+      "path": "src/Motion.web.jsx",
+      "sha256": "7c92489b680126a0839dbf8d9cd6f114296e6f6e652346f0ff761a76e39fbe48",
+      "bytes": 1624
+    },
+    {
+      "path": "src/PlanScreen.jsx",
+      "sha256": "556715b8cf5b5d1faa0c25a1eaacb250b90d6a8b9928d6f3dffaeb340fc8a8d8",
+      "bytes": 13019
+    },
+    {
+      "path": "src/Playful.jsx",
+      "sha256": "04cac51add69d134edf64f43835edcb27b135c9371cbd0c41ccfd0cc042e3575",
+      "bytes": 4804
+    },
+    {
+      "path": "src/Screens.jsx",
+      "sha256": "674a2392a250dd6f73ce73b28f2bfb7f1ffff6d301e2b64e18842bf20b264015",
+      "bytes": 25661
+    },
+    {
+      "path": "src/activity.js",
+      "sha256": "6d2e0bdf95ff5ac2af7936baaf9c8e3e1a5b07ac20da84bb411324e51e6b44fa",
+      "bytes": 764
+    },
+    {
+      "path": "src/categoryVisuals.js",
+      "sha256": "b13157f7699ac894135b856d55c2acac53507f885ff7346c59da90f88c856546",
+      "bytes": 646
+    },
+    {
+      "path": "src/chartGeometry.js",
+      "sha256": "9fa96507c0d973a2c0f585ea6d357afa629fdf02b097bbaa232a77b87fa7a263",
+      "bytes": 492
+    },
+    {
+      "path": "src/context.js",
+      "sha256": "639af007bb22da86a959c4dce0d6e1aa2ef5e2d136e2b71812f857d2a0d4d984",
+      "bytes": 141
+    },
+    {
+      "path": "src/engine.js",
+      "sha256": "0355b04233334547803313b30b2e104ed97189e86563dfb41423c6d1018e05a8",
+      "bytes": 10820
+    },
+    {
+      "path": "src/files.native.js",
+      "sha256": "2da5b121f2e69d1ff19cc69e77b895b010416192bd23170c8b91f834c9cfc1f2",
+      "bytes": 2137
+    },
+    {
+      "path": "src/files.web.js",
+      "sha256": "82e91eb4857e757fa0d4a97bb461976a9373d3b39256ff442c82c458cdf7b8ec",
+      "bytes": 1753
+    },
+    {
+      "path": "src/fonts.native.js",
+      "sha256": "a9d9d5159f8918ee9e4468f0bcab88a34a3b8f97c238d26bbc347719d769b194",
+      "bytes": 251
+    },
+    {
+      "path": "src/fonts.web.js",
+      "sha256": "21bf561560d6e55be712e982ae38e4a982e9728e2e606f1915ad3ba1db829638",
+      "bytes": 47
+    },
+    {
+      "path": "src/insets.native.js",
+      "sha256": "3b746809bc23f0b94d2209b9caba9c71053ad54acd04bd243fc5de80da34b819",
+      "bytes": 79
+    },
+    {
+      "path": "src/insets.web.js",
+      "sha256": "40f026ed6603ff3e9c6d40fa5c7c5d27859fea3c911ee7ba78d124ea2f2a9118",
+      "bytes": 69
+    },
+    {
+      "path": "src/main.jsx",
+      "sha256": "4fa7f0edb14ae72fad65c6b8ec4619c3d8585da3e43af745094d227d4335f9d4",
+      "bytes": 181
+    },
+    {
+      "path": "src/planInsights.js",
+      "sha256": "70f829a7d75f15d46aee6e4fd421a2837eca0ae8ec4b47f1d5412713d97f67bb",
+      "bytes": 4183
+    },
+    {
+      "path": "src/seed.js",
+      "sha256": "34bbfd05dfcf3737b5188a05416545e2437843a56888152d069cb326262e7914",
+      "bytes": 5449
+    },
+    {
+      "path": "src/storage.native.js",
+      "sha256": "e0f3f5d1535480aa908c2c8f28145cd24981300b03ab6f078bc9be0965d391ec",
+      "bytes": 653
+    },
+    {
+      "path": "src/storage.web.js",
+      "sha256": "79f369e4b53ac086b5599b2f8d441422db9552bf4097dd7ad820fd8dbb042a40",
+      "bytes": 569
+    },
+    {
+      "path": "src/ui.jsx",
+      "sha256": "0f983bc619043e6cf459b86b661646d2e1dc9ecdb807097434c1d98817a29b3c",
+      "bytes": 10274
+    },
+    {
+      "path": "src/web.css",
+      "sha256": "70f140439f2777d6f270a20cdee6470ebaef9eb9e44c5c135035f126a4403289",
+      "bytes": 2036
+    },
+    {
+      "path": "src/workbook.js",
+      "sha256": "96923f0f57f24e0028890f121e70dc0c58be6c2ba046dd1ad0ca2d932e99d262",
+      "bytes": 1955
+    },
+    {
+      "path": "tests/engine.test.js",
+      "sha256": "088306636521ae8a263872bc0365e66cfef70746dc614eb9e8077c50d168f3e2",
+      "bytes": 6733
+    },
+    {
+      "path": "tests/planInsights.test.js",
+      "sha256": "e003d6821aaf077c244d7b88e1295a13fa5756123b210f9350c395b5a98b37b6",
+      "bytes": 4428
+    },
+    {
+      "path": "vite.config.js",
+      "sha256": "de9e12ac5f4f6f0b50b9494765b74f76b82f0c68a0f07b562b52fd683dba0b20",
+      "bytes": 349
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.expo/
+*.tar.gz
+android-bundle/
+.env*
+!.env.example
+.dev.vars*
+*.zip
+.DS_Store

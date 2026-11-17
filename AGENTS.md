@@ -1,0 +1,27 @@
+# Working on Havensum
+
+Read HANDOFF.md, DECISIONS.md and docs/HAVENSUM_REQUIREMENTS.md first. Current implementation is a React Native/Expo Android app with a React Native Web browser adaptation. Keep native and browser ports aligned.
+
+- Use integer euro cents. EUR is the only currency.
+- Keep cash balances, net spending, income and frozen forecasts separate.
+- Linked reimbursements net against their original expense month; they never become earnings. Transfers never enter income or spending averages.
+- Existing loans do not credit an account unless explicitly selected. Actual repayments remain recorded transactions.
+- Never silently recalculate a plan or rewrite its historical months. Manual overrides take priority and must be marked.
+- Category budgets only drive overspend bars. Per-field inheritance and transaction behaviour overrides must remain intact.
+- Preserve custom category names/icons/colours. Use one clean, flat Lucide symbol family with consistent stroke weights. No emoji or glossy category icons.
+- UI is mobile first, playful and cozy, with quick entry and activity before account summaries. Respect reduced motion and safe areas.
+- Verify chart/legend bounds at narrow widths. Avoid equal flex heights for intrinsic-height content stacked in a column.
+- Do not claim Google Drive, ETF pricing, exact Cashew compatibility, an APK, or physical-device verification without implementing and checking them.
+- Read the open decisions before choosing Drive scope, shared-account visibility, accrual conventions or investment identifiers.
+- No bank linking, non-EUR support, savings objectives, bill splitting or native PC app without explicit scope change.
+- Run relevant checks from package.json. Domain changes need tests that exercise real invariants; a successful Hermes export is compilation, not an Android install or device test.
+- Never commit credentials, runtime financial data, downloaded dependencies or compiled outputs.
+
+The new-repo handoff intentionally excludes the original hosting project identity and Git configuration. Do not recreate those bindings unless the owner requests them.
+
+- The current code is the last verified Melo baseline. New Havensum requirements are pending, not finished features.
+- Keep Planned savings (frozen target) distinct from Expected savings (independent prediction). Add a regression proving target-only edits cannot move the prediction.
+- CSV imports append through preview and explicit merge/deduplication; never silently replace existing records or classify every bank inflow as earnings.
+- Closing an expected-payback task without payment changes task metadata only. Only recorded reimbursements change cash/net spending.
+- Treat bank statement samples and real financial backups as private runtime data. Commit only synthetic or carefully sanitized fixtures.
+- Preserve old melo-state-v1/melo-sync-base data through an explicit migration. Do not lose data merely to complete the rename.
