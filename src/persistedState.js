@@ -1,5 +1,10 @@
 import { migrateState, validateState, k_currentStateVersion, UnsupportedStateVersionError } from './stateSchema.js';
 
+function invalidCopyKey(key, index) {
+  const prefix = `${key}:recovery:invalid`;
+  return index === 0 ? prefix : `${prefix}:${index}`;
+}
+
 async function readPersistedState(storage, key, parseState = JSON.parse, recoverInvalid = false) {
   const encodedState = await storage.getItem(key);
   if (encodedState === null) {
@@ -13,10 +18,9 @@ async function readPersistedState(storage, key, parseState = JSON.parse, recover
     if (!recoverInvalid || !(error instanceof SyntaxError) || error instanceof UnsupportedStateVersionError) {
       throw error;
     }
-    const recoveryKey = `${key}:recovery:invalid`;
     let recoveryIndex = 0;
     while (true) {
-      const keyForCopy = recoveryIndex ? `${recoveryKey}:${recoveryIndex}` : recoveryKey;
+      const keyForCopy = invalidCopyKey(key, recoveryIndex);
       const savedCopy = await storage.getItem(keyForCopy);
       if (savedCopy === encodedState) {
         break;
@@ -54,6 +58,19 @@ export function createPersistedStorage(getStorage) {
   return {
     read(key, parseState) {
       return enqueue(() => readPersistedState(getStorage(), key, parseState));
+    },
+    readLatestInvalidCopy(key) {
+      return enqueue(async () => {
+        const storage = getStorage();
+        let latest = null;
+        for (let index = 0; ; index += 1) {
+          const copy = await storage.getItem(invalidCopyKey(key, index));
+          if (copy === null) {
+            return latest;
+          }
+          latest = copy;
+        }
+      });
     },
     async write(key, state, { recoverInvalid = false } = {}) {
       // Capture before queuing so later edits cannot change this save.

@@ -14,6 +14,30 @@ test('startup recovery downloads exact saved bytes when the ledger cannot be ope
   await button.click();
   expect(await readFile(await (await download).path(), 'utf8')).toBe(originalBytes);
 });
+
+test('the latest invalid merge baseline is downloadable after a new baseline is saved', async ({ page }) => {
+  const damagedBaseline = '{newly damaged synthetic baseline\n';
+  const olderBytes = '{older synthetic baseline';
+  await page.route('https://fonts.googleapis.com/**', route => route.abort());
+  await page.addInitScript(({ ledger, damaged, older }) => {
+    localStorage.setItem('melo-state-v1', JSON.stringify(ledger));
+    localStorage.setItem('melo-sync-base', damaged);
+    localStorage.setItem('melo-sync-base:recovery:invalid', older);
+  }, { ledger: createFinancialState({ version: 2 }), damaged: damagedBaseline, older: olderBytes });
+  await page.goto('/');
+  await openMoreSection(page, 'Settings');
+  const exported = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export shared baseline', exact: true }).click();
+  await exported;
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('melo-sync-base:recovery:invalid:1')))
+    .toBe(damagedBaseline);
+  const recoveryButton = page.getByRole('button', { name: 'Download invalid baseline copy', exact: true });
+  await expect(recoveryButton).toBeVisible({ timeout: 2500 });
+  const recovery = page.waitForEvent('download');
+  await recoveryButton.click();
+  expect(await readFile(await (await recovery).path(), 'utf8')).toBe(damagedBaseline);
+  expect(await page.evaluate(() => localStorage.getItem('melo-sync-base:recovery:invalid'))).toBe(olderBytes);
+});
 test('legacy startup preserves the original ledger and links across repeated app loads', async ({ page }) => {
   const state = createFinancialState({ version: 1, transactions: [createTransaction()] });
   const originalBytes = JSON.stringify(state, null, 2);

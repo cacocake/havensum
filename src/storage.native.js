@@ -25,6 +25,10 @@ export async function readSnapshot() {
   return k_persistedStorage.read(k_snapshotStorageKey, parseMergeBaseline);
 }
 
+export async function readInvalidSnapshotCopy() {
+  return k_persistedStorage.readLatestInvalidCopy(k_snapshotStorageKey);
+}
+
 export async function writeSnapshot(state) {
   await k_persistedStorage.write(k_snapshotStorageKey, state, { recoverInvalid: true });
 }

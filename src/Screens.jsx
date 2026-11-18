@@ -7,8 +7,8 @@ import Icon from './Icon';
 import CategoryGlyph from './CategoryGlyph.jsx';
 import {euro,monthOf,reportingMonthStats,netExpenses,categorySettings,accountBalance,driftAlerts,mergeThreeWay,importUnique,cents,validateTransaction} from './engine.js';
 import {AccountCard,TransactionRow} from './Dashboard.jsx';
-import {exportExcel,downloadJSON,chooseFile,readImport} from './files';
-import {readSnapshot,writeSnapshot,isDemoSession} from './storage';
+import {exportExcel,downloadJSON,downloadSavedLedgerCopy,chooseFile,readImport} from './files';
+import {readInvalidSnapshotCopy,readSnapshot,writeSnapshot,isDemoSession} from './storage';
 import { migrateState, validateState } from './stateSchema.js';
 const k_backupMessages = {
   saved: 'Backup exported · local merge baseline saved',
@@ -58,6 +58,18 @@ export function Settings(){
      }
      await writeSnapshot(state);
      notify(k_backupMessages.saved);
+   } catch (error) {
+     notify(error.message);
+   }
+ }
+ async function downloadInvalidBaseline() {
+   try {
+     const encodedBaseline = await readInvalidSnapshotCopy();
+     if (encodedBaseline === null) {
+       notify('No invalid baseline copy is saved on this device.');
+       return;
+     }
+     await downloadSavedLedgerCopy(encodedBaseline, 'Havensum-invalid-baseline-recovery.txt');
    } catch (error) {
      notify(error.message);
    }
@@ -116,7 +128,7 @@ export function Settings(){
  }
  return <View style={{gap:22}}><Card><H size={22}>A little more you</H><Toggle value={state.theme==='dark'} onChange={v=>setState(s=>({...s,theme:v?'dark':'light'}))} label="Dark theme" description="A softer glow when the day winds down."/><Divider/><Row style={{justifyContent:'space-between',gap:12}}><View style={{flex:1}}><T style={{fontSize:13}}>Currency</T><T style={{fontSize:11,color:c.muted,marginTop:3}}>All balances, amounts, and exports use euros.</T></View><Badge>EUR · €</Badge></Row></Card>
  <Card><Row style={{gap:12,marginBottom:20}}><TileIcon name="ArrowDownToLine" color="#91A4CE"/><View><H size={22}>Your data travels with you</H><T style={{fontSize:11,color:c.sub,marginTop:4}}>Portable files. No bank connection. No lock-in.</T></View></Row><Row style={{gap:10,flexWrap:'wrap'}}><Button small onPress={excel} disabled={busy} icon="Sheet">{busy?'Preparing Excel…':'Export Excel'}</Button><Button small kind="outline" onPress={selectImport} icon="Upload">Import transactions</Button><Button small kind="outline" onPress={exportBackup} icon="Download">Full JSON backup</Button></Row><T style={{fontSize:11,color:c.muted,marginTop:16}}>Excel includes a styled monthly summary, plain transaction rows, and account/category tables. JSON preserves the complete plan and all settings.</T><Divider/><T style={{fontSize:12,fontWeight:'500'}}>Coming from Cashew?</T><T style={{fontSize:11,color:c.sub,marginTop:6}}>Import CSV, Excel, or a transaction-array JSON with column and account/category mapping. Preview every row before importing. Exact compatibility with your Cashew export is unverified until a real file is tested.</T></Card>
- <Card><Row style={{gap:12,marginBottom:18}}><TileIcon name="UsersRound" color="#91B6A9"/><View><H size={22}>A shared rhythm</H><T style={{fontSize:11,color:c.sub,marginTop:4}}>For you and Marina, without the guesswork.</T></View></Row><Row style={{justifyContent:'space-between'}}><T style={{fontSize:13}}>Google Drive</T><Badge>Not connected</Badge></Row><T style={{fontSize:12,color:c.sub,marginTop:12}}>Automatic Drive sync needs Google OAuth configuration. Until then, exchange full JSON backups manually using a common exported baseline.</T><Row style={{gap:10,marginTop:17,flexWrap:'wrap'}}><Button small kind="outline" icon="GitMerge" disabled={isPreview} onPress={mergeFile}>Review backup merge</Button><Button small kind="soft" icon="Download" onPress={exportBackup}>{isPreview ? 'Export example backup' : 'Export shared baseline'}</Button></Row>{isPreview&&<T style={{fontSize:11,color:c.muted,marginTop:15}}>{k_backupMessages.previewUnavailable}</T>}<T style={{fontSize:11,color:c.muted,marginTop:15}}>Different-field edits merge silently. Same-field edits and edit-versus-delete always require your choice. A saved local baseline is used for the three-way comparison.</T><Divider/><Row style={{gap:10}}><Icon name="Eye" size={16} color={c.sub}/><T style={{flex:1,fontSize:11,color:c.sub}}>Both people's accounts are included in an exchanged backup. Account tags are labels, not privacy controls.</T></Row></Card>
+ <Card><Row style={{gap:12,marginBottom:18}}><TileIcon name="UsersRound" color="#91B6A9"/><View><H size={22}>A shared rhythm</H><T style={{fontSize:11,color:c.sub,marginTop:4}}>For you and Marina, without the guesswork.</T></View></Row><Row style={{justifyContent:'space-between'}}><T style={{fontSize:13}}>Google Drive</T><Badge>Not connected</Badge></Row><T style={{fontSize:12,color:c.sub,marginTop:12}}>Automatic Drive sync needs Google OAuth configuration. Until then, exchange full JSON backups manually using a common exported baseline.</T><Row style={{gap:10,marginTop:17,flexWrap:'wrap'}}><Button small kind="outline" icon="GitMerge" disabled={isPreview} onPress={mergeFile}>Review backup merge</Button><Button small kind="soft" icon="Download" onPress={exportBackup}>{isPreview ? 'Export example backup' : 'Export shared baseline'}</Button><Button small kind="soft" disabled={isPreview} onPress={downloadInvalidBaseline}>Download invalid baseline copy</Button></Row>{isPreview&&<T style={{fontSize:11,color:c.muted,marginTop:15}}>{k_backupMessages.previewUnavailable}</T>}<T style={{fontSize:11,color:c.muted,marginTop:15}}>Different-field edits merge silently. Same-field edits and edit-versus-delete always require your choice. A saved local baseline is used for the three-way comparison.</T><Divider/><Row style={{gap:10}}><Icon name="Eye" size={16} color={c.sub}/><T style={{flex:1,fontSize:11,color:c.sub}}>Both people's accounts are included in an exchanged backup. Account tags are labels, not privacy controls.</T></Row></Card>
  <Card><Row style={{gap:12}}><TileIcon name="ChartNoAxesCombined" color="#B3A0CA"/><View style={{flex:1}}><H size={20}>Investment prices</H><T style={{fontSize:11,color:c.sub,marginTop:6}}>Twelve Data is not connected. Your investments use manual balances. ETF coverage, end-of-day access, and licensing still need verification.</T></View><Badge>Manual</Badge></Row></Card>
  {state.demo&&<Card style={{borderColor:c.dark?'#5b4637':'#f0d6c1'}}><H size={20}>A fresh start</H><T style={{fontSize:12,color:c.sub,marginTop:8,marginBottom:16}}>You are exploring example data. Clear it to begin with your own accounts and transactions. Export a backup first if you want to keep any changes.</T>{clear?<Row style={{gap:10,flexWrap:'wrap'}}><Button small kind="outline" onPress={()=>setClear(false)}>Keep my data</Button><Button small onPress={()=>{setState(s=>({...s,demo:false,accounts:[],transactions:[],loans:[],events:[],plan:null}));setClear(false);notify('Example data cleared');}}>Clear example data permanently</Button></Row>:<Button small kind="outline" onPress={()=>setClear(true)} icon="Eraser">Clear example data</Button>}</Card>}
  <T style={{fontSize:11,color:c.muted,textAlign:'center'}}>Melo 0.1 · Android-first React Native · Browser preview</T>
