@@ -1,20 +1,6 @@
 import { categoryPath } from './csvExchange.js';
 import { k_transactionTypes } from './domainConstants.js';
-
-const k_fingerprintOffset = 0xcbf29ce484222325n;
-const k_fingerprintPrime = 0x100000001b3n;
-const k_fingerprintBits = 64;
-
-function movementFingerprint(row) {
-  const { date, amount, direction } = row.movement;
-  const source = JSON.stringify([date, amount, direction, row.title.trim().normalize('NFC')]);
-  let hash = k_fingerprintOffset;
-  for (const character of source) {
-    hash ^= BigInt(character.codePointAt(0));
-    hash = BigInt.asUintN(k_fingerprintBits, hash * k_fingerprintPrime);
-  }
-  return hash.toString(16);
-}
+import { movementFingerprint } from './movementFingerprint.js';
 
 export function getBankDrafts(state, statement, targetAccount, statementNumber) {
   const accounts = state.accounts.filter(account => String(account.id) === String(targetAccount));

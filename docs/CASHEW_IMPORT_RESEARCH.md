@@ -16,6 +16,8 @@ The [official guide](https://cashewapp.web.app/faq.html#import-csv-data) describ
 
 ## Adapter design and verification still required
 
+The separate `cashew-csv-v1` profile implements the published header signature. Synthetic verification covers signed EUR, literal calendar dates, explicit classification, account mapping and reviewed creation at zero, transfer pairing, source duplicate review, and linking credits to an expense. The account and any approved transactions are saved together after the pre-import recovery copy. The CSV leaves starting balances and original-expense links to the owner. No actual export from the owner's app version has been checked.
+
 - Detect a versioned Cashew profile from the actual header signature; do not use the filename as identity.
 - Parse signed EUR amounts exactly, validate the sign against explicit source fields, and require review for ambiguous inflows, special types and balance corrections. Never infer earnings from a positive sign alone.
 - Preserve the literal calendar date from the agreed timestamp/date basis. Confirm timezone and locale with the owner's actual version; do not shift transaction dates by converting an ambiguous local timestamp to UTC.

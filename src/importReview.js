@@ -147,7 +147,7 @@ function bankOverlapLookup(originals, bankRows) {
 }
 
 export function previewTransactionImport(state, transactions, options = {}) {
-  const { originals = transactions, bankRows = [], bankPairs = {} } = options;
+  const { originals = transactions, bankRows = [], bankPairs = {}, pendingAccounts = [] } = options;
   const pairedCredits = new Map(Object.entries(bankPairs).map(([debit, pair]) => [pair.counterpartIndex, Number(debit)]));
   const overlappingBankRows = bankOverlapLookup(originals, bankRows);
   const rows = transactions.map((transaction, index) => {
@@ -194,6 +194,7 @@ export function previewTransactionImport(state, transactions, options = {}) {
   const importedIds = new Set([...candidates.values()].map(transaction => transaction.id));
   const combinedState = {
     ...state,
+    accounts: [...state.accounts, ...pendingAccounts],
     transactions: [
       ...state.transactions.filter(transaction => !importedIds.has(transaction.id)),
       ...candidates.values()
@@ -214,7 +215,7 @@ export function previewTransactionImport(state, transactions, options = {}) {
       row.error = error.message;
     }
   }
-  return { rows, originals, bankRows, bankPairs, baseline: JSON.stringify(state) };
+  return { rows, originals, bankRows, bankPairs, pendingAccounts, baseline: JSON.stringify(state) };
 }
 
 export function reviseTransactionImport(state, review, rowIndex, { counterpartIndex, transferDate, ...changes }) {
@@ -243,7 +244,9 @@ export function reviseTransactionImport(state, review, rowIndex, { counterpartIn
   const transactions = review.rows.map(row => row.index === rowIndex
     ? { ...row.transaction, ...changes }
     : row.transaction);
-  const revised = previewTransactionImport(state, transactions, { originals: review.originals, bankRows: review.bankRows, bankPairs });
+  const revised = previewTransactionImport(state, transactions, {
+    originals: review.originals, bankRows: review.bankRows, bankPairs, pendingAccounts: review.pendingAccounts
+  });
   for (const row of review.rows) {
     if (row.normalizationError) {
       const revisedRow = revised.rows[row.index];
@@ -295,7 +298,9 @@ export function applyTransactionImport(state, review, choices, createIdentifier)
     }
     transactions.push({ ...row.transaction, id });
   }
-  const result = { ...state, transactions };
+  const accountIds = new Set(transactions.flatMap(transaction => [transaction.account, transaction.toAccount]));
+  const accounts = [...state.accounts, ...(review.pendingAccounts ?? []).filter(account => accountIds.has(account.id))];
+  const result = { ...state, accounts, transactions };
   for (const transaction of transactions) {
     try {
       validateTransaction(result, transaction);

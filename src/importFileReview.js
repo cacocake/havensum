@@ -1,8 +1,15 @@
 import { getImportMapping, normalizeImportRows } from './importNormalization.js';
 import { previewTransactionImport } from './importReview.js';
 import { getBankDrafts } from './realBankReview.js';
+import { getCashewDrafts } from './cashewReview.js';
 
 export function previewImportFile(state, data, options = {}) {
+  if (data.cashew) {
+    const { drafts, pendingAccounts } = getCashewDrafts(state, data, options);
+    return previewTransactionImport(state, drafts.map(draft => draft.transaction), {
+      bankRows: drafts.map(draft => draft.bank), pendingAccounts
+    });
+  }
   if (data.bank) {
     const statements = options.statements ?? [{ data, targetAccount: options.targetAccount }];
     const drafts = statements.flatMap((statement, index) =>

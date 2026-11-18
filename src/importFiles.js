@@ -1,6 +1,7 @@
 import { migrateState } from './stateSchema.js';
 import { Buffer } from 'buffer';
 import { readRealBankStatement } from './realBankCsv.js';
+import { readCashewCsv } from './cashewCsv.js';
 
 const k_jsonExtension = '.json';
 const k_csvExtension = '.csv';
@@ -55,9 +56,9 @@ export async function parseImportContent(fileName, content) {
   const transactionSheet = workbook.Sheets[k_transactionSheet] || workbook.Sheets[workbook.SheetNames[0]];
   if (isCsv) {
     const csvRows = XLSX.utils.sheet_to_json(transactionSheet, { header: 1, blankrows: true, defval: '' });
-    const bankStatement = readRealBankStatement(csvRows);
-    if (bankStatement) {
-      return bankStatement;
+    const recognizedImport = readRealBankStatement(csvRows) ?? readCashewCsv(csvRows);
+    if (recognizedImport) {
+      return recognizedImport;
     }
   }
 
