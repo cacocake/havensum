@@ -11,7 +11,7 @@
 | --- | --- |
 | Collision-resistant IDs for newly created records | Reviewed and integrated into `develop`. |
 | Explicit state schema migration and recovery protection | Reviewed and integrated into `develop`. Missing categories can be left uncategorized or corrected in review. See STATE_MIGRATIONS.md. Full restore remains pending. |
-| Independent Expected savings | Pending; owner confirmed historical occasional reserve with known-cost absorption, explicit cancellation of missing fixed costs, and manually confirmed complete months with labelled partial estimates otherwise |
+| Independent Expected savings | Integrated with frozen-target independence, historical reserves, confirmed months and individual bill cancellation. The separate planned-cost linking feature is in development. |
 | Havensum rename and vector/logo assets | Pending |
 | CSV primary export, template and reviewed import identity | Pending |
 | Expected-payback tasks | Pending |

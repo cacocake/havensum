@@ -38,9 +38,13 @@ test('missing financial history is exposed as unknown averages rather than zero 
   assert.equal(insights.forecast, null);
 });
 
-test('the existing outlook uses leap-month length without double-counting paid rent', () => {
+test('independent outlook uses leap-month length without double-counting paid rent', () => {
   const state = createFinancialState({
-    transactions: [createTransaction({ category: 'rent', kind: 'Fixed', amount: 10000, date: '2024-02-01' })],
+    transactions: [
+      createTransaction({ id: 'paid-rent', category: 'rent', kind: 'Fixed', amount: 10000, date: '2024-02-01' }),
+      createTransaction({ id: 'history-food', amount: 2900, date: '2024-01-10' }),
+      createTransaction({ id: 'history-salary', type: 'income', amount: 200000, date: '2024-01-01' })
+    ],
     plan: { months: {
       '2024-02': {
         income: 200000, expense: 12900, balance: 187100,

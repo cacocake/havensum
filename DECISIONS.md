@@ -40,7 +40,7 @@ As of 17 November 2026. Latest requirements in docs/HAVENSUM_REQUIREMENTS.md sup
 | F07 | Working choice / open | Cushion is its own monthly plan line | Keeps it visible; owner originally left its presentation open |
 | F08 | Working choice | Fixed baseline = latest non-zero category/behaviour total | A prototype approximation, not recurring-contract recognition; see HANDOFF caveats |
 | F09 | Working choice | Interview is a three-step form launched manually | Automatic first-launch/annual prompting and interview completion state are not implemented |
-| F10 | Owner approved, pending implementation | An early payment explicitly linked to a specific event occurrence counts toward spending in the event month | Cash follows each payment date. Linked payments reduce that occurrence's remaining amount. The frozen plan keeps the original estimate. |
+| F11 | Owner approved, pending implementation | An early payment explicitly linked to a specific event occurrence counts toward spending in the event month | Cash follows each payment date. Linked payments reduce that occurrence's remaining amount. The frozen plan keeps the original estimate. |
 
 ## UI direction
 
@@ -117,5 +117,6 @@ These choices are approved requirements for the upcoming implementation, not cla
 | H08 | Owner approved, pending implementation | A missing fixed cost stays in Expected savings until explicitly marked cancelled | Missing transactions alone do not silently cancel an obligation |
 | H09 | Owner approved, pending implementation | Owner marks historical months complete after entering/importing all income and expenses | Incomplete history supports a clearly labelled partial estimate; do not infer completeness from the presence of a transaction |
 | H10 | Owner approved, pending implementation | Keep original ledger and merge-baseline recovery copies for each migrated version until explicitly removed | Migration must not overwrite or automatically prune those original recovery copies |
+| H11 | Owner confirmed | Cancellation applies to an individual bill | Use account, category and title with an explicit effective month. |
 | W01 | Owner approved workflow | Integrate task branches into develop; master is release-only | New task/bug branches start from develop; no release merge without owner instruction |
 | W02 | Owner required review gate | Do not merge, delete or close a task branch before a completed Claude review | A usage limit leaves the branch open; commit locally for safekeeping and request review after access returns |

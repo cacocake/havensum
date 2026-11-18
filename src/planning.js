@@ -1,4 +1,4 @@
-import { categorySettings, netExpenses } from './ledger.js';
+import { categorySettings, netExpenses, hasCategoryParent } from './ledger.js';
 import { previousMonths } from './calendar.js';
 import { hasRecordedFinancialActivity } from './reportingHistory.js';
 import { k_defaultHistoryWindow, k_monthsPerYear, k_spendingBehaviors, k_systemCategoryIds } from './domainConstants.js';
@@ -26,7 +26,7 @@ export function buildPlan(state, {
   const revisionMonth = `${year}-${String(fromMonth).padStart(2, '0')}`;
   const history = previousMonths(revisionMonth, window);
   const recordedMonthCount = history.filter(month => hasRecordedFinancialActivity(state.transactions, month)).length;
-  const rootCategories = state.categories.filter(category => !category.parentId);
+  const rootCategories = state.categories.filter(category => !hasCategoryParent(category));
   const lines = rootCategories.flatMap(category => {
     const settings = categorySettings(state.categories, category.id);
     const belongsToCategory = transaction => {
