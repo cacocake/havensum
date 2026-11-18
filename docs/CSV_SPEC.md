@@ -64,6 +64,16 @@ CSV import is transaction exchange. Full JSON restore and three-way shared-file 
 
 Obtain a sanitized sample of each actual bank/export variant and expected outputs. Cover headers/preamble/footer, delimiter, quoting, encoding, date formats, booking versus value date, signed amount versus debit/credit columns, thousands/decimal separators, stable references, currency, account selection and statement overlap. Keep source row references for errors, but minimize retained private raw data. Confirm the date basis and classification rules explicitly per adapter.
 
+### Real Bank v1
+
+The adapter recognizes the owner-confirmed layout with the report preamble and the transaction headers `Data mov.`, `Data valor`, `Descrição`, `Débito`, `Crédito`, `Saldo contabilístico`, `Saldo disponível`, and `Categoria`. The supplied example parses in UTF-8 with a byte order mark and in Windows-1252. Havensum uses `Data valor` as the transaction date. The owner confirmed that this export is always EUR.
+
+Parsing keeps the transaction direction, value date, source row and amount in integer cents for review. The observed layout has separate debit and credit columns and omits a stable transaction reference. The report account label may be masked, so it cannot establish an account mapping or prove that rows in overlapping files are the same movement.
+
+For expense rows, use `Categoria` as a source label in the existing category mapping. Suggest an existing category only for a unique exact match, and ask the user to resolve unknown or ambiguous labels in preview. A match uses the existing category ID and preserves its settings. A transfer does not need a spending category, and a linked reimbursement offsets the category of its original expense.
+
+The adapter is under development. It reads the confirmed debit example and reports row errors. Applying a statement requires the reviewed import flow, including account mapping, classification, duplicate review, transfer pairing and reimbursement linking. Verification of actual credit, transfer, refund, fee and overlap examples is pending.
+
 ## Minimum acceptance suite
 
 Round-trip four transaction types, partial linked repayments, category paths, behavior overrides and optional expected-payback metadata; exact-cent totals; BOM/accents/quotes/multiline text; malformed/ambiguous amounts and dates; unsupported currency; edited stable ID; repeated file/overlapping bank periods; identical legitimate purchases; two-sided transfer reconciliation; no fake income from refunds/borrowing; no financial changes from task closure.

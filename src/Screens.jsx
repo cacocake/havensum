@@ -51,7 +51,24 @@ export function Settings(){
  const isPreview = isDemoSession();
  const {state,setState,month,notify}=useApp(),c=useContext(Theme),[busy,setBusy]=useState(false),[importData,setImportData]=useState(null),[merge,setMerge]=useState(null),[clear,setClear]=useState(false),[error,setError]=useState('');
  async function excel(){setBusy(true);try{await exportExcel(state,month);notify('Excel exported · summary and re-importable raw data');}catch(e){notify(e.message);}finally{setBusy(false)}}
- async function selectImport(){try{const f=await chooseFile();if(f){const data=await readImport(f);if(!data.rows.length)throw Error('This file contains no transaction rows.');setImportData({...data,name:f.name});}}catch(e){notify(e.message)}}
+ async function selectImport() {
+  try {
+   const file = await chooseFile();
+   if (!file) {
+    return;
+   }
+   const data = await readImport(file);
+   if (data.bank) {
+    throw Error('Real Bank CSV needs bank transaction review before it can be imported.');
+   }
+   if (!data.rows.length) {
+    throw Error('This file contains no transaction rows.');
+   }
+   setImportData({ ...data, name: file.name });
+  } catch (failure) {
+   notify(failure.message);
+  }
+ }
  async function exportBackup() {
    try {
      await downloadJSON(state);

@@ -1,6 +1,7 @@
 import test, { beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
+import { Buffer } from 'node:buffer';
 import { createFinancialState, createTransaction } from '../helpers/financialFixtures.js';
 
 const g_cachedFiles = new Map();
@@ -32,10 +33,13 @@ mock.module('expo-file-system/legacy', { exports: {
   writeAsStringAsync: async (uri, content, options) => {
     g_cachedFiles.set(uri, { content, ...options });
   },
-  readAsStringAsync: async uri => {
+  readAsStringAsync: async (uri, options) => {
     const cachedFile = g_cachedFiles.get(uri);
     if (!cachedFile) {
       throw Error('Synthetic file not found');
+    }
+    if (cachedFile.encoding !== 'base64' && options?.encoding === 'base64') {
+      return Buffer.from(cachedFile.content, 'utf8').toString('base64');
     }
     return cachedFile.content;
   }
@@ -114,7 +118,9 @@ test('native workbook export can be read with account/category metadata and exac
 });
 
 test('native text import preserves UTF-8 CSV and recognizes uppercase JSON extensions', async () => {
-  const csv = await readImport({ name: 'synthetic.csv', text: async () => 'title,amount,date\nCafé,12.34,2026-11-10' });
+  const uri = `${k_cacheDirectory}utf8.csv`;
+  g_cachedFiles.set(uri, { content: 'title,amount,date\nCafé,12.34,2026-11-10' });
+  const csv = await readImport({ name: 'synthetic.csv', uri });
   assert.deepEqual(csv.rows, [{ title: 'Café', amount: '12.34', date: '2026-11-10' }]);
   const state = createFinancialState({ transactions: [createTransaction()] });
   const backup = await readImport({ name: 'synthetic.JSON', text: async () => JSON.stringify(state) });
