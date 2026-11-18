@@ -20,7 +20,7 @@ The last conversation began an independent forecast correction but it was not co
 
 Melo is an Android-first personal expense tracker for Hugo and Marina. It is implemented in React Native/Expo with a browser adaptation for PC viewing. This is a working prototype with a tested accounting core, not a finished or device-certified finance product.
 
-Read this file, [DECISIONS.md](DECISIONS.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) before changing behavior. [NEXT_AGENT_PROMPT.md](NEXT_AGENT_PROMPT.md) is a paste-ready continuation brief. [AGENTS.md](AGENTS.md) records repository-specific constraints.
+Read this file, [DECISIONS.md](DECISIONS.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) before changing behavior. [AGENTS.md](AGENTS.md) records repository-specific constraints.
 
 The fresh-repo ZIP includes source, the lockfile, tests, Expo/Vite configuration, these documents, and implementation specifications. Example browser screenshots are omitted from this source package. It excludes Git history/remotes, the previous hosting identity, dependencies, compiled outputs, local runtime data, and credentials. `BUNDLE-MANIFEST.json` identifies the packaged source revision. No GitHub repository has been created by this handoff.
 
