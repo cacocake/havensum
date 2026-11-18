@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { chromium } from 'playwright';
+import { chromium } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { k_brandPaths, k_brandStrokeWidth, k_brandColors } from '../src/brandGeometry.js';
 
@@ -10,7 +10,7 @@ const k_paths = k_brandPaths.map(path => `<path d="${path}"/>`).join('');
 function createVector(color, { background, adaptive = false } = {}) {
   const viewBoxSize = adaptive ? 108 : 64;
   const backgroundShape = background ? `<rect width="${viewBoxSize}" height="${viewBoxSize}" fill="${background}"/>` : '';
-  const transform = adaptive ? ' transform="translate(6 6) scale(1.5)"' : '';
+  const transform = adaptive ? ' transform="translate(22 22)"' : '';
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewBoxSize} ${viewBoxSize}" role="img" aria-label="Havensum"><title>Havensum</title>${backgroundShape}<g${transform} fill="none" stroke="${color}" stroke-width="${k_brandStrokeWidth}" stroke-linecap="round" stroke-linejoin="round">${k_paths}</g></svg>\n`;
 }
 
@@ -29,7 +29,7 @@ const vectors = {
   'icon.svg': createVector(k_brandColors.light, { background: k_brandColors.background }),
   'adaptive-foreground.svg': createVector(k_brandColors.light, { adaptive: true }),
   'adaptive-monochrome.svg': createVector('#000000', { adaptive: true }),
-  'adaptive-background.svg': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108"><rect width="108" height="108" fill="#E48A60"/></svg>\n'
+  'adaptive-background.svg': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108"><rect width="108" height="108" fill="${k_brandColors.background}"/></svg>\n`
 };
 for (const [name, vector] of Object.entries(vectors)) {
   await writeFile(new URL(name, k_assetDirectory), vector);
