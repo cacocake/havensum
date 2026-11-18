@@ -43,11 +43,15 @@ function hasExternalIdentity(transaction) {
   return Boolean(transaction.externalSource) && transaction.externalId !== undefined && transaction.externalId !== null && transaction.externalId !== '';
 }
 
-function matchesTransferCredit(transfer, credit) {
-  return transfer.type === k_transactionTypes.transfer
-    && Boolean(credit.sourceFingerprint)
-    && transfer.toAccount === credit.account
-    && transfer.counterpartSourceFingerprint === credit.sourceFingerprint;
+function matchesTransferCredit(transfer, record) {
+  const creditFingerprint = transfer.counterpartSourceFingerprint;
+  if (transfer.type !== k_transactionTypes.transfer || !creditFingerprint) {
+    return false;
+  }
+  const standaloneMatch = transfer.toAccount === record.account && creditFingerprint === record.sourceFingerprint;
+  const pairedMatch = record.type === k_transactionTypes.transfer
+    && transfer.toAccount === record.toAccount && creditFingerprint === record.counterpartSourceFingerprint;
+  return standaloneMatch || pairedMatch;
 }
 
 function possibleDuplicate(first, second) {

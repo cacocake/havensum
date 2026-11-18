@@ -276,6 +276,29 @@ test('a credit repeated across statements needs review even when its other copy 
   }
 });
 
+test('a saved transfer credit needs duplicate review even when paired with a debit from another account', async () => {
+  const base = createFinancialState();
+  const state = { ...base, accounts: [...base.accounts, { id: 'savings', name: 'Savings', openingBalance: 10000 }] };
+  const outgoing = await parseImportContent('outgoing.csv', k_realBankStatement);
+  const incoming = await parseImportContent('incoming.csv', k_realBankStatement.replace(
+    k_realBankStatement.split('\r\n').at(-1), '03-02-2032,04-02-2032,Recebimento,,12.45,112.45,112.45,Outros'
+  ));
+  const savings = await parseImportContent('savings.csv', k_realBankStatement.replace('Café, chá', 'Transfer from savings'));
+  const firstPreview = previewImportFile(state, outgoing, { statements: [
+    { data: outgoing, targetAccount: 'everyday' }, { data: incoming, targetAccount: 'shared' }
+  ] });
+  const firstPair = reviseTransactionImport(state, firstPreview, 0, { type: 'transfer', counterpartIndex: 1 });
+  const ledger = applyTransactionImport(state, firstPair, {}, () => 'saved-transfer');
+  const secondPreview = previewImportFile(ledger, savings, { statements: [
+    { data: savings, targetAccount: 'savings' }, { data: incoming, targetAccount: 'shared' }
+  ] });
+  const secondPair = reviseTransactionImport(ledger, secondPreview, 0, { type: 'transfer', counterpartIndex: 1 });
+  assert.deepEqual(secondPair.rows[0].possibleMatches.map(record => record.id), ['saved-transfer']);
+  assert.throws(() => applyTransactionImport(ledger, secondPair, {}), /make a review choice/i);
+  const saved = applyTransactionImport(ledger, secondPair, { 0: 'skip' });
+  assert.equal(accountBalance(saved, 'shared'), 51245);
+});
+
 test('a bank refund requires an explicit expense or balance-adjustment choice and never becomes earnings', async () => {
   const originalExpense = createTransaction({ date: '2032-01-31', amount: 1000 });
   const state = createFinancialState({ transactions: [originalExpense] });
