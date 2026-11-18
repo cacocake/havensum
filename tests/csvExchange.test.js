@@ -3,6 +3,23 @@ import assert from 'node:assert/strict';
 import { readImport } from '../src/files.web.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 
+test('a generic CSV timestamp keeps the calendar date printed by the source', async () => {
+  const { previewImportFile } = await import('../src/importFileReview.js');
+  const imported = await readImport(new File([
+    'datetime,title,amount,account,category\n2026-06-01T00:15:00+01:00,Midnight purchase,3.00,Everyday,Groceries\n'
+  ], 'generic-timestamps.csv'));
+  const review = previewImportFile(createFinancialState(), imported);
+  assert.equal(review.rows[0].status, 'new');
+  assert.equal(review.rows[0].transaction.date, '2026-06-01');
+});
+
+test('CSV export names a legacy transaction that is missing its identifier', async () => {
+  const { createTransactionCsv } = await import('../src/csvExchange.js');
+  const legacyPurchase = createTransaction({ id: undefined, title: 'Historic receipt' });
+  const state = createFinancialState({ transactions: [legacyPurchase] });
+  assert.throws(() => createTransactionCsv(state), /Historic receipt.*identifier/i);
+});
+
 test('canonical CSV exports readable EUR amounts and stable transfer and payback associations', async () => {
   const { createTransactionCsv } = await import('../src/csvExchange.js');
   const state = createFinancialState({ transactions: [

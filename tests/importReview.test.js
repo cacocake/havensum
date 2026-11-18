@@ -151,3 +151,14 @@ test('a legacy transaction without an ID cannot be overwritten by an unrelated I
   assert.deepEqual(applyTransactionImport(state, review, {}, () => 'new-import').transactions,
     [oldPurchase, { ...incoming, id: 'new-import' }]);
 });
+
+test('a pre-existing invalid ledger row is named when it prevents a reviewed import', async () => {
+  const { previewTransactionImport, applyTransactionImport } = await import('../src/importReview.js');
+  const invalid = createTransaction({ title: 'Historic market purchase', category: 'missing-category' });
+  const incoming = createTransaction({ id: 'new-expense', title: 'Valid purchase' });
+  const state = createFinancialState({ transactions: [invalid] });
+  const review = previewTransactionImport(state, [incoming]);
+  assert.equal(review.rows[0].status, 'new');
+  assert.throws(() => applyTransactionImport(state, review, {}), /Historic market purchase.*valid category/i);
+  assert.deepEqual(state.transactions, [invalid]);
+});

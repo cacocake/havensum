@@ -61,12 +61,17 @@ export function categoryPath(categories, categoryId) {
 
 export function createTransactionCsv(state) {
   const rows = state.transactions.map(transaction => {
-    if (!isRecordIdentifier(transaction.id)) {
-      throw Error('CSV export requires valid transaction identifiers.');
-    }
-    validateTransaction(state, transaction);
-    if (transaction.kind && !Object.values(k_spendingBehaviors).includes(transaction.kind)) {
-      throw Error('CSV export requires a supported spending behaviour.');
+    try {
+      if (!isRecordIdentifier(transaction.id)) {
+        throw Error('CSV export requires valid transaction identifiers.');
+      }
+      validateTransaction(state, transaction);
+      if (transaction.kind && !Object.values(k_spendingBehaviors).includes(transaction.kind)) {
+        throw Error('CSV export requires a supported spending behaviour.');
+      }
+    } catch (error) {
+      const title = transaction.title || 'Untitled transaction';
+      throw Error(`${title} (${transaction.date || 'unknown date'}): ${error.message}`, { cause: error });
     }
     const record = {
       schema_version: '1', text_encoding: 'apostrophe-v1',

@@ -198,7 +198,12 @@ export function applyTransactionImport(state, review, choices, createIdentifier)
   }
   const result = { ...state, transactions };
   for (const transaction of transactions) {
-    validateTransaction(result, transaction);
+    try {
+      validateTransaction(result, transaction);
+    } catch (error) {
+      const title = transaction.title || 'Untitled transaction';
+      throw Error(`${title} (${transaction.date || 'unknown date'}): ${error.message}`, { cause: error });
+    }
   }
   return result;
 }

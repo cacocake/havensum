@@ -4,6 +4,7 @@ const k_supportedTypes = new Set(['expense', 'income', 'reimbursement', 'transfe
 const k_centsPerEuro = 100n;
 const k_maximumCentAmount = BigInt(Number.MAX_SAFE_INTEGER);
 const k_spendingKinds = new Set(['Fixed', 'Variable', 'Occasional']);
+const k_genericTimestampPattern = /^(\d{4}-\d{2}-\d{2})[T ](?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)?$/;
 const k_pendingTaskColumns = ['expect_payback', 'expected_payback_amount', 'payback_due_date', 'payback_task_id'];
 const k_fieldAliases = {
   title: ['title', 'name', 'description'], amount: ['amount', 'value'],
@@ -21,6 +22,16 @@ export function getImportMapping(data) {
   return Object.fromEntries(Object.entries(k_fieldAliases).map(([field, aliases]) => [
     field, columns.find(column => aliases.includes(column.toLowerCase())) || ''
   ]));
+}
+
+function normalizeImportDate(value, canonical) {
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+  if (canonical || typeof value !== 'string') {
+    return value;
+  }
+  return k_genericTimestampPattern.exec(value)?.[1] ?? value;
 }
 
 export function parseImportAmount(value, unit) {
@@ -109,7 +120,7 @@ export function normalizeImportRows(state, data, options = {}) {
       const transaction = {
         id: row.id ?? undefined,
         type,
-        date: row[mapping.date] instanceof Date ? row[mapping.date].toISOString().slice(0, 10) : row[mapping.date],
+        date: normalizeImportDate(row[mapping.date], canonical),
         title: text(mapping.title),
         amount: parseImportAmount(row[mapping.amount], canonical ? 'euros' : options.unit || (data.backup ? 'cents' : 'euros')),
         account: options.targetAccount === undefined
