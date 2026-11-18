@@ -5,6 +5,7 @@ import { parseImportAmount } from './importNormalization.js';
 import { k_spendingBehaviors, k_transactionTypes } from './domainConstants.js';
 import { euro } from './money.js';
 import { bankClassificationAllows } from './realBankReview.js';
+import { k_cashewCsvProfile } from './cashewCsv.js';
 
 const k_transactionOptions = [
   { value: k_transactionTypes.expense, label: 'Expense' },
@@ -12,6 +13,7 @@ const k_transactionOptions = [
   { value: k_transactionTypes.reimbursement, label: 'Reimbursement' },
   { value: k_transactionTypes.transfer, label: 'Transfer' }
 ];
+const k_cashewUncategorizedChoice = 'cashew:uncategorized';
 
 function selectedId(records, selectedValue) {
   return records.find(record => record.id === selectedValue
@@ -30,6 +32,8 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
   const { accounts, categories } = state;
   const isTransfer = draft.type === k_transactionTypes.transfer;
   const isReimbursement = draft.type === k_transactionTypes.reimbursement;
+  const isCashewExpense = bank?.profile === k_cashewCsvProfile && draft.type === k_transactionTypes.expense;
+  const categoryChoice = isCashewExpense && draft.category === null ? k_cashewUncategorizedChoice : draft.category ?? '';
   const selectedCredit = counterparts.find(row => String(row.index) === draft.counterpart);
   const needsTransferDate = isTransfer && bank && selectedCredit && bank.valueDate !== selectedCredit.bank.valueDate;
   const scopedSource = Boolean(transaction.externalSource) && String(transaction.externalId ?? '') !== '';
@@ -68,7 +72,8 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
   function update() {
     try {
       const amount = bank && isTransfer ? bank.amount : parseImportAmount(draft.amount, 'euros');
-      const category = isTransfer ? undefined : selectedId(categories, draft.category);
+      const category = isTransfer ? undefined : draft.category === k_cashewUncategorizedChoice
+        ? null : selectedId(categories, draft.category);
       onUpdate({
         title: draft.title.trim(),
         type: draft.type,
@@ -119,8 +124,10 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
         ]} />
       ) : (
         <>
-          <Select label="Category" value={draft.category ?? ''} onChange={value => change('category', value)} options={[
+          <Select label="Category" value={categoryChoice} onChange={value => change('category', value)} options={[
           { value: '', label: bank && draft.type === k_transactionTypes.expense ? 'Choose a category' : 'Uncategorized' },
+            ...(isCashewExpense
+              ? [{ value: k_cashewUncategorizedChoice, label: 'Keep uncategorized' }] : []),
             ...categories.map(record => ({ value: record.id, label: categoryPath(categories, record.id) }))
           ]} />
           <Select label="Spending behaviour" value={draft.kind ?? ''} onChange={value => change('kind', value)} options={[

@@ -8,6 +8,8 @@ import { getImportMapping, getImportColumns } from './importNormalization.js';
 import { previewImportFile } from './importFileReview.js';
 import { applyTransactionImport, reviseTransactionImport } from './importReview.js';
 import ImportRowEditor from './ImportRowEditor.jsx';
+import CashewAccountMapping, { k_createCashewAccount } from './CashewAccountMapping.jsx';
+import { k_cashewOrdinaryType } from './cashewCsv.js';
 import ImportResults, { AccountBalanceReview } from './ImportResults.jsx';
 import { formatReviewRowLabel, getImportBalances, getImportResults } from './importOutcomes.js';
 import { bankTransferCounterparts } from './realBankReview.js';
@@ -91,6 +93,7 @@ export default function ImportDialog({ data, onClose }) {
   const [targetAccount, setTargetAccount] = useState('');
   const [additionalStatements, setAdditionalStatements] = useState([]);
   const [accounts, setAccounts] = useState({});
+  const [cashewSelections, setCashewSelections] = useState({});
   const [categories, setCategories] = useState({});
   const [review, setReview] = useState(null);
   const [results, setResults] = useState(null);
@@ -106,6 +109,7 @@ export default function ImportDialog({ data, onClose }) {
   const statements = [{ data, targetAccount }, ...additionalStatements];
   const accountsPending = statements.some(statement => statement.targetAccount === '');
   const rowCount = statements.reduce((count, statement) => count + statement.data.rows.length, 0);
+  const cashewSourceNames = data.cashew ? [...new Set(data.rows.map(row => row.account).filter(Boolean))] : [];
 
   async function addStatement() {
     try {
@@ -126,6 +130,18 @@ export default function ImportDialog({ data, onClose }) {
 
   function preview() {
     try {
+      if (data.cashew) {
+        const selectedAccounts = Object.entries(cashewSelections);
+        const mappings = Object.fromEntries(selectedAccounts
+          .filter(([, choice]) => choice !== k_createCashewAccount)
+          .map(([name, choice]) => [name, choice ? JSON.parse(choice)[0] : '']));
+        const newAccounts = selectedAccounts.filter(([, choice]) => choice === k_createCashewAccount)
+          .map(([sourceName]) => ({ sourceName, id: createEntityId('account') }));
+        setReview(previewImportFile(state, data, { accounts: mappings, newAccounts }));
+        setChoices({});
+        setError('');
+        return;
+      }
       if (data.bank && accountsPending) {
         throw Error('Choose an account for each statement.');
       }
@@ -217,6 +233,7 @@ export default function ImportDialog({ data, onClose }) {
     }
   }, [state, review, choices, unresolved, results]);
   const balances = review && !results ? getImportBalances(state, review, projection.result) : [];
+  const reviewState = review?.pendingAccounts.length ? { ...state, accounts: [...state.accounts, ...review.pendingAccounts] } : state;
   const expenses = editingRow === null ? [] : expensesForReview(state, review, choices);
   const counterparts = editingRow !== null && review.rows[editingRow].bank?.direction === 'debit'
     ? bankTransferCounterparts(review, editingRow) : [];
@@ -228,6 +245,12 @@ export default function ImportDialog({ data, onClose }) {
       {results ? (
         <ImportResults results={results} fields={k_reviewFields} displayField={(field, value) => displayField(state, field, value)}
           onDone={dismiss} onDownloadRecovery={results.changed && !isDemoSession() ? downloadRecovery : undefined} />
+      ) : !review && data.cashew ? (
+        <>
+          <CashewAccountMapping sourceNames={cashewSourceNames} accounts={state.accounts} selections={cashewSelections}
+            onChange={(name, choice) => setCashewSelections(current => ({ ...current, [name]: choice }))} />
+          <Button onPress={preview}>Preview import</Button>
+        </>
       ) : !review && data.bank ? (
         <>
           <H size={18} style={{ marginBottom: 12 }}>Real Bank statement</H>
@@ -280,7 +303,7 @@ export default function ImportDialog({ data, onClose }) {
         <>
           <AccountBalanceReview balances={balances} afterLabel="Projected" />
           <Row style={{ gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-            {Object.entries(k_statusLabels).filter(([status]) => status !== 'paired' || statements.length > 1)
+            {Object.entries(k_statusLabels).filter(([status]) => status !== 'paired' || data.cashew || statements.length > 1)
               .map(([status, label]) => <T key={status} style={{ fontSize: 12 }}>{review.rows.filter(row => row.status === status).length} {label}</T>)}
           </Row>
           {review.rows.map(row => {
@@ -289,11 +312,15 @@ export default function ImportDialog({ data, onClose }) {
             <View key={row.index} style={{ paddingVertical: 14, borderBottomWidth: 1, borderColor: colors.line, gap: 8 }}>
               <T style={{ fontSize: 12, color: colors.sub }}>{rowLabel}</T>
               <T style={{ fontWeight: '600' }}>{row.transaction.title}</T>
-              {row.bank?.category && <T style={{ fontSize: 12, color: colors.sub }}>Bank category · {row.bank.category}</T>}
+              {row.bank?.category && <T style={{ fontSize: 12, color: colors.sub }}>{data.cashew ? 'Cashew category' : 'Bank category'} · {row.bank.category}</T>}
+              {data.cashew && row.bank?.specialType && row.bank.specialType !== k_cashewOrdinaryType && (
+                <T style={{ fontSize: 12, color: colors.sub }}>Cashew type · {row.bank.specialType}</T>
+              )}
+              {row.bank?.sourceWarning && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.sourceWarning}</T>}
               {row.transaction.amount !== undefined && (
                 <T style={{ fontSize: 12, color: colors.sub }}>
-                  {row.transaction.date} · {row.transaction.type || row.bank?.direction} · {displayField(state, 'account', row.transaction.account)}
-                  {row.transaction.toAccount !== undefined && ` → ${displayField(state, 'toAccount', row.transaction.toAccount)}`}
+                  {row.transaction.date} · {row.transaction.type || row.bank?.direction} · {displayField(reviewState, 'account', row.transaction.account)}
+                  {row.transaction.toAccount !== undefined && ` → ${displayField(reviewState, 'toAccount', row.transaction.toAccount)}`}
                   {' · '}{euro(row.transaction.amount)}
                 </T>
               )}
@@ -332,7 +359,7 @@ export default function ImportDialog({ data, onClose }) {
                   ]} />
               )}
               {editingRow === row.index ? (
-                <ImportRowEditor transaction={row.transaction} state={state} expenses={expenses} lockAccount={hasTargetAccount} bank={row.bank}
+                <ImportRowEditor transaction={row.transaction} state={reviewState} expenses={expenses} lockAccount={hasTargetAccount || Boolean(data.cashew)} bank={row.bank}
                   counterparts={counterparts} pair={row.pair}
                   onUpdate={changes => updateRow(row.index, changes)} onCancel={() => setEditingRow(null)} />
               ) : (!row.normalizationError && row.status !== 'paired' && row.duplicateOf === undefined && (row.transaction.type || row.bank) && (

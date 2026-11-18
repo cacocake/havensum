@@ -17,7 +17,7 @@ export function getImportBalances(state, review, result) {
     }
   }
 
-  return state.accounts.filter(account => affectedAccountIds.has(account.id)).map(account => ({
+  return [...state.accounts, ...(review.pendingAccounts ?? [])].filter(account => affectedAccountIds.has(account.id)).map(account => ({
     id: account.id,
     name: account.name,
     before: accountBalance(state, account.id),

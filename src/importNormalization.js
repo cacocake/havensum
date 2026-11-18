@@ -24,7 +24,7 @@ export function getImportMapping(data) {
   ]));
 }
 
-function normalizeImportDate(value, canonical) {
+export function normalizeImportDate(value, canonical) {
   if (value instanceof Date) {
     return value.toISOString().slice(0, 10);
   }
