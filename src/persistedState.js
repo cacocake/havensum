@@ -5,6 +5,10 @@ function invalidCopyKey(key, index) {
   return index === 0 ? prefix : `${prefix}:${index}`;
 }
 
+function latestInvalidCopyIndexKey(key) {
+  return `${key}:recovery:invalid:latest-index`;
+}
+
 async function readPersistedState(storage, key, parseState = JSON.parse, recoverInvalid = false) {
   const encodedState = await storage.getItem(key);
   if (encodedState === null) {
@@ -31,6 +35,7 @@ async function readPersistedState(storage, key, parseState = JSON.parse, recover
       }
       recoveryIndex += 1;
     }
+    await storage.setItem(latestInvalidCopyIndexKey(key), String(recoveryIndex));
     return null;
   }
   if (state.version === k_currentStateVersion) {
@@ -62,6 +67,17 @@ export function createPersistedStorage(getStorage) {
     readLatestInvalidCopy(key) {
       return enqueue(async () => {
         const storage = getStorage();
+        const recordedIndex = await storage.getItem(latestInvalidCopyIndexKey(key));
+        if (recordedIndex !== null && /^\d+$/.test(recordedIndex)) {
+          const index = Number(recordedIndex);
+          if (Number.isSafeInteger(index)) {
+            const copy = await storage.getItem(invalidCopyKey(key, index));
+            if (copy !== null) {
+              return copy;
+            }
+          }
+        }
+        // Older installations can have recovery copies without an index.
         let latest = null;
         for (let index = 0; ; index += 1) {
           const copy = await storage.getItem(invalidCopyKey(key, index));

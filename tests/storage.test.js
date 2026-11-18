@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readState, writeState, readSnapshot, writeSnapshot } from '../src/storage.web.js';
+import { readInvalidSnapshotCopy, readState, writeState, readSnapshot, writeSnapshot } from '../src/storage.web.js';
 import { installBrowserStorage } from './helpers/browserStorage.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 import { buildPlan } from '../src/engine.js';
@@ -14,6 +14,21 @@ test('exporting a new baseline retains the original corrupt baseline bytes', asy
   await writeSnapshot(state);
   assert.deepEqual(await readSnapshot(), state);
   assert.equal(storage.getItem(`${baselineKey}:recovery:invalid`), damaged);
+});
+
+test('saving a replacement baseline selects the bytes just recovered even if they are already archived', async context => {
+  const storage = installBrowserStorage(context);
+  const baselineKey = 'melo-sync-base';
+  const first = '{first damaged baseline';
+  const second = '{second damaged baseline';
+  const state = createFinancialState();
+  for (const damaged of [first, second, first]) {
+    storage.setItem(baselineKey, damaged);
+    await writeSnapshot(state);
+  }
+  assert.equal(await readInvalidSnapshotCopy(), first);
+  assert.equal(storage.getItem(`${baselineKey}:recovery:invalid:1`), second);
+  assert.equal(storage.getItem(`${baselineKey}:recovery:invalid:2`), null);
 });
 
 test('a merged deletion cannot persist while a transaction still uses the numeric zero category', async context => {
