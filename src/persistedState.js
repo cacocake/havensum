@@ -1,4 +1,5 @@
-import { migrateState, validateState, k_currentStateVersion, UnsupportedStateVersionError } from './stateSchema.js';
+import { clearMissingTransactionCategories, migrateState, validateState, k_currentStateVersion, UnsupportedStateVersionError } from './stateSchema.js';
+import { k_stateStorageKey } from './storageKeys.js';
 
 function invalidCopyKey(key, index) {
   const prefix = `${key}:recovery:invalid`;
@@ -9,43 +10,51 @@ function latestInvalidCopyIndexKey(key) {
   return `${key}:recovery:invalid:latest-index`;
 }
 
+async function retainRecoveryCopy(storage, keyAtIndex, encodedState) {
+  for (let index = 0; ; index += 1) {
+    const key = keyAtIndex(index);
+    const savedCopy = await storage.getItem(key);
+    if (savedCopy === encodedState) {
+      return index;
+    }
+    if (savedCopy === null) {
+      await storage.setItem(key, encodedState);
+      return index;
+    }
+  }
+}
+
 async function readPersistedState(storage, key, parseState = JSON.parse, recoverInvalid = false) {
   const encodedState = await storage.getItem(key);
   if (encodedState === null) {
     return null;
   }
   let state;
+  let missingCategories;
   try {
-    state = parseState(encodedState);
+    ({ state, missingCategories } = clearMissingTransactionCategories(parseState(encodedState)));
     validateState(state);
   } catch (error) {
     if (!recoverInvalid || !(error instanceof SyntaxError) || error instanceof UnsupportedStateVersionError) {
       throw error;
     }
-    let recoveryIndex = 0;
-    while (true) {
-      const keyForCopy = invalidCopyKey(key, recoveryIndex);
-      const savedCopy = await storage.getItem(keyForCopy);
-      if (savedCopy === encodedState) {
-        break;
-      }
-      if (savedCopy === null) {
-        await storage.setItem(keyForCopy, encodedState);
-        break;
-      }
-      recoveryIndex += 1;
-    }
+    const recoveryIndex = await retainRecoveryCopy(storage, index => invalidCopyKey(key, index), encodedState);
     await storage.setItem(latestInvalidCopyIndexKey(key), String(recoveryIndex));
     return null;
   }
-  if (state.version === k_currentStateVersion) {
+  if (state.version === k_currentStateVersion && !missingCategories.length) {
     return state;
   }
   const migratedState = migrateState(state);
-  const recoveryKey = `${key}:recovery:v${state.version}`;
-  if (await storage.getItem(recoveryKey) === null) {
-    await storage.setItem(recoveryKey, encodedState);
+  if (key === k_stateStorageKey && missingCategories.length) {
+    const warnings = new Map((state.migrationCategoryWarnings ?? []).map(warning => [warning.transactionId, warning]));
+    for (const warning of missingCategories) {
+      warnings.set(warning.transactionId, warning);
+    }
+    migratedState.migrationCategoryWarnings = [...warnings.values()];
   }
+  const recoveryKey = `${key}:recovery:v${state.version}`;
+  await retainRecoveryCopy(storage, index => index === 0 ? recoveryKey : `${recoveryKey}:${index}`, encodedState);
   await storage.setItem(key, JSON.stringify(migratedState));
   return migratedState;
 }

@@ -135,6 +135,12 @@ export function validateState(state) {
       throw new SyntaxError(`Invalid stored data: ${error.message}`);
     }
   }
+  if (state.migrationCategoryWarnings !== undefined) {
+    requireValid(Array.isArray(state.migrationCategoryWarnings), 'migration category warnings');
+    for (const warning of state.migrationCategoryWarnings) {
+      requireValid(isRecord(warning) && isStoredIdentifier(warning.transactionId) && isStoredIdentifier(warning.categoryId), 'migration category warning IDs');
+    }
+  }
   validatePlan(state.plan);
   return state;
 }
@@ -144,4 +150,24 @@ export function validateState(state) {
 export function migrateState(state) {
   validateState(state);
   return { ...state, version: k_currentStateVersion };
+}
+
+export function clearMissingTransactionCategories(state) {
+  const canReview = isRecord(state)
+    && [k_legacyStateVersion, k_currentStateVersion].includes(state.version)
+    && Array.isArray(state.categories) && Array.isArray(state.transactions);
+  if (!canReview) {
+    return { state, missingCategories: [] };
+  }
+  const categoryIds = new Set(state.categories.map(category => category?.id));
+  const missingCategories = [];
+  const transactions = state.transactions.map(transaction => {
+    const categoryId = transaction?.category;
+    if (!isStoredIdentifier(categoryId) || categoryIds.has(categoryId)) {
+      return transaction;
+    }
+    missingCategories.push({ transactionId: transaction.id, categoryId });
+    return { ...transaction, category: null };
+  });
+  return { state: missingCategories.length ? { ...state, transactions } : state, missingCategories };
 }

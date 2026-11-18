@@ -9,7 +9,9 @@ import {euro,monthOf,reportingMonthStats,netExpenses,categorySettings,accountBal
 import {AccountCard,TransactionRow} from './Dashboard.jsx';
 import {exportExcel,downloadJSON,downloadSavedLedgerCopy,chooseFile,readImport} from './files';
 import {readInvalidSnapshotCopy,readSnapshot,writeSnapshot,isDemoSession} from './storage';
-import { migrateState, validateState } from './stateSchema.js';
+import { clearMissingTransactionCategories, migrateState, validateState } from './stateSchema.js';
+import MissingCategoryReview from './MissingCategoryReview.jsx';
+import { applyCategoryReviewEdits, categoryReviewRows } from './categoryReview.js';
 const k_backupMessages = {
   saved: 'Backup exported · local merge baseline saved',
   previewExported: 'Example backup exported · merge baselines are unavailable in preview mode.',
@@ -84,18 +86,19 @@ export function Settings(){
      if (!file) {
        return;
      }
-     const remoteState = migrateState(JSON.parse(await file.text()));
+     const source = clearMissingTransactionCategories(JSON.parse(await file.text()));
+     const remoteState = migrateState(source.state);
      const baseline = await readSnapshot();
      if (!baseline) {
        throw Error(k_backupMessages.missingBaseline);
      }
      const mergedState = mergeThreeWay(baseline, state, remoteState);
-     setMerge({ ...mergedState, choices: {} });
+     setMerge({ ...mergedState, choices: {}, missingCategories: source.missingCategories, categoryEdits: {} });
    } catch (error) {
      notify(error.message);
    }
  }
- async function applyMerge() {
+ function getReviewedMerge() {
    const result = JSON.parse(JSON.stringify(merge.result));
    for (const conflict of merge.conflicts) {
      const key = `${conflict.collection}|${conflict.id}|${conflict.field}`;
@@ -116,8 +119,22 @@ export function Settings(){
        record[conflict.field] = selectedValue;
      }
    }
+   const normalized = clearMissingTransactionCategories(result);
+   const rows = categoryReviewRows(normalized.state, [...merge.missingCategories, ...normalized.missingCategories]);
+   return { state: normalized.state, rows };
+ }
+ const reviewedMerge = merge ? getReviewedMerge() : null;
+
+ function editMissingCategory(key, change) {
+   setMerge(previous => ({
+     ...previous,
+     categoryEdits: { ...previous.categoryEdits, [key]: { ...previous.categoryEdits[key], ...change } }
+   }));
+ }
+
+ async function applyMerge() {
    try {
-     validateState(result);
+     const result = validateState(applyCategoryReviewEdits(reviewedMerge.state, reviewedMerge.rows, merge.categoryEdits));
      setState(result);
      await writeSnapshot(result);
      setMerge(null);
@@ -135,6 +152,7 @@ export function Settings(){
  {importData&&<ImportDialog data={importData} onClose={()=>setImportData(null)}/>}
  {merge&&<Dialog title="Two sides. Your choice." subtitle={`${merge.conflicts.length} conflicts need review. Nothing is applied until you finish.`} onClose={()=>setMerge(null)} width={650}>
  {!merge.conflicts.length&&<View style={{gap:13,paddingBottom:25}}><H size={21}>These changes fit together.</H><T style={{fontSize:12,color:c.sub}}>No conflicting fields were found. Review the merged record counts before applying.</T>{['transactions','accounts','categories','loans'].map(k=><Row key={k} style={{justifyContent:'space-between'}}><T style={{fontSize:12}}>{k}</T><T style={{fontSize:12}}>{merge.result[k].length}</T></Row>)}</View>}
+ <MissingCategoryReview rows={reviewedMerge.rows} categories={reviewedMerge.state.categories} edits={merge.categoryEdits} onChange={editMissingCategory}/>
  {merge.conflicts.map(cf=>{const key=cf.collection+'|'+cf.id+'|'+cf.field;return <View key={key} style={{padding:14,borderWidth:1,borderColor:c.line,borderRadius:12,marginBottom:15}}><T style={{fontSize:12,fontWeight:'600',marginBottom:12}}>{cf.collection} · {cf.id} · {cf.field==='$record'?'Edit vs. delete':cf.field}</T><Row style={{gap:10,alignItems:'stretch'}}>{['local','remote'].map(side=><Pressable key={side} onPress={()=>setMerge(m=>({...m,choices:{...m.choices,[key]:side}}))} style={{flex:1,padding:12,borderRadius:9,borderWidth:1,borderColor:merge.choices[key]===side?c.accent:c.line,backgroundColor:merge.choices[key]===side?c.peach:c.soft}}><T style={{fontSize:10,color:c.sub,marginBottom:6}}>{side==='local'?'THIS DEVICE':'BACKUP FILE'}</T><T style={{fontSize:11}}>{cf[side]===undefined?'Deleted':typeof cf[side]==='object'?JSON.stringify(cf[side],null,2):String(cf[side])}</T></Pressable>)}</Row></View>})}<Button icon="Check" disabled={merge.conflicts.some(cf=>!merge.choices[cf.collection+'|'+cf.id+'|'+cf.field])} onPress={applyMerge}>Apply reviewed merge</Button>
  </Dialog>}
  </View>;

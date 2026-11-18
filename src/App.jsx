@@ -16,6 +16,9 @@ import {Transactions,Accounts,Categories,Reimbursements,YearPlan,Loans,Settings}
 import {AccountDetail,TransactionDetail} from './Details.jsx';
 import {TransactionForm,CategoryForm,LoanForm,PlanForm} from './Forms.jsx';
 import { AccountForm } from './AccountForm.jsx';
+import MissingCategoryReview from './MissingCategoryReview.jsx';
+import { applyCategoryReviewEdits, categoryReviewRows } from './categoryReview.js';
+import { validateState } from './stateSchema.js';
 const k_startupErrors = {
   unreadableData: {
     title: 'Stored data could not be read',
@@ -32,6 +35,8 @@ const descriptions={Overview:'A little clarity for your everyday.',Transactions:
 export default function App(){
  const [loadError, setLoadError] = useState(null);
  const [recoveryError, setRecoveryError] = useState('');
+ const [categoryReviewOpen, setCategoryReviewOpen] = useState(false);
+ const [categoryReviewEdits, setCategoryReviewEdits] = useState({});
  const [filters,setFilters]=useState({}),[searchFocus,setSearchFocus]=useState(0),[accountId,setAccountId]=useState(null),[pickerYear,setPickerYear]=useState(null);
  const searchRequest=useRef(0);
  const [fontsLoaded]=useMeloFonts();const insets=useInsets();const scrollRef=useRef(null);
@@ -51,9 +56,21 @@ export default function App(){
      const currentMonth = monthOf(new Date().toISOString());
      const initialState = savedState || seed();
      setState(upgradeCategoryVisuals(compoundSavings(initialState, currentMonth)));
+     setCategoryReviewOpen(Boolean(initialState.migrationCategoryWarnings?.length));
    } catch {
      // An invalid saved structure must not be replaced with sample state either.
      setLoadError(k_startupErrors.unreadableData);
+   }
+ }
+ function acceptMigratedCategories() {
+   try {
+     const reviewed = applyCategoryReviewEdits(state, migrationCategoryRows, categoryReviewEdits);
+     delete reviewed.migrationCategoryWarnings;
+     validateState(reviewed);
+     setState(reviewed);
+     setCategoryReviewOpen(false);
+   } catch (error) {
+     setToast(error.message);
    }
  }
  async function exportSavedLedger() {
@@ -80,6 +97,7 @@ export default function App(){
  function openAccount(id){setAccountId(id);setScreen('Account detail');setMobileMenu(false);scrollRef.current?.scrollTo({y:0,animated:false});}
  function startSearch(){openActivity();setSearchFocus(++searchRequest.current);}
  const moreSelected=!['Overview','Transactions','Year Plan'].includes(screen);
+ const migrationCategoryRows = state ? categoryReviewRows(state, state.migrationCategoryWarnings ?? []) : [];
  const selected=n=>n==='More'?moreSelected:screen===n;
  if (loadError) {
    return (
@@ -105,6 +123,9 @@ export default function App(){
  <Row style={{justifyContent:'space-between',borderBottomWidth:desktop?1:0,borderColor:c.line,paddingBottom:desktop?23:3,marginBottom:desktop?29:9,gap:15}}><Row style={{gap:12}}>{!desktop&&<View style={{width:32,height:32,borderRadius:12,backgroundColor:c.peach,alignItems:'center',justifyContent:'center',transform:[{rotate:'-8deg'}]}}><Icon name="Flower2" size={25} color={c.accent}/></View>}<T style={{fontFamily:desktop?'DM Sans':'Fredoka',fontSize:desktop?12.5:26,color:desktop?c.sub:c.text}}>{desktop?'Your everyday, a little more in tune.':'melo'}</T></Row><Row style={{gap:11}}>{desktop&&<><Badge color={c.peachText}>{state.demo?'EXAMPLE DATA':'LOCAL DATA'}</Badge><View style={{width:1,height:20,backgroundColor:c.line,marginHorizontal:5}}/></>}<IB name="Search" size={18} label="Search transactions" onPress={startSearch}/><IB name={c.dark?'Sun':'Moon'} size={18} label="Toggle theme" onPress={()=>setState(s=>({...s,theme:s.theme==='dark'?'light':'dark'}))}/></Row></Row>
  <Row style={{justifyContent:'space-between',marginBottom:desktop?26:19,gap:12,flexWrap:'wrap',alignItems:'flex-end'}}><View style={{flex:desktop?undefined:1,minWidth:0}}>{desktop&&<T style={{fontSize:9.5,letterSpacing:1.8,color:c.muted,marginBottom:6}}>{screen==='Overview'?'LET’S MAKE SENSE OF THINGS':'YOUR MONEY, IN RHYTHM'}</T>}<H size={desktop?32:30}>{screen==='Overview'?'Hey, Hugo.':screen==='Account detail'?(state.accounts.find(a=>a.id===accountId)?.name||'Account'):screen==='Settings'?(desktop?'Your little preferences':'Settings'):!desktop&&screen==='Reimbursements'?'Paybacks':screen}</H>{desktop&&<T style={{fontSize:12,color:c.sub,marginTop:7}}>{descriptions[screen]}</T>}{!desktop&&state.demo&&<T style={{fontSize:10,color:c.sub,marginTop:3}}>Example data · yours to explore</T>}</View><Row style={{gap:10}}><Pressable accessibilityRole="button" accessibilityLabel="Choose month" onPress={()=>{setPickerYear(Number(month.slice(0,4)));setMonthOpen(true)}} style={{minHeight:48,paddingHorizontal:12,paddingVertical:12,borderRadius:17,backgroundColor:c.card,borderWidth:1,borderColor:c.line}}><Row style={{gap:9}}><Icon name="CalendarDays" size={15} color={c.sub}/><T style={{fontSize:11.5}}>{d.toLocaleString('en',{month:desktop?'long':'short',year:'numeric'})}</T><Icon name="ChevronDown" size={13} color={c.sub}/></Row></Pressable>{desktop&&!['Settings'].includes(screen)&&<Button small={!desktop} icon="Plus" onPress={()=>state.accounts.length?setModal({type:'transaction'}):setModal({type:'account'})}>Add transaction</Button>}</Row></Row>
  {saveError&&<T accessibilityRole="alert" style={{color:c.negative,fontSize:12,marginBottom:15}}>Changes could not be saved on this device. Export a backup before closing.</T>}
+ {Boolean(state.migrationCategoryWarnings?.length) && !categoryReviewOpen && (
+   <Button small kind="outline" onPress={() => setCategoryReviewOpen(true)}>Review missing categories</Button>
+ )}
  <View><Content/></View>
  </ScrollView>
  {!desktop&&<View style={{position:'absolute',bottom:insets.bottom,left:0,right:0,paddingTop:10,paddingBottom:12,backgroundColor:c.card,borderTopWidth:1,borderColor:c.line,borderTopLeftRadius:24,borderTopRightRadius:24,boxShadow:'0 -5px 25px #44334d09',flexDirection:'row',alignItems:'center',justifyContent:'space-around'}}>{[nav[0],nav[1],['Add','Plus'],nav[4],['More','Menu']].map(([n,i])=>n==='Add'?<Squish key={n} accessibilityLabel="Add transaction" onPress={()=>state.accounts.length?setModal({type:'transaction'}):setModal({type:'account'})} style={{width:54,height:54,borderRadius:20,backgroundColor:c.accent,alignItems:'center',justifyContent:'center',boxShadow:'0 4px 12px #D8896135'}}><Icon name="Plus" size={27} color={c.buttonInk}/></Squish>:<Squish key={n} accessibilityLabel={n==='Overview'?'Home':n} onPress={()=>n==='More'?setMobileMenu(true):navigate(n)} accessibilityState={{selected:selected(n)}} aria-pressed={selected(n)} style={{flex:1,maxWidth:80,minWidth:0,minHeight:55,alignItems:'center',justifyContent:'center',gap:4}}><View style={{paddingHorizontal:14,paddingVertical:5,borderRadius:14,backgroundColor:selected(n)?c.nav:'transparent'}}><Icon name={i} size={21} color={selected(n)?c.accent:c.sub}/></View><T numberOfLines={1} style={{fontSize:10,color:selected(n)?c.peachText:c.sub}}>{n==='Overview'?'Home':n==='Transactions'?'Activity':n==='Year Plan'?'Plan':n}</T></Squish>)}</View>}
@@ -113,6 +134,13 @@ export default function App(){
  {modal?.type==='transaction'&&<TransactionForm key={modal.item?.id||modal.initialType||'new'} item={modal.item} initialType={modal.initialType} draft={modal.loan?{title:modal.loan.name,amount:modal.loan.payment,account:modal.loan.account,category:'loan',loanId:modal.loan.id}:null} onClose={()=>setModal(null)}/>}
  {modal?.type==='category'&&<CategoryForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='account'&&<AccountForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='loan'&&<LoanForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='plan'&&<PlanForm onClose={()=>setModal(null)}/>}
  {modal?.type==='transaction-detail'&&<TransactionDetail transactionId={modal.id} onClose={()=>setModal(null)}/>}
+ {categoryReviewOpen && (
+   <Dialog title="Review your migrated transactions" onClose={() => setCategoryReviewOpen(false)}>
+     <MissingCategoryReview rows={migrationCategoryRows} categories={state.categories} edits={categoryReviewEdits}
+       onChange={(key, edit) => setCategoryReviewEdits(previous => ({ ...previous, [key]: { ...previous[key], ...edit } }))} />
+     <Button onPress={acceptMigratedCategories}>Accept reviewed categories</Button>
+   </Dialog>
+ )}
  {mobileMenu&&<Dialog title="More" onClose={()=>setMobileMenu(false)}>{[nav[2],nav[3],nav[5],nav[6],['Settings','Settings2']].map(navItem)}</Dialog>}
  {monthOpen&&<Dialog title="A moment in time" onClose={()=>setMonthOpen(false)} width={360}><Row style={{justifyContent:'space-between',marginBottom:20}}><IB name="ChevronLeft" label="Previous year" onPress={()=>setPickerYear(y=>y-1)}/><H size={23}>{pickerYear}</H><IB name="ChevronRight" label="Next year" onPress={()=>setPickerYear(y=>y+1)}/></Row><Row style={{flexWrap:'wrap',gap:8}}>{Array.from({length:12},(_,i)=><Pressable key={i} accessibilityRole="button" onPress={()=>{setMonth(`${pickerYear}-${String(i+1).padStart(2,'0')}`);setMonthOpen(false)}} style={{width:'30%',alignItems:'center',paddingVertical:13,borderRadius:10,backgroundColor:pickerYear===Number(month.slice(0,4))&&i+1===Number(month.slice(5,7))?c.peach:c.soft}}><T style={{fontSize:12}}>{new Date(2026,i,1).toLocaleString('en',{month:'short'})}</T></Pressable>)}</Row></Dialog>}
  {!!toast&&<View accessibilityRole="alert" style={{position:'absolute',bottom:desktop?25:99+insets.bottom,alignSelf:'center',left:desktop?240:18,right:18,alignItems:'center',pointerEvents:'none'}}><ConfettiNotice message={toast}/></View>}

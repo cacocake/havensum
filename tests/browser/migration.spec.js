@@ -115,3 +115,59 @@ test('backup review rejects future schemas before offering a merge', async ({ pa
   await expect(page.getByText('Invalid stored data: unsupported schema version.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Apply reviewed merge', exact: true })).toHaveCount(0);
 });
+
+test('backup review lets the owner rename and categorize rows with deleted categories or keep them uncategorized', async ({ page }) => {
+  const state = createFinancialState({ version: 2 });
+  const first = createTransaction({ id: 'first', title: 'Old supermarket', category: 'retired-groceries', amount: 4200 });
+  const second = createTransaction({ id: 'second', title: 'Old snack', category: 'retired-food', amount: 300 });
+  await page.addInitScript(initialState => {
+    localStorage.setItem('melo-state-v1', JSON.stringify(initialState));
+    localStorage.setItem('melo-sync-base', JSON.stringify(initialState));
+  }, state);
+  await page.goto('/');
+  await openMoreSection(page, 'Settings');
+  const choosingFile = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Review backup merge', exact: true }).click();
+  await (await choosingFile).setFiles({
+    name: 'synthetic-retired-categories.json', mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ ...state, version: 1, transactions: [first, second] }))
+  });
+
+  const review = page.getByRole('dialog');
+  await expect(review.getByText('Missing categories', { exact: true })).toBeVisible();
+  await expect(review.getByText('Missing category · retired-groceries', { exact: true })).toBeVisible();
+  await review.getByLabel('Name for Old supermarket', { exact: true }).fill('Supermarket');
+  await review.getByLabel('Category for Old supermarket', { exact: true }).selectOption({ label: 'Groceries' });
+  await expect(review.getByText('Missing category · retired-food', { exact: true })).toBeVisible();
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')));
+  expect(before.transactions).toEqual([]);
+  await review.getByRole('button', { name: 'Apply reviewed merge', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).transactions)).toEqual([
+    { ...first, title: 'Supermarket', category: 'groceries' },
+    { ...second, category: null }
+  ]);
+});
+
+test('a saved legacy ledger with a missing category opens for review and preserves its exact original', async ({ page }) => {
+  const transaction = createTransaction({ title: 'Old supermarket', category: 'retired-groceries', amount: 4200 });
+  const originalBytes = JSON.stringify(createFinancialState({ version: 1, transactions: [transaction] }), null, 2);
+  await page.addInitScript(encodedState => {
+    if (localStorage.getItem('melo-state-v1') === null) {
+      localStorage.setItem('melo-state-v1', encodedState);
+    }
+  }, originalBytes);
+  await page.goto('/');
+  const review = page.getByRole('dialog');
+  await expect(review.getByText('Missing category · retired-groceries', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(review.getByText('Missing category · retired-groceries', { exact: true })).toBeVisible();
+  await review.getByRole('button', { name: 'Accept reviewed categories', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).migrationCategoryWarnings ?? null))
+    .toBeNull();
+  const stored = await page.evaluate(() => ({
+    state: JSON.parse(localStorage.getItem('melo-state-v1')),
+    recovery: localStorage.getItem('melo-state-v1:recovery:v1')
+  }));
+  expect(stored.state.transactions).toEqual([{ ...transaction, category: null }]);
+  expect(stored.recovery).toBe(originalBytes);
+});
