@@ -1,5 +1,7 @@
 # Havensum — developer handoff
 
+For the current task board and session handoff, see [docs/FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md). **PLAN-1** is next. The dated sections below describe earlier implementation snapshots.
+
 ## Migration foundation — 18 November 2026
 
 The identifier and migration foundations are integrated into `develop`. Startup and backup review can surface a transaction's missing category and keep the row uncategorized or accept user corrections. The original local ledger is retained before migration. See [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) and [docs/STATE_MIGRATIONS.md](docs/STATE_MIGRATIONS.md). A complete restore flow and independent Expected savings remain pending.

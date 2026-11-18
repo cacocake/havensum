@@ -1,5 +1,7 @@
 # Handoff implementation status
 
+Open tickets, dependencies, edge cases, and acceptance checks are tracked in the [feature backlog](FEATURE_BACKLOG.md). **PLAN-1** is next.
+
 ## Workflow and baseline
 
 - `develop` integrates reviewed task branches. `master` remains reserved for owner-requested releases.
