@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { createFinancialState } from '../helpers/financialFixtures.js';
+import { createFinancialState, createTransaction } from '../helpers/financialFixtures.js';
+import { createPaybackTask } from '../../src/paybackTasks.js';
 import { openMoreSection, returnHome } from '../helpers/userFlows.js';
 
 test.beforeEach(async ({ page }) => {
@@ -70,4 +71,29 @@ test('turning off tracking confirms closure and deleting the expense confirms re
   await expect(editor.getByText('Delete this expense, its payback task and closure history permanently?')).toBeVisible();
   await editor.getByRole('button', { name: 'Delete transaction', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Show payback history', exact: true })).toHaveCount(0);
+});
+
+test('backup review identifies the expense and payback task before confirming their removal', async ({ page }) => {
+  const expense = createTransaction({ title: 'Shared train tickets', amount: 10000 });
+  const baseline = createFinancialState({ transactions: [expense] });
+  const current = createPaybackTask(baseline, expense.id, { id: 'train-task', expectedAmount: 6000, at: '2026-11-18T11:00:00.000Z' });
+  await page.evaluate(({ current, baseline }) => {
+    localStorage.setItem('melo-state-v1', JSON.stringify(current));
+    localStorage.setItem('melo-sync-base', JSON.stringify(baseline));
+  }, { current, baseline });
+  await page.reload();
+  await openMoreSection(page, 'Settings');
+  const choosingFile = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Review backup merge', exact: true }).click();
+  const chooser = await choosingFile;
+  await chooser.setFiles({ name: 'synthetic-payback-merge.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ ...baseline, transactions: [] })) });
+
+  const review = page.getByRole('dialog');
+  await expect(review.getByText('Expense and payback task · Shared train tickets', { exact: true })).toBeVisible();
+  await expect(review.getByText('Expected payback €60.00', { exact: true })).toBeVisible();
+  await expect(review.getByText('Expense and payback task removed', { exact: true })).toBeVisible();
+  await review.getByText('BACKUP FILE', { exact: true }).click();
+  await review.getByRole('button', { name: 'Apply reviewed merge', exact: true }).click();
+  await returnHome(page);
+  await expect(page.getByLabel('View net spending transactions')).toContainText('€0.00');
 });

@@ -74,6 +74,39 @@ test('deleting an expense in an older backup requires review when this device tr
   assert.deepEqual(merged.result.transactions, local.transactions);
 });
 
+test('editing a tracked expense and deleting it in the backup produce one review choice', async () => {
+  const { createPaybackTask } = await import('../src/paybackTasks.js');
+  const { takeReviewedTrackedExpense } = await import('../src/paybackMerge.js');
+  const expense = createTransaction();
+  const base = createFinancialState({ transactions: [expense] });
+  const editedExpense = { ...expense, title: 'Edited groceries' };
+  const local = createPaybackTask({ ...base, transactions: [editedExpense] }, expense.id, { id: 'local', at: k_createdAt });
+  const remote = { ...base, transactions: [] };
+  const { result, conflicts } = mergeThreeWay(base, local, remote);
+  assert.deepEqual(conflicts.map(conflict => conflict.field), ['$trackedExpense']);
+  const keep = takeReviewedTrackedExpense(result, expense.id, conflicts[0].local);
+  const remove = takeReviewedTrackedExpense(result, expense.id, conflicts[0].remote);
+  assert.deepEqual(keep.transactions, [editedExpense]);
+  assert.deepEqual(keep.paybackTasks, local.paybackTasks);
+  assert.deepEqual(remove.transactions, []);
+  assert.deepEqual(remove.paybackTasks, []);
+});
+
+test('keeping the backup edit restores the tracked expense and task after deletion on this device', async () => {
+  const { createPaybackTask, updatePaybackTask } = await import('../src/paybackTasks.js');
+  const { takeReviewedTrackedExpense } = await import('../src/paybackMerge.js');
+  const expense = createTransaction();
+  const base = createPaybackTask(createFinancialState({ transactions: [expense] }), expense.id, { id: 'task', at: k_createdAt });
+  const local = { ...base, transactions: [], paybackTasks: [] };
+  const backup = updatePaybackTask({ ...base, transactions: [{ ...expense, title: 'Corrected title' }] }, 'task',
+    { person: 'Synthetic person', at: '2026-11-18T12:00:00.000Z' });
+  const { result, conflicts } = mergeThreeWay(base, local, backup);
+  assert.deepEqual(conflicts.map(conflict => conflict.field), ['$trackedExpense']);
+  const restored = takeReviewedTrackedExpense(result, expense.id, conflicts[0].remote);
+  assert.deepEqual(restored.transactions, backup.transactions);
+  assert.deepEqual(restored.paybackTasks, backup.paybackTasks);
+});
+
 test('expecting a payback creates follow-up metadata without changing cash, spending or the frozen target', async () => {
   const { createPaybackTask } = await import('../src/paybackTasks.js');
   const state = createFinancialState({ transactions: [createTransaction({ amount: 10000 })], plan: { revision: 4, months: { '2026-11': { balance: 50000 } } } });

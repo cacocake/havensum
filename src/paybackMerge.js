@@ -16,9 +16,14 @@ export function mergePaybackTasks(base, local, remote, result, conflicts) {
     const backup = remoteTasks.get(expenseId);
     const merged = equal(device, original) ? backup : device;
     const mergedExpense = result.transactions.find(transaction => transaction.id === expenseId);
-    if (merged && !supportsTask(mergedExpense, merged)) {
+    const expenseConflicts = conflicts.filter(conflict => conflict.collection === 'transactions' && conflict.id === expenseId);
+    const conflictingTrackedRemoval = (device || backup) && expenseConflicts.some(conflict => conflict.field === '$record');
+    if (conflictingTrackedRemoval || (merged && !supportsTask(mergedExpense, merged))) {
       const deviceSide = trackedExpense(local, expenseId, device);
       const backupSide = trackedExpense(remote, expenseId, backup);
+      for (const conflict of expenseConflicts) {
+        conflicts.splice(conflicts.indexOf(conflict), 1);
+      }
       conflicts.push({
         collection: 'paybackTasks', id: expenseId, field: '$trackedExpense',
         base: trackedExpense(base, expenseId, original), local: deviceSide, remote: backupSide
