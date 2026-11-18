@@ -41,7 +41,8 @@
     "react-native-svg": "^15.12.1",
     "react-native-web": "^0.21.2",
     "react-native-worklets": "0.5.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "expo-crypto": "~15.0.9"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",

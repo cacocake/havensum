@@ -1,5 +1,9 @@
 # Test-hardening review
 
+## CSV review pending — 18 November 2026
+
+`codex/csv-exchange` was developed from `develop` after owner confirmation that Claude availability must not block implementation. Claude review is deferred to the stated noon availability and remains mandatory before merging. No independent review or approval is claimed. Public-boundary regressions exercise safe export/import identity, explicit edited/duplicate choices, recovery failure and legacy numeric-zero reimbursements. Cashew structure research is documented separately; verified adapter support remains pending a sanitized export/version. See CSV_EXCHANGE_STATUS.md for checks and integration constraints.
+
 Claude Code performed a read-only review of the initial coverage task. It read the new files, changed modules and relevant consumers; it did not run commands or modify files. Its review confirmed that the original defect fixes had matching public-boundary regressions, and identified follow-up issues before merge.
 
 | Finding | Resolution on `codex/test-hardening` |

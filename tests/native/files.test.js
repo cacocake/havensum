@@ -56,6 +56,18 @@ beforeEach(() => {
   g_pickerResult = { canceled: true };
 });
 
+test('native CSV export and blank template share UTF-8 transaction files separately from full backup', async () => {
+  const { exportTransactionsCsv, downloadCsvTemplate } = await import('../../src/files.native.js');
+  await exportTransactionsCsv(createFinancialState({ transactions: [createTransaction()] }));
+  assert.match(g_sharedFiles[0].uri, /Havensum-transactions-.*\.csv$/);
+  assert.equal(g_sharedFiles[0].mimeType, 'text/csv');
+  const imported = await readImport({ name: 'Havensum.csv', uri: g_sharedFiles[0].uri, text: async () => g_cachedFiles.get(g_sharedFiles[0].uri).content });
+  assert.equal(imported.rows[0].amount, '12.34');
+  await downloadCsvTemplate();
+  const template = g_cachedFiles.get(g_sharedFiles[1].uri);
+  assert.equal(template.content, 'Date,Title,Amount,Account,Category,Note\r\n');
+});
+
 test('native picker cancellation returns no file', async () => {
   assert.equal(await chooseFile(), null);
 });

@@ -4,6 +4,18 @@ import { readState, writeState, readSnapshot, writeSnapshot } from '../src/stora
 import { installBrowserStorage } from './helpers/browserStorage.js';
 import { createFinancialState } from './helpers/financialFixtures.js';
 
+test('a pre-import recovery copy is retained separately from the ledger and shared merge baseline', async context => {
+  const { writeImportRecovery, readImportRecovery } = await import('../src/storage.web.js');
+  const storage = installBrowserStorage(context);
+  const original = createFinancialState();
+  storage.setItem('melo-state-v1', JSON.stringify(original));
+  storage.setItem('melo-sync-base', 'existing-shared-baseline');
+  await writeImportRecovery(original);
+  await writeState(createFinancialState({ theme: 'dark' }));
+  assert.deepEqual(await readImportRecovery(), original);
+  assert.equal(storage.getItem('melo-sync-base'), 'existing-shared-baseline');
+});
+
 test('corrupt browser storage is reported instead of being treated as an empty ledger', async context => {
   const storage = installBrowserStorage(context);
   storage.setItem('melo-state-v1', '{broken-private-ledger');

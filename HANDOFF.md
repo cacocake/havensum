@@ -1,5 +1,9 @@
 # Havensum — developer handoff
 
+## CSV development and Cashew research — 18 November 2026
+
+The owner authorized continuing development while reviews wait. `codex/csv-exchange`, created from `develop`, implements transaction CSV export, a blank template/guide, reviewed append/deduplication and pre-import recovery protection. It remains local and unmerged; see [docs/CSV_EXCHANGE_STATUS.md](docs/CSV_EXCHANGE_STATUS.md) for validation and foundation/branding integration constraints. [docs/CASHEW_IMPORT_RESEARCH.md](docs/CASHEW_IMPORT_RESEARCH.md) records the researched public export structure. A representative sanitized Cashew export and version are still needed to verify that adapter; no compatibility is claimed. Preserve the review gate and integrate foundations, Expected savings and branding before CSV. Continuation prompts belong in chat.
+
 ## Local test hardening — 17 November 2026
 
 The imported baseline now has additional financial, file, storage/native-adapter and browser regression coverage. Tests exposed and fixed validation, history/receipt-date, persistence, CSV decoding, monetary conversion and account-edit defects. See [docs/TESTING.md](docs/TESTING.md) for the test boundaries, commands and limits. Financial code touched by these fixes has been separated into readable modules; `src/engine.js` retains its public compatibility exports. The new Havensum handoff features remain pending. The historical package/source verification statements below describe the imported baseline.

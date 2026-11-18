@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { k_stateStorageKey, k_snapshotStorageKey } from './storageKeys.js';
+import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey } from './storageKeys.js';
 import { parseMergeBaseline } from './storageSerialization.js';
 
 let g_stateWriteQueue = Promise.resolve();
@@ -30,4 +30,13 @@ export async function readSnapshot() {
 
 export async function writeSnapshot(state) {
   await AsyncStorage.setItem(k_snapshotStorageKey, JSON.stringify(state));
+}
+
+export async function writeImportRecovery(state) {
+  await AsyncStorage.setItem(k_importRecoveryStorageKey, JSON.stringify(state));
+}
+
+export async function readImportRecovery() {
+  const encodedState = await AsyncStorage.getItem(k_importRecoveryStorageKey);
+  return encodedState === null ? null : JSON.parse(encodedState);
 }

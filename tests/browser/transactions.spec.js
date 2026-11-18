@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../helpers/browserTest.js';
 import { createFinancialState, createTransaction } from '../helpers/financialFixtures.js';
 import { addTransaction, editTransaction, openMoreSection, returnHome } from '../helpers/userFlows.js';
 import { readFile } from 'node:fs/promises';

@@ -20,6 +20,16 @@ beforeEach(() => {
   g_values.clear();
 });
 
+test('native import recovery retains the pre-import ledger without replacing the shared baseline', async () => {
+  const { writeImportRecovery, readImportRecovery } = await import('../../src/storage.native.js');
+  const state = createFinancialState();
+  await writeSnapshot(state);
+  await writeImportRecovery(state);
+  await writeState({ ...state, theme: 'dark' });
+  assert.deepEqual(await readImportRecovery(), state);
+  assert.deepEqual(await readSnapshot(), state);
+});
+
 test('native storage retains legacy state and baseline independently', async () => {
   const state = createFinancialState();
   const snapshot = createFinancialState({ theme: 'dark' });

@@ -1,6 +1,6 @@
 # Havensum CSV exchange — proposed contract
 
-**Pending implementation.** This is a specification for the local developer, not documentation that the current importer already supports every field. Existing generic import recognizes only a subset; adapt it before advertising full Havensum CSV compatibility.
+**Partly implemented on the unmerged `codex/csv-exchange` branch.** Canonical transaction export, the blank template/guide and reviewed generic transaction import are implemented; see [CSV_EXCHANGE_STATUS.md](CSV_EXCHANGE_STATUS.md). Expected-payback metadata, bank reconciliation and verified Cashew profiles remain requirements to implement. The full contract below must not be advertised as completed compatibility.
 
 ## Three distinct flows
 
@@ -43,6 +43,8 @@ Quick-entry presentation may show only Date, Title, Amount, Account, Category, N
 Canonical export: UTF-8, comma-separated, quoted according to CSV rules, CRLF line endings, dot decimal and no thousands separators. Explicit EUR avoids currency inference. Support a documented spreadsheet-friendly semicolon/decimal-comma dialect or detect it in preview; do not silently reinterpret ambiguous numbers such as 1,234. Verify Portugal spreadsheet behavior with a fixture. Preserve ID text and leading zeros. Avoid binary floating accumulation: normalize to integer cents with explicit validation and bounds.
 
 Spreadsheet programs can reinterpret dates/IDs and treat leading formula characters specially. Define a reversible safe-text export/import policy for titles/notes and test that quoting alone is not mistaken for formula neutralization. Do not mutate the accounting amount or stored text to work around spreadsheet display. Document the chosen policy and warn in the import preview when a value cannot be preserved safely.
+
+Implemented canonical encoding: an additional `text_encoding` column contains `apostrophe-v1`. Every nonempty text field (including IDs, readable names, titles and notes) receives one leading apostrophe; the importer removes exactly one under that explicit marker. Amount/date/type/kind/currency/schema fields retain their validated canonical representations. Files without the marker keep literal text unchanged. Missing prefixes under the marker are errors requiring correction, rather than guessed text edits. Preserve this marker and prefixes when editing an exported file in a spreadsheet.
 
 ## Append, deduplicate, reconcile
 

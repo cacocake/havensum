@@ -1,4 +1,4 @@
-import { k_stateStorageKey, k_snapshotStorageKey } from './storageKeys.js';
+import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey } from './storageKeys.js';
 import { parseMergeBaseline } from './storageSerialization.js';
 
 export function isDemoSession() {
@@ -31,4 +31,18 @@ export async function writeSnapshot(state) {
     return;
   }
   localStorage.setItem(k_snapshotStorageKey, JSON.stringify(state));
+}
+
+export async function writeImportRecovery(state) {
+  if (isDemoSession()) {
+    return;
+  }
+  localStorage.setItem(k_importRecoveryStorageKey, JSON.stringify(state));
+}
+
+export async function readImportRecovery() {
+  if (isDemoSession()) {
+    return null;
+  }
+  return JSON.parse(localStorage.getItem(k_importRecoveryStorageKey));
 }
