@@ -35,32 +35,39 @@ function OutlookSettingsDialog({ month, onClose }) {
   const [completeMonths, setCompleteMonths] = useState(state.outlook?.completeMonths || []);
   const [historyWindow, setHistoryWindow] = useState(String(state.outlook?.window || 6));
   const [since, setSince] = useState(month);
-  const [income, setIncome] = useState(() => {
-    const change = state.outlook?.incomeChanges?.find(change => change.since === month);
-    return change ? String(change.amount / k_centsPerEuro) : '';
-  });
-  const [loanAmounts, setLoanAmounts] = useState(() => Object.fromEntries((state.outlook?.loanChanges || []).filter(change => change.since === month).map(change => [change.loanId, String(change.amount / k_centsPerEuro)])));
+  const [incomeDrafts, setIncomeDrafts] = useState({});
+  const [loanDrafts, setLoanDrafts] = useState({});
   const [adoptScheduledChanges, setAdoptScheduledChanges] = useState(false);
   const [error, setError] = useState('');
-  const dirty = useDirtyForm([completeMonths, historyWindow, since, income, loanAmounts, adoptScheduledChanges]);
+  const dirty = useDirtyForm([completeMonths, historyWindow, incomeDrafts, loanDrafts, adoptScheduledChanges]);
   const currentMonth = monthOf(new Date().toISOString());
   const history = previousMonths(currentMonth, k_historyControlMonths);
+  const savedIncome = state.outlook?.incomeChanges?.find(change => change.since === since);
+  const income = incomeDrafts[since] ?? (savedIncome ? String(savedIncome.amount / k_centsPerEuro) : '');
+
+  function loanAmount(loanId) {
+    const savedLoan = state.outlook?.loanChanges?.find(change => change.since === since && change.loanId === loanId);
+    return loanDrafts[since]?.[loanId] ?? (savedLoan ? String(savedLoan.amount / k_centsPerEuro) : '');
+  }
 
   function save() {
     try {
       const outlook = { ...state.outlook, completeMonths, window: Number(historyWindow) };
       const incomeChanges = mergeDatedChanges(state.outlook?.incomeChanges, adoptScheduledChanges ? state.plan?.incomeChanges : []);
       const loanChanges = mergeDatedChanges(state.outlook?.loanChanges, adoptScheduledChanges ? state.plan?.loanChanges : []);
-      const editIncome = income.trim() || state.outlook?.incomeChanges?.some(change => change.since === since);
-      outlook.incomeChanges = incomeChanges.filter(change => !editIncome || change.since !== since);
-      if (income.trim()) {
-        outlook.incomeChanges.push({ since, amount: cents(income) });
+      outlook.incomeChanges = incomeChanges.filter(change => !Object.hasOwn(incomeDrafts, change.since));
+      for (const [changeMonth, amount] of Object.entries(incomeDrafts)) {
+        if (amount.trim()) {
+          outlook.incomeChanges.push({ since: changeMonth, amount: cents(amount) });
+        }
       }
-      outlook.loanChanges = loanChanges.filter(change => change.since !== since || !Object.hasOwn(loanAmounts, change.loanId));
-      for (const loan of state.loans) {
-        const amount = loanAmounts[loan.id];
-        if (amount?.trim()) {
-          outlook.loanChanges.push({ loanId: loan.id, since, amount: cents(amount) });
+      outlook.loanChanges = loanChanges.filter(change => !Object.hasOwn(loanDrafts[change.since] ?? {}, change.loanId));
+      for (const [changeMonth, amounts] of Object.entries(loanDrafts)) {
+        for (const loan of state.loans) {
+          const amount = amounts[loan.id];
+          if (amount?.trim()) {
+            outlook.loanChanges.push({ loanId: loan.id, since: changeMonth, amount: cents(amount) });
+          }
         }
       }
       validateOutlookState({ outlook });
@@ -78,9 +85,9 @@ function OutlookSettingsDialog({ month, onClose }) {
     {history.map(historyMonth => <Toggle key={historyMonth} label={`${dateName(historyMonth)} complete`} value={completeMonths.includes(historyMonth)} onChange={checked => setCompleteMonths(months => checked ? [...months, historyMonth] : months.filter(value => value !== historyMonth))} />)}
     <H size={20} style={{ marginTop: 18, marginBottom: 12 }}>Known changes</H>
     <Field label="Changes from · YYYY-MM" value={since} onChangeText={setSince} />
-    <Field label="Known monthly income · EUR" value={income} onChangeText={setIncome} keyboardType="decimal-pad" placeholder="Use historical average" />
+    <Field label="Known monthly income · EUR" value={income} onChangeText={amount => setIncomeDrafts(drafts => ({ ...drafts, [since]: amount }))} keyboardType="decimal-pad" placeholder="Use historical average" />
     <T style={{ color: colors.sub, marginBottom: 16 }}>This is the new total monthly income from that month. Registered income sets a floor. A blank removes the income change at the chosen month.</T>
-    {state.loans.map(loan => <Field key={loan.id} label={`${loan.name} · expected monthly payment · EUR`} value={loanAmounts[loan.id] || ''} onChangeText={amount => setLoanAmounts(values => ({ ...values, [loan.id]: amount }))} keyboardType="decimal-pad" placeholder={`${loan.payment / k_centsPerEuro}`} />)}
+    {state.loans.map(loan => <Field key={loan.id} label={`${loan.name} · expected monthly payment · EUR`} value={loanAmount(loan.id)} onChangeText={amount => setLoanDrafts(drafts => ({ ...drafts, [since]: { ...drafts[since], [loan.id]: amount } }))} keyboardType="decimal-pad" placeholder={`${loan.payment / k_centsPerEuro}`} />)}
     {Boolean(state.plan?.incomeChanges?.length || state.plan?.loanChanges?.length) && <Toggle label="Copy existing scheduled changes" value={adoptScheduledChanges} onChange={setAdoptScheduledChanges} description="Fill missing dated income and loan changes from the plan. Existing prediction inputs take priority. Target amounts and overrides are never copied." />}
     {error && <T accessibilityRole="alert" style={{ color: colors.negative, marginBottom: 12 }}>{error}</T>}
     <Button onPress={save}>Save prediction assumptions</Button>

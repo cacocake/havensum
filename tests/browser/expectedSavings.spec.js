@@ -2,6 +2,27 @@ import { test, expect } from '@playwright/test';
 import { createFinancialState, createTransaction } from '../helpers/financialFixtures.js';
 import { openMoreSection } from '../helpers/userFlows.js';
 
+test('switching the month shows that month’s saved income without overwriting other assumptions', async ({ page }) => {
+  await page.route('https://fonts.googleapis.com/**', route => route.abort());
+  await page.clock.install({ time: new Date('2026-11-15T12:00:00Z') });
+  const state = createFinancialState({
+    outlook: { incomeChanges: [{ since: '2026-11', amount: 100000 }, { since: '2026-12', amount: 250000 }] }
+  });
+  await page.addInitScript(initial => localStorage.setItem('melo-state-v1', JSON.stringify(initial)), state);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit prediction assumptions', exact: true }).click();
+  const income = page.getByLabel('Known monthly income · EUR', { exact: true });
+  await income.fill('1800');
+  await page.getByLabel('Changes from · YYYY-MM', { exact: true }).fill('2026-12');
+  await expect(income).toHaveValue('2500');
+  await page.getByRole('button', { name: 'Save prediction assumptions', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => {
+    const changes = JSON.parse(localStorage.getItem('melo-state-v1')).outlook.incomeChanges;
+    return Object.fromEntries(changes.map(change => [change.since, change.amount]));
+  })).toEqual({ '2026-11': 180000, '2026-12': 250000 });
+});
+
 test('Averages shows booked category spending from completed history', async ({ page }) => {
   await page.route('https://fonts.googleapis.com/**', route => route.abort());
   await page.clock.install({ time: new Date('2026-11-15T12:00:00Z') });
@@ -47,6 +68,9 @@ test('individual bill cancellation survives reload without changing the plan or 
   await page.reload();
   await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Inspect expected bill Internet', exact: true })).toContainText('Cancelled');
+  await page.getByRole('button', { name: 'Inspect expected bill Internet', exact: true }).click();
+  await page.getByRole('button', { name: 'Undo cancellation', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Inspect expected bill Internet', exact: true })).toContainText('Still expected');
 });
 
 test('history completeness and independent income assumptions persist without creating a plan', async ({ page }) => {
@@ -73,6 +97,7 @@ test('history completeness and independent income assumptions persist without cr
 test('an upcoming cost is explicitly matched to its recorded expense', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-15T12:00:00') });
   const state = createFinancialState({
+    outlook: { eventPayments: { 'deleted-event': 'purchase' } },
     events: [{ id: 'trip', name: 'Trip', year: 2026, month: 11, amount: 20000 }],
     transactions: [createTransaction({ id: 'purchase', title: 'Trip deposit', category: 'shopping', amount: 15000 })]
   });

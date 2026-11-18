@@ -6,6 +6,7 @@ import { Squish } from './Playful.jsx';
 import { euro } from './money.js';
 import { monthStats } from './ledger.js';
 import { isOccasionalExpense } from './expectedOccasionalSpending.js';
+import { billIdentity } from './outlookInputs.js';
 
 const k_monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const k_billStatusLabels = { recorded: 'Recorded', scheduled: 'Scheduled', cancelled: 'Cancelled', 'still expected': 'Still expected' };
@@ -18,10 +19,12 @@ export default function ExpectedCosts({ prediction, month }) {
   const [cancelFrom, setCancelFrom] = useState(month);
   const [error, setError] = useState('');
   const occasionalExpenses = monthStats(state, month).expenses.filter(expense => isOccasionalExpense(state, expense));
+  const eventIds = new Set((state.events ?? []).map(event => String(event.id)));
 
   function matchEventPayment(eventId, value) {
     setState(current => {
-      const eventPayments = { ...current.outlook?.eventPayments };
+      const currentEventIds = new Set((current.events ?? []).map(event => String(event.id)));
+      const eventPayments = Object.fromEntries(Object.entries(current.outlook?.eventPayments ?? {}).filter(([id]) => currentEventIds.has(id)));
       delete eventPayments[eventId];
       const payment = occasionalExpenses.find(expense => String(expense.id) === value);
       if (payment) {
@@ -53,6 +56,16 @@ export default function ExpectedCosts({ prediction, month }) {
     setSelectedBill(null);
   }
 
+  function undoCancellation() {
+    const billKey = selectedBill.key;
+    setState(current => {
+      const billCancellations = { ...current.outlook?.billCancellations };
+      delete billCancellations[billKey];
+      return { ...current, outlook: { ...current.outlook, billCancellations } };
+    });
+    setSelectedBill(null);
+  }
+
   return <Card testID="expected-costs">
     <H size={23}>Expected costs</H>
     <T style={{ color: colors.sub, marginTop: 8, marginBottom: 12 }}>Each fixed bill stays expected until you explicitly cancel it. Recorded payments count once.</T>
@@ -77,15 +90,18 @@ export default function ExpectedCosts({ prediction, month }) {
       <T style={{ color: colors.sub, marginTop: 4, marginBottom: 10 }}>Still upcoming {euro(event.remaining)}</T>
       <Select label={`Recorded expense for ${event.name}`} value={event.paymentId === undefined ? '' : String(event.paymentId)} onChange={value => matchEventPayment(event.id, value)} options={[
         { value: '', label: 'Not matched to an expense' },
-        ...occasionalExpenses.filter(expense => !Object.entries(state.outlook?.eventPayments || {}).some(([eventId, paymentId]) => eventId !== String(event.id) && paymentId === expense.id)).map(expense => ({ value: String(expense.id), label: `${expense.date} · ${expense.title} · ${euro(expense.amount)}` }))
+        ...occasionalExpenses.filter(expense => !Object.entries(state.outlook?.eventPayments || {}).some(([eventId, paymentId]) => eventIds.has(eventId) && eventId !== String(event.id) && paymentId === expense.id)).map(expense => ({ value: String(expense.id), label: `${expense.date} · ${expense.title} · ${euro(expense.amount)}` }))
       ]} />
     </View>)}
     {selectedBill && <Dialog title={selectedBill.name} onClose={() => setSelectedBill(null)}>
       <T style={{ marginBottom: 14 }}>Latest observed monthly bill: {euro(selectedBill.baseline)}. Expected this month: {euro(selectedBill.expected)}.</T>
       <T style={{ color: colors.sub, marginBottom: 18 }}>Recognised by its account, category and title. Similar names on different accounts remain separate bills.</T>
       <H size={19}>Recorded history</H>
-      {state.transactions.filter(transaction => transaction.type === 'expense' && transaction.account === selectedBill.account && transaction.category === selectedBill.category && (transaction.title || '').trim().toLowerCase() === selectedBill.name.trim().toLowerCase()).sort((first, second) => second.date.localeCompare(first.date)).slice(0, 12).map(transaction => <Row key={transaction.id} style={{ justifyContent: 'space-between', gap: 12, marginTop: 12 }}><T>{transaction.date}</T><T>{euro(transaction.amount)}</T></Row>)}
-      {selectedBill.cancelledSince ? <T style={{ color: colors.sub, marginTop: 18 }}>Cancelled from {selectedBill.cancelledSince}. Recorded entries are retained.</T> : confirming ? <View style={{ marginTop: 18 }}>
+      {state.transactions.filter(transaction => transaction.type === 'expense' && billIdentity(transaction) === selectedBill.key).sort((first, second) => second.date.localeCompare(first.date)).slice(0, 12).map(transaction => <Row key={transaction.id} style={{ justifyContent: 'space-between', gap: 12, marginTop: 12 }}><T>{transaction.date}</T><T>{euro(transaction.amount)}</T></Row>)}
+      {selectedBill.cancelledSince ? <View style={{ gap: 12, marginTop: 18 }}>
+        <T style={{ color: colors.sub }}>Cancelled from {selectedBill.cancelledSince}.</T>
+        <Button kind="outline" onPress={undoCancellation}>Undo cancellation</Button>
+      </View> : confirming ? <View style={{ marginTop: 18 }}>
         <Field label="Cancelled from · YYYY-MM" value={cancelFrom} onChangeText={setCancelFrom} />
         <T style={{ color: colors.sub, marginBottom: 14 }}>Only this bill's future expectation changes. Recorded transactions and your frozen plan stay as saved.</T>
         {error && <T accessibilityRole="alert" style={{ color: colors.negative }}>{error}</T>}

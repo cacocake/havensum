@@ -28,6 +28,19 @@ test('missing history returns an unknown estimate instead of inventing savings',
   assert.equal(expectedSavings(createFinancialState(), '2026-11', '2026-11-15'), null);
 });
 
+test('future forecasts keep the same last completed history beyond the prediction window', () => {
+  const state = createFinancialState({
+    outlook: { window: 3, completeMonths: ['2026-10'] },
+    transactions: [
+      createTransaction({ id: 'income-history', type: 'income', amount: 200000, date: '2026-10-01' }),
+      createTransaction({ id: 'variable-history', amount: 30000, date: '2026-10-10' })
+    ]
+  });
+  const result = expectedSavings(state, '2027-08', '2026-11-15');
+  assert.deepEqual(result.historyMonths, ['2026-10']);
+  assert.equal(result.balance, 170000);
+});
+
 test('unconfirmed recorded history supports an explicitly partial estimate', () => {
   const state = createFinancialState({ transactions: [
     createTransaction({ amount: 30000, date: '2026-10-10' })

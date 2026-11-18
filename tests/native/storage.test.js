@@ -26,7 +26,7 @@ test('native storage retains outlook inputs and rejects invalid replacements', a
   await writeSnapshot(state);
   assert.deepEqual(await readState(), state);
   assert.deepEqual(await readSnapshot(), state);
-  assert.throws(() => writeState({ ...state, outlook: { window: 0 } }), /outlook/i);
+  await assert.rejects(writeState({ ...state, outlook: { window: 0 } }), /outlook/i);
   assert.deepEqual(await readState(), state);
 });
 

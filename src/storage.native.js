@@ -14,7 +14,7 @@ export async function readState() {
   return encodedState ? validateOutlookState(JSON.parse(encodedState)) : null;
 }
 
-export function writeState(state) {
+export async function writeState(state) {
   const encodedState = JSON.stringify(validateOutlookState(state));
   // A failed write is still reported to its caller, but must not poison later saves.
   const currentWrite = g_stateWriteQueue.catch(() => {}).then(() => (
