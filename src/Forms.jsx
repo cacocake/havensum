@@ -48,6 +48,9 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
      };
      if (isTransfer) {
        transaction.toAccount = toAccount;
+       if (item?.toAccount === toAccount) {
+         transaction.counterpartSourceFingerprint = item?.counterpartSourceFingerprint;
+       }
      }
      if (type === k_transactionTypes.reimbursement && link && linkedId) {
        transaction.linkedId = linkedId;

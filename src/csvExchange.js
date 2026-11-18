@@ -5,11 +5,13 @@ import { isRecordIdentifier } from './recordIdentity.js';
 const k_csvColumns = [
   'schema_version', 'text_encoding', 'id', 'type', 'date', 'title', 'amount', 'currency',
   'account_id', 'account_name', 'category_id', 'category_path', 'to_account_id',
-  'to_account_name', 'linked_id', 'kind', 'note', 'external_source', 'external_id', 'loan_id', 'source_fingerprint'
+  'to_account_name', 'linked_id', 'kind', 'note', 'external_source', 'external_id', 'loan_id',
+  'source_fingerprint', 'counterpart_source_fingerprint'
 ];
 const k_textColumns = new Set([
   'id', 'title', 'account_id', 'account_name', 'category_id', 'category_path',
-  'to_account_id', 'to_account_name', 'linked_id', 'note', 'external_source', 'external_id', 'loan_id', 'source_fingerprint'
+  'to_account_id', 'to_account_name', 'linked_id', 'note', 'external_source', 'external_id', 'loan_id',
+  'source_fingerprint', 'counterpart_source_fingerprint'
 ]);
 const k_centsPerEuro = 100n;
 
@@ -85,7 +87,8 @@ export function createTransactionCsv(state) {
       to_account_name: state.accounts.find(account => account.id === transaction.toAccount)?.name,
       linked_id: transaction.linkedId, kind: transaction.kind, note: transaction.note,
       external_source: transaction.externalSource, external_id: transaction.externalId, loan_id: transaction.loanId,
-      source_fingerprint: transaction.sourceFingerprint
+      source_fingerprint: transaction.sourceFingerprint,
+      counterpart_source_fingerprint: transaction.counterpartSourceFingerprint
     };
     return k_csvColumns.map(column => {
       const value = record[column] ?? '';

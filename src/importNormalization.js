@@ -139,7 +139,8 @@ export function normalizeImportRows(state, data, options = {}) {
       }
       for (const [column, field] of Object.entries({
         linked_id: 'linkedId', note: 'note', external_source: 'externalSource',
-        external_id: 'externalId', source_fingerprint: 'sourceFingerprint', loan_id: 'loanId'
+        external_id: 'externalId', source_fingerprint: 'sourceFingerprint',
+        counterpart_source_fingerprint: 'counterpartSourceFingerprint', loan_id: 'loanId'
       })) {
         let sourceColumn = column;
         if (field === 'note') {

@@ -295,7 +295,12 @@ export default function ImportDialog({ data, onClose }) {
               )}
               {row.transaction.category !== undefined && <T style={{ fontSize: 12, color: colors.sub }}>{displayField(state, 'category', row.transaction.category)}</T>}
               <T style={{ fontSize: 12, color: colors.sub }}>{k_statusLabels[row.status]}</T>
-              {row.status === 'possible' && (
+              {row.status === 'paired' && (
+                <T style={{ fontSize: 12, color: colors.sub }}>
+                  Follows {formatReviewRowLabel(review.rows[row.pairedBy], true).toLowerCase()}. Skipping that debit skips both sides.
+                </T>
+              )}
+              {row.possibleMatches?.length > 0 && (
                 <View style={{ gap: 4 }}>
                   <T style={{ fontSize: 12, fontWeight: '600' }}>Possible matches in your ledger</T>
                   {row.possibleMatches.map(match => (
@@ -304,6 +309,11 @@ export default function ImportDialog({ data, onClose }) {
                     </T>
                   ))}
                 </View>
+              )}
+              {row.possibleStatementMatches?.length > 0 && (
+                <T style={{ fontSize: 12, color: colors.sub }}>
+                  Possible matches in this import · {row.possibleStatementMatches.map(index => formatReviewRowLabel(review.rows[index], true)).join(', ')}
+                </T>
               )}
               {row.status === 'edited' && Object.entries(k_reviewFields).filter(([field]) => (row.existing[field] ?? '') !== (row.transaction[field] ?? '')).map(([field, label]) => (
                 <T key={field} style={{ fontSize: 12 }}>{label}: {displayField(state, field, row.existing[field])} → {displayField(state, field, row.transaction[field])}</T>

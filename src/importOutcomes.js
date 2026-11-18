@@ -25,13 +25,17 @@ export function getImportBalances(state, review, result) {
   }));
 }
 
-function describeRowOutcome(row, choice) {
+function describeRowOutcome(row, choices) {
+  const choice = choices[row.index];
   if (row.status === 'invalid' && choice === 'skip') {
     const label = row.normalizationError ? 'Skipped malformed source row' : 'Skipped invalid row';
     return { outcome: 'skipped', label };
   }
   if (row.status === 'paired') {
-    return { outcome: 'skipped', label: 'Combined with its matching transfer debit' };
+    const label = choices[row.pairedBy] === 'skip'
+      ? 'Skipped with its matching transfer debit'
+      : 'Combined with its matching transfer debit';
+    return { outcome: 'skipped', label };
   }
   if (row.status === 'edited') {
     return choice === 'replace'
@@ -52,7 +56,7 @@ function describeRowOutcome(row, choice) {
 export function getImportResults(state, result, review, choices) {
   const counts = { added: 0, updated: 0, skipped: 0 };
   const rows = review.rows.map(row => {
-    const outcome = describeRowOutcome(row, choices[row.index]);
+    const outcome = describeRowOutcome(row, choices);
     counts[outcome.outcome] += 1;
     return { ...row, ...outcome };
   });

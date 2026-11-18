@@ -67,7 +67,7 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
 
   function update() {
     try {
-      const amount = parseImportAmount(draft.amount, 'euros');
+      const amount = bank && isTransfer ? bank.amount : parseImportAmount(draft.amount, 'euros');
       const category = isTransfer ? undefined : selectedId(categories, draft.category);
       onUpdate({
         title: draft.title.trim(),
@@ -95,8 +95,13 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
     <>
       <Field label="Title" value={draft.title} onChangeText={value => change('title', value)} />
       <Select label="Type" value={draft.type ?? ''} onChange={value => change('type', value)} options={typeOptions} />
-      <Field label="Amount · EUR" value={draft.amount} onChangeText={value => change('amount', value)} keyboardType="decimal-pad" />
-      {!needsTransferDate && <DateField value={draft.date} onChange={value => change('date', value)} />}
+      {bank && isTransfer ? (
+        <T>Statement amount · {euro(bank.amount)}</T>
+      ) : (
+        <Field label="Amount · EUR" value={draft.amount} onChangeText={value => change('amount', value)} keyboardType="decimal-pad" />
+      )}
+      {bank && isTransfer && !needsTransferDate && <T>Value date · {bank.valueDate}</T>}
+      {!(bank && isTransfer) && <DateField value={draft.date} onChange={value => change('date', value)} />}
       {!lockAccount && !scopedSource && <Select label="Account" value={draft.account} onChange={value => change('account', value)} options={accountOptions} />}
       {isTransfer && bank ? (
         <Select label="Matching credit" value={draft.counterpart}

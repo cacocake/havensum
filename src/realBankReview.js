@@ -30,6 +30,7 @@ export function getBankDrafts(state, statement, targetAccount, statementNumber) 
       category: row.category,
       direction: row.movement?.direction,
       valueDate: row.movement?.date,
+      amount: row.movement?.amount,
       error: row.error
     };
     const categories = row.category ? state.categories.filter(category =>

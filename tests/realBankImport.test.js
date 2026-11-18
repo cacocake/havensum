@@ -5,6 +5,7 @@ import { readImport } from '../src/files.web.js';
 import { createTransactionCsv } from '../src/csvExchange.js';
 import { previewImportFile } from '../src/importFileReview.js';
 import { applyTransactionImport, reviseTransactionImport } from '../src/importReview.js';
+import { getImportResults } from '../src/importOutcomes.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 import { accountBalance, monthStats } from '../src/engine.js';
 
@@ -75,6 +76,25 @@ test('the Real Bank parser reports a missing description on the source row and k
   assert.equal(imported.rows[2].movement.amount, 400);
 });
 
+test('ambiguous statement amounts and invalid value dates report row errors before balances can change', async () => {
+  const state = createFinancialState();
+  const invalidRows = [
+    '05-02-2032,2032-02-06,Unexpected date,3,,,107,Lazer',
+    '05-02-2032,31-02-2032,Invalid date,3,,,107,Lazer',
+    '05-02-2032,06-02-2032,Both directions,3,2,,107,Lazer',
+    '05-02-2032,06-02-2032,Ambiguous amount,1.234,,,107,Lazer',
+    '05-02-2032,06-02-2032,Amount too large,90071992547410,,,107,Lazer'
+  ];
+  const statement = await parseImportContent('synthetic.csv', [k_realBankStatement, ...invalidRows].join('\r\n'));
+  const preview = previewImportFile(state, statement, { targetAccount: 'everyday' });
+  const rows = preview.rows.slice(1);
+  assert.deepEqual(rows.map(row => row.sourceRow), [11, 12, 13, 14, 15]);
+  assert.deepEqual(rows.map(row => row.status), Array(5).fill('invalid'));
+  const expectedMessages = [/DD-MM-YYYY/, /valid calendar/, /exactly one/, /thousands separator/, /safe integer/];
+  rows.forEach((row, index) => assert.match(row.error, expectedMessages[index]));
+  assert.equal(accountBalance(state, 'everyday'), 100000);
+});
+
 test('overlapping Real Bank exports review identical purchases after draft edits and a canonical round trip', async () => {
   const state = createFinancialState();
   const statement = await parseImportContent('first.csv', k_realBankStatement);
@@ -128,6 +148,77 @@ test('opposite statement rows become one neutral transfer only when the counterp
   assert.equal(accountBalance(saved, 'shared'), 51245);
   assert.equal(monthStats(saved, '2032-02').income, 0);
   assert.equal(monthStats(saved, '2032-02').spent, 0);
+});
+
+test('overlapping statements in the same import require a choice for the repeated movement', async () => {
+  const state = createFinancialState();
+  const first = await parseImportContent('first.csv', k_realBankStatement);
+  const second = await parseImportContent('overlap.csv', k_realBankStatement);
+  const preview = previewImportFile(state, first, { statements: [
+    { data: first, targetAccount: 'everyday' }, { data: second, targetAccount: 'everyday' }
+  ] });
+  const reviewedFirst = reviseTransactionImport(state, preview, 0, { type: 'expense', category: 'groceries' });
+  const reviewed = reviseTransactionImport(state, reviewedFirst, 1, { type: 'expense', category: 'groceries', title: 'Edited description' });
+  assert.equal(reviewed.rows[0].status, 'new');
+  assert.equal(reviewed.rows[1].status, 'possible');
+  assert.throws(() => applyTransactionImport(state, reviewed, {}, () => 'first'), /make a review choice/i);
+  const saved = applyTransactionImport(state, reviewed, { 1: 'skip' }, () => 'first');
+  assert.deepEqual(saved.transactions.map(transaction => transaction.amount), [1245]);
+});
+
+test('a paired transfer keeps the matched amount and value date after draft edits', async () => {
+  const state = createFinancialState();
+  const outgoing = await parseImportContent('outgoing.csv', k_realBankStatement);
+  const incoming = await parseImportContent('incoming.csv', k_realBankStatement.replace(
+    k_realBankStatement.split('\r\n').at(-1), '03-02-2032,04-02-2032,Recebimento,,12.45,112.45,112.45,Outros'
+  ));
+  const preview = previewImportFile(state, outgoing, { statements: [
+    { data: outgoing, targetAccount: 'everyday' }, { data: incoming, targetAccount: 'shared' }
+  ] });
+  const paired = reviseTransactionImport(state, preview, 0, {
+    type: 'transfer', counterpartIndex: 1, amount: 9900, date: '2032-02-07'
+  });
+  const saved = applyTransactionImport(state, paired, {}, () => 'reviewed-transfer');
+  assert.equal(saved.transactions[0].amount, 1245);
+  assert.equal(saved.transactions[0].date, '2032-02-04');
+});
+
+test('both sides of a skipped transfer are reported as skipped', async () => {
+  const state = createFinancialState();
+  const outgoing = await parseImportContent('outgoing.csv', k_realBankStatement);
+  const incoming = await parseImportContent('incoming.csv', k_realBankStatement.replace(
+    k_realBankStatement.split('\r\n').at(-1), '03-02-2032,04-02-2032,Recebimento,,12.45,112.45,112.45,Outros'
+  ));
+  const preview = previewImportFile(state, outgoing, { statements: [
+    { data: outgoing, targetAccount: 'everyday' }, { data: incoming, targetAccount: 'shared' }
+  ] });
+  const paired = reviseTransactionImport(state, preview, 0, { type: 'transfer', counterpartIndex: 1, title: '' });
+  const choices = { 0: 'skip' };
+  const saved = applyTransactionImport(state, paired, choices, () => 'never-used');
+  const receipt = getImportResults(state, saved, paired, choices);
+  assert.deepEqual(receipt.counts, { added: 0, updated: 0, skipped: 2 });
+  assert.match(receipt.rows[1].label, /skipped with.*transfer debit/i);
+  assert.deepEqual(saved.transactions, []);
+});
+
+test('the credit side of a recorded transfer remains a possible duplicate after CSV export and import', async () => {
+  const state = createFinancialState();
+  const outgoing = await parseImportContent('outgoing.csv', k_realBankStatement);
+  const incoming = await parseImportContent('incoming.csv', k_realBankStatement.replace(
+    k_realBankStatement.split('\r\n').at(-1), '03-02-2032,04-02-2032,Recebimento,,12.45,112.45,112.45,Outros'
+  ));
+  const preview = previewImportFile(state, outgoing, { statements: [
+    { data: outgoing, targetAccount: 'everyday' }, { data: incoming, targetAccount: 'shared' }
+  ] });
+  const paired = reviseTransactionImport(state, preview, 0, { type: 'transfer', counterpartIndex: 1 });
+  const saved = applyTransactionImport(state, paired, {}, () => 'saved-transfer');
+  const exported = await parseImportContent('portable.csv', createTransactionCsv(saved));
+  const restored = applyTransactionImport(state, previewImportFile(state, exported), {});
+  const overlap = previewImportFile(restored, incoming, { targetAccount: 'shared' });
+  assert.deepEqual(overlap.rows[0].possibleMatches.map(record => record.id), ['saved-transfer']);
+  const classified = reviseTransactionImport(restored, overlap, 0, { type: 'income' });
+  assert.equal(classified.rows[0].status, 'possible');
+  assert.throws(() => applyTransactionImport(restored, classified, {}), /make a review choice/i);
 });
 
 test('a bank refund requires an explicit expense or balance-adjustment choice and never becomes earnings', async () => {
