@@ -1,5 +1,5 @@
 {
-  "name": "melo-money",
+  "name": "havensum",
   "version": "0.1.0",
   "private": true,
   "license": "UNLICENSED",
@@ -16,7 +16,8 @@
     "test:coverage": "node --experimental-test-module-mocks --test --experimental-test-coverage --test-coverage-include=src/** --test-coverage-lines=95 --test-coverage-branches=90 --test-coverage-functions=90 tests/*.test.js tests/native/*.test.js",
     "test:all": "npm run test:coverage && npm run test:browser",
     "android": "expo start --android",
-    "check:android": "expo export --platform android --output-dir android-bundle"
+    "check:android": "expo export --platform android --output-dir android-bundle",
+    "assets:brand": "node scripts/generate-brand-assets.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.4.2",

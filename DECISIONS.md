@@ -105,3 +105,7 @@ As of 17 November 2026. Latest requirements in docs/HAVENSUM_REQUIREMENTS.md sup
 | H04 | Owner preference, pending | CSV as the primary transaction export; JSON remains the full-state backup | Supersedes I03's XLSX-first requirement; CSV cannot preserve workbook styling or the entire state graph |
 | H05 | Owner requirement, pending | Expense toggle “Expect a payback”; list “Awaiting paybacks” | Task can record a linked payback or close without one; task closure never invents money |
 | H06 | Owner clarification, pending | Expected savings predicts the outcome independently of Planned savings | Supersedes F10 as the desired algorithm; target-only edits must not change prediction |
+
+## Workflow clarification — 18 November 2026
+
+The owner explicitly authorized pushing `codex/collision-resistant-identifiers`, `codex/state-migration-recovery` and `codex/independent-expected-savings`, then the reviewed integration to `develop`. The three named heads have been pushed and verified on the existing `origin`. The owner also reiterated that pending Claude reviews must not block development; branding proceeded on a separate branch from `develop`. Review still gates merging. Preserve the original application ID, Expo slug and legacy storage keys during the cosmetic rename; choosing a new install identity remains open. No hosting bindings were recreated. Branding remains local.

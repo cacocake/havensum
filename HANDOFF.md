@@ -1,5 +1,9 @@
 # Havensum — developer handoff
 
+## Branding development — 18 November 2026
+
+The owner clarified that Claude review availability must not block development. `codex/havensum-branding` starts from `develop` and implements visible naming, a shared vector mark and exported launcher/browser assets while retaining legacy install/storage identities. See [docs/BRANDING.md](docs/BRANDING.md) for verification and integration notes. All task branches remain unmerged pending Claude review; integrate foundations and Expected savings before branding. The earlier three named task branches were pushed to their existing corresponding `origin` branches with explicit owner authorization. Branding remains local. Continuation prompts belong directly in chat.
+
 ## Local test hardening — 17 November 2026
 
 The imported baseline now has additional financial, file, storage/native-adapter and browser regression coverage. Tests exposed and fixed validation, history/receipt-date, persistence, CSV decoding, monetary conversion and account-edit defects. See [docs/TESTING.md](docs/TESTING.md) for the test boundaries, commands and limits. Financial code touched by these fixes has been separated into readable modules; `src/engine.js` retains its public compatibility exports. The new Havensum handoff features remain pending. The historical package/source verification statements below describe the imported baseline.

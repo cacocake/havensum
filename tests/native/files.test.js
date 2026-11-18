@@ -77,6 +77,8 @@ test('native JSON backup shares the complete state with integer-cent amounts', a
   const savedFile = g_cachedFiles.get(sharedFile.uri);
 
   assert.equal(sharedFile.mimeType, 'application/json');
+  assert.match(sharedFile.uri, /\/Havensum-backup-\d{4}-\d{2}-\d{2}\.json$/);
+  assert.equal(sharedFile.dialogTitle, 'Your Havensum data');
   assert.equal(savedFile.encoding, 'utf8');
   assert.deepEqual(JSON.parse(savedFile.content), state);
 });

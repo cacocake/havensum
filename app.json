@@ -1,1 +1,23 @@
-{"expo":{"name":"Melo","slug":"melo-money","version":"0.1.0","orientation":"portrait","userInterfaceStyle":"automatic","platforms":["android","web"],"android":{"package":"com.melo.money"}}}
+{
+  "expo": {
+    "name": "Havensum",
+    "slug": "melo-money",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "platforms": [
+      "android",
+      "web"
+    ],
+    "android": {
+      "package": "com.melo.money",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/brand/adaptive-foreground.png",
+        "backgroundImage": "./assets/brand/adaptive-background.png",
+        "backgroundColor": "#E48A60",
+        "monochromeImage": "./assets/brand/adaptive-monochrome.png"
+      }
+    },
+    "icon": "./assets/brand/icon.png"
+  }
+}
