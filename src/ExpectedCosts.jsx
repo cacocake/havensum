@@ -12,7 +12,7 @@ const k_monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const k_billStatusLabels = { recorded: 'Recorded', scheduled: 'Scheduled', cancelled: 'Cancelled', 'still expected': 'Still expected' };
 
 export default function ExpectedCosts({ prediction, month }) {
-  const { state, setState } = useApp();
+  const { state, setState, setModal } = useApp();
   const colors = useContext(Theme);
   const [selectedBill, setSelectedBill] = useState(null);
   const [confirming, setConfirming] = useState(false);
@@ -90,6 +90,16 @@ export default function ExpectedCosts({ prediction, month }) {
       {event.paid > 0 && <T>Paid {euro(event.paid)}</T>}
       {event.scheduled > 0 && <T>Scheduled {euro(event.scheduled)}</T>}
       <T style={{ color: colors.sub, marginTop: 4, marginBottom: 10 }}>Still upcoming {euro(event.remaining)}</T>
+      {event.paymentsToReview?.length > 0 && (
+        <View style={{ gap: 8, marginBottom: 12 }}>
+          <T>This planned cost moved. Review where each payment counts in spending.</T>
+          {event.paymentsToReview.map(payment => (
+            <Button key={payment.id} small kind="outline" onPress={() => setModal({ type: 'transaction', item: payment })}>
+              { `Review ${payment.title} · ${payment.plannedCost.month}` }
+            </Button>
+          ))}
+        </View>
+      )}
       <Select label={`Recorded expense for ${event.name}`} value={event.paymentId === undefined ? '' : String(event.paymentId)} onChange={value => matchEventPayment(event.id, value)} options={[
         { value: '', label: 'Not matched to an expense' },
         ...occasionalExpenses.filter(expense => !expense.plannedCost

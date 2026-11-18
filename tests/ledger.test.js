@@ -9,6 +9,7 @@ test('only an expense can carry a planned-cost link and it must identify a valid
   assert.equal(validateTransaction(state, transaction), transaction);
   assert.throws(() => validateTransaction(state, { ...transaction, type: 'income' }), /planned cost/i);
   assert.throws(() => validateTransaction(state, { ...transaction, plannedCost: { eventId: 'event', month: '2026-13' } }), /planned cost/i);
+  assert.throws(() => validateTransaction(state, { ...transaction, plannedCost: { eventId: 'event', month: '2026-10' } }), /planned cost/i);
 });
 
 test('an expense cannot be edited below the reimbursements already received', () => {

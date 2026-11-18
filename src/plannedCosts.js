@@ -17,6 +17,12 @@ export function eventsInMonth(events, month) {
   return events.filter(event => event.month === monthNumber && (!event.year || event.year === year));
 }
 
+export function needsPlannedCostReview(expense, event, month) {
+  const link = expense.plannedCost;
+  return isPlannedCostLink(link) && link.eventId === event.id && link.month !== month
+    && (event.year || link.month.slice(0, 4) === month.slice(0, 4));
+}
+
 export function plannedCostOptions(events, paymentDate, savedLink) {
   const paymentYear = Number(paymentDate.slice(0, 4));
   const savedYear = savedLink ? Number(savedLink.month.slice(0, 4)) : paymentYear;
@@ -25,6 +31,9 @@ export function plannedCostOptions(events, paymentDate, savedLink) {
   for (const event of events) {
     for (const year of event.year ? [event.year] : years) {
       const month = `${year}-${String(event.month).padStart(2, '0')}`;
+      if (month < monthOf(paymentDate)) {
+        continue;
+      }
       const monthLabel = new Date(year, event.month - 1, 1).toLocaleDateString('en', { month: 'long', year: 'numeric' });
       options.set(JSON.stringify({ eventId: event.id, month }), { label: `${event.name} · ${monthLabel}`, month });
     }

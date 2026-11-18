@@ -137,6 +137,30 @@ test('an expense saved from activity can link to a later planned cost and shows 
   await expect(page.getByLabel('View Tickets', { exact: true })).toBeVisible();
 });
 
+test('a rescheduled cost asks for review and moves the spending month only when the expense is saved', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-12-15T12:00:00') });
+  const state = createFinancialState({
+    events: [{ id: 'trip', name: 'Trip', year: 2026, month: 12, amount: 120000 }],
+    transactions: [createTransaction({ id: 'ticket', title: 'Tickets', amount: 40000, date: '2026-03-10',
+      plannedCost: { eventId: 'trip', month: '2026-11' } })]
+  });
+  await page.addInitScript(initialState => {
+    if (!localStorage.getItem('melo-state-v1')) {
+      localStorage.setItem('melo-state-v1', JSON.stringify(initialState));
+    }
+  }, state);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Review Tickets · 2026-11', exact: true }).click();
+  const editor = page.getByRole('dialog');
+  await editor.getByLabel('Link to a planned cost', { exact: true }).selectOption({ label: 'Trip · December 2026' });
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).transactions[0].plannedCost.month)).toBe('2026-11');
+  await editor.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Review Tickets · 2026-11', exact: true })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).transactions[0]))
+    .toMatchObject({ date: '2026-03-10', plannedCost: { eventId: 'trip', month: '2026-12' } });
+});
+
 test('adopting legacy dated changes retains existing independent assumptions', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-15T12:00:00') });
   const state = createFinancialState({

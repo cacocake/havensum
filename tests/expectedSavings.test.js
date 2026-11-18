@@ -29,6 +29,42 @@ test('two early payments count once in their specific planned month and keep the
   assert.equal(expectedSavings(state, '2028-11', today).events[0].remaining, 120000);
 });
 
+test('moving a planned cost flags its linked payments without moving spending or counting the estimate twice', () => {
+  const earlyPayment = createTransaction({
+    id: 'tickets', title: 'Tickets', amount: 70000, date: '2027-03-12',
+    plannedCost: { eventId: 'trip', month: '2027-11' }
+  });
+  const state = createFinancialState({
+    events: [{ id: 'trip', name: 'Trip', year: 2027, month: 12, amount: 120000 }],
+    transactions: [earlyPayment]
+  });
+  const today = '2027-05-01';
+  assert.equal(reportingMonthStats(state, '2027-11', today).spent, 70000);
+  assert.equal(reportingMonthStats(state, '2027-12', today).spent, 0);
+  const december = expectedSavings(state, '2027-12', today);
+  assert.deepEqual(december.events[0].paymentsToReview.map(payment => payment.id), ['tickets']);
+  assert.equal(december.events[0].remaining, 50000);
+  assert.equal(december.expense, 50000);
+});
+
+test('a received payback reduces the net cost without reopening the planned payment', () => {
+  const state = createFinancialState({
+    events: [{ id: 'trip', name: 'Trip', year: 2027, month: 11, amount: 120000 }],
+    transactions: [
+      createTransaction({ id: 'tickets', amount: 40000, date: '2027-03-12',
+        plannedCost: { eventId: 'trip', month: '2027-11' } }),
+      createTransaction({ id: 'share', type: 'reimbursement', linkedId: 'tickets', amount: 10000, date: '2027-05-02' })
+    ]
+  });
+  const today = '2027-05-03';
+  const november = expectedSavings(state, '2027-11', today);
+  assert.equal(accountBalance(state, 'everyday', today), 70000);
+  assert.equal(reportingMonthStats(state, '2027-11', today).spent, 30000);
+  assert.equal(november.events[0].paid, 40000);
+  assert.equal(november.events[0].remaining, 80000);
+  assert.equal(november.expense, 110000);
+});
+
 test('expected savings uses confirmed history without requiring a frozen target', () => {
   const state = createFinancialState({
     outlook: { completeMonths: ['2026-10'] },

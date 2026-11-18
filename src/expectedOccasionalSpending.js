@@ -1,7 +1,7 @@
 import { categorySettings } from './ledger.js';
 import { isLoanExpense } from './expectedBills.js';
-import { k_spendingBehaviors } from './domainConstants.js';
-import { eventsInMonth, isPlannedCostLink } from './plannedCosts.js';
+import { k_spendingBehaviors, k_transactionTypes } from './domainConstants.js';
+import { eventsInMonth, isPlannedCostLink, needsPlannedCostReview } from './plannedCosts.js';
 
 export function isOccasionalExpense(state, expense) {
   return !isLoanExpense(state, expense) && (isPlannedCostLink(expense.plannedCost)
@@ -24,9 +24,12 @@ export function expectedOccasionalEvents(state, month, registered, today) {
       linkedPayments.push(legacyPayment);
       matchedExpenseIds.add(legacyPayment.id);
     }
-    const paid = linkedPayments.filter(expense => expense.date <= today).reduce((sum, expense) => sum + expense.amount, 0);
-    const registeredAmount = linkedPayments.reduce((sum, expense) => sum + expense.amount, 0);
+    const paymentsToReview = state.transactions.filter(expense => expense.type === k_transactionTypes.expense
+      && needsPlannedCostReview(expense, event, month) && isOccasionalExpense(state, expense));
+    const payments = [...linkedPayments, ...paymentsToReview];
+    const paid = payments.filter(expense => expense.date <= today).reduce((sum, expense) => sum + expense.amount, 0);
+    const registeredAmount = payments.reduce((sum, expense) => sum + expense.amount, 0);
     return { ...event, paymentId: legacyPayment?.id, paid, scheduled: registeredAmount - paid,
-      remaining: Math.max(0, event.amount - registeredAmount) };
+      remaining: Math.max(0, event.amount - registeredAmount), paymentsToReview };
   });
 }
