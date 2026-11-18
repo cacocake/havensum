@@ -6,13 +6,14 @@ export function categoryContains(categories,id,category){
  const resolved=categorySettings(categories,category);
  return category===id||resolved.parentId===id;
 }
-export function selectTransactions(state,month,{type='all',account='all',category='all',search=''}={}){
+export function selectTransactions(state,month,{type='all',account='all',category='all',search='',spending=false}={}){
  const query=search.trim().toLowerCase();
  return state.transactions.filter(transaction => {
    if (type !== 'all' && transaction.type !== type) {
      return false;
    }
-   const selectedMonth = type === k_transactionTypes.expense ? expenseReportingMonth(transaction) : monthOf(transaction.date);
+   const selectedMonth = spending && transaction.type === k_transactionTypes.expense
+     ? expenseReportingMonth(transaction) : monthOf(transaction.date);
    return selectedMonth === month
      && (account === 'all' || transaction.account === account || transaction.toAccount === account)
      && categoryContains(state.categories, category, transaction.category)

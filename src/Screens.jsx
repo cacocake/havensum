@@ -41,7 +41,7 @@ export function Transactions(){
    <Select label="Account" value={account} onChange={v=>change('account',v)} options={[{value:'all',label:'All accounts'},...state.accounts.map(a=>({value:a.id,label:a.name}))]} style={{flex:1,minWidth:110}}/>
    <Select label="Category" value={category} onChange={v=>change('category',v)} options={[{value:'all',label:'All categories'},...state.categories.map(a=>({value:a.id,label:a.parentId?'↳ '+a.name:a.name}))]} style={{width:'100%'}}/>
   </Row>{active&&<Button small kind="soft" icon="X" onPress={()=>setFilters({})}>Clear filters</Button>}
- </Card><Card style={{padding:18}}><Row style={{justifyContent:'space-between',gap:10,flexWrap:'wrap'}}><H size={22}>Activity</H><T style={{fontSize:12,color:c.sub}}>{tx.length} movements</T></Row>
+ </Card><Card style={{padding:18}}><Row style={{justifyContent:'space-between',gap:10,flexWrap:'wrap'}}><H size={22}>{filters.spending ? 'Spending by month' : 'Activity'}</H><T style={{fontSize:12,color:c.sub}}>{tx.length} movements</T></Row>
   {type==='expense'&&<View style={{backgroundColor:c.soft,padding:14,borderRadius:14,marginTop:14}}><T style={{fontSize:12,color:c.sub}}>Net spending · selected filters</T><H size={25}>{euro(net)}</H><T style={{fontSize:12,color:c.sub}}>{k_filteredSpendingHint}</T></View>}
   {tx.length?tx.map((t,i)=><TransactionRow key={t.id} tx={t} last={i===tx.length-1} accountId={account==='all'?null:account}/>):<Empty title="No matching movements" description="Change your filters or add a transaction for this month."/>}
  </Card></View>;

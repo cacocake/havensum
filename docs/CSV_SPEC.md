@@ -81,4 +81,6 @@ Review can flag overlaps between statements in the same batch. For paired transf
 
 ## Minimum acceptance suite
 
+The optional `planned_cost` column on canonical exports preserves the linked occurrence ID and month on each expense. Full JSON backups also retain the planned cost itself.
+
 Round-trip four transaction types, partial linked repayments, category paths, behavior overrides and optional expected-payback metadata; exact-cent totals; BOM/accents/quotes/multiline text; malformed/ambiguous amounts and dates; unsupported currency; edited stable ID; repeated file/overlapping bank periods; identical legitimate purchases; two-sided transfer reconciliation; no fake income from refunds/borrowing; no financial changes from task closure.

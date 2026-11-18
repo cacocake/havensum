@@ -5,7 +5,8 @@ const k_occurrenceMonth = /^\d{4}-(0[1-9]|1[0-2])$/;
 export function isPlannedCostLink(link) {
   return link !== null && typeof link === 'object'
     && ((typeof link.eventId === 'string' && Boolean(link.eventId.trim())) || Number.isSafeInteger(link.eventId))
-    && typeof link.month === 'string' && k_occurrenceMonth.test(link.month);
+    && typeof link.month === 'string' && k_occurrenceMonth.test(link.month)
+    && (link.singleOccurrence === undefined || link.singleOccurrence === true);
 }
 
 export function expenseReportingMonth(expense) {
@@ -20,7 +21,7 @@ export function eventsInMonth(events, month) {
 export function needsPlannedCostReview(expense, event, month) {
   const link = expense.plannedCost;
   return isPlannedCostLink(link) && link.eventId === event.id && link.month !== month
-    && (event.year || link.month.slice(0, 4) === month.slice(0, 4));
+    && ((link.singleOccurrence && event.year) || link.month.slice(0, 4) === month.slice(0, 4));
 }
 
 export function plannedCostOptions(events, paymentDate, savedLink) {
@@ -35,11 +36,19 @@ export function plannedCostOptions(events, paymentDate, savedLink) {
         continue;
       }
       const monthLabel = new Date(year, event.month - 1, 1).toLocaleDateString('en', { month: 'long', year: 'numeric' });
-      options.set(JSON.stringify({ eventId: event.id, month }), { label: `${event.name} · ${monthLabel}`, month });
+      const link = { eventId: event.id, month };
+      if (event.year) {
+        link.singleOccurrence = true;
+      }
+      options.set(JSON.stringify(link), { label: `${event.name} · ${monthLabel}`, month });
     }
   }
   if (savedLink && !options.has(JSON.stringify(savedLink))) {
-    options.set(JSON.stringify(savedLink), { label: `Former planned cost · ${savedLink.month}`, month: savedLink.month });
+    const event = events.find(candidate => candidate.id === savedLink.eventId);
+    options.set(JSON.stringify(savedLink), {
+      label: `${event?.name ?? 'Former planned cost'} · original month ${savedLink.month}`,
+      month: savedLink.month
+    });
   }
   return [...options].sort(([, left], [, right]) => left.month.localeCompare(right.month) || left.label.localeCompare(right.label))
     .map(([value, option]) => ({ value, label: option.label }));

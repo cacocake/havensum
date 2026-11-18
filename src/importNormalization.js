@@ -164,6 +164,16 @@ export function normalizeImportRows(state, data, options = {}) {
       if (transaction.linkedId !== undefined) {
         transaction.linkedId = preserveTransactionIdentifier(state, transaction.linkedId);
       }
+      if (canonical && Object.hasOwn(row, 'planned_cost')) {
+        const plannedCost = text('planned_cost');
+        try {
+          transaction.plannedCost = plannedCost ? JSON.parse(plannedCost) : undefined;
+        } catch (error) {
+          throw Error('Use a valid planned cost link.', { cause: error });
+        }
+      } else if (Object.hasOwn(row, 'plannedCost')) {
+        transaction.plannedCost = row.plannedCost;
+      }
       return transaction;
     } catch (error) {
       throw Error(`Row ${index + 1}: ${error.message}`);

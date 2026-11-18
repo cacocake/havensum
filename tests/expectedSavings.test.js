@@ -47,6 +47,17 @@ test('moving a planned cost flags its linked payments without moving spending or
   assert.equal(december.expense, 50000);
 });
 
+test('a former recurring occurrence cannot reduce a later occurrence that becomes a one-off', () => {
+  const state = createFinancialState({
+    events: [{ id: 'trip', name: 'Trip', year: 2028, month: 11, amount: 120000 }],
+    transactions: [createTransaction({ amount: 40000, date: '2027-03-12',
+      plannedCost: { eventId: 'trip', month: '2027-11' } })]
+  });
+  const event = expectedSavings(state, '2028-11', '2028-01-01').events[0];
+  assert.equal(event.remaining, 120000);
+  assert.deepEqual(event.paymentsToReview, []);
+});
+
 test('a received payback reduces the net cost without reopening the planned payment', () => {
   const state = createFinancialState({
     events: [{ id: 'trip', name: 'Trip', year: 2027, month: 11, amount: 120000 }],
