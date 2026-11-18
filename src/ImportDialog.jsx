@@ -12,6 +12,7 @@ import ImportResults, { AccountBalanceReview } from './ImportResults.jsx';
 import { formatReviewRowLabel, getImportBalances, getImportResults } from './importOutcomes.js';
 import { bankTransferCounterparts } from './realBankReview.js';
 import { createEntityId } from './identifiers';
+import { k_transactionTypes } from './domainConstants.js';
 import { isDemoSession, readImportRecovery, writeImportRecovery, writeState } from './storage';
 import { chooseFile, downloadJSON, readImport } from './files';
 
@@ -155,7 +156,10 @@ export default function ImportDialog({ data, onClose }) {
 
   function updateRow(index, changes) {
     try {
-      setReview(reviseTransactionImport(state, review, index, changes));
+      const row = review.rows[index];
+      const needsExpenseId = row.bank && row.transaction.id === undefined && changes.type === k_transactionTypes.expense;
+      const draftChanges = needsExpenseId ? { ...changes, id: createEntityId('import') } : changes;
+      setReview(reviseTransactionImport(state, review, index, draftChanges));
       setChoices(current => {
         const revisedChoices = { ...current };
         delete revisedChoices[index];
@@ -195,7 +199,8 @@ export default function ImportDialog({ data, onClose }) {
   const balances = review && !results ? getImportBalances(state, review, projection.result) : [];
   const expenses = editingRow === null ? [] : [...new Map([
     ...state.transactions,
-    ...review.rows.filter(row => row.status !== 'invalid').map(row => row.transaction)
+    ...review.rows.filter(row => row.status !== 'invalid' && choices[row.index] !== 'skip' && choices[row.index] !== 'keep')
+      .map(row => row.transaction)
   ].filter(transaction => transaction.type === 'expense' && transaction.id !== undefined)
     .map(transaction => [transaction.id, transaction])).values()];
   const counterparts = editingRow !== null && review.rows[editingRow].bank?.direction === 'debit'

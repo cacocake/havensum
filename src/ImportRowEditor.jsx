@@ -38,15 +38,17 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
     { value: '', label: 'Choose a classification' },
     ...k_transactionOptions.filter(option => bankClassificationAllows(bank.direction, option.value))
   ] : k_transactionOptions;
+  const recordedExpenseIds = new Set(state.transactions.map(record => record.id));
   const linkedExpenseOptions = [
     ...(bank ? [
       { value: '', label: 'Choose how to link this credit' },
       { value: 'null', label: 'Unlinked balance adjustment' }
     ] : [{ value: '', label: 'Unlinked balance adjustment' }]),
-    ...expenses.map(record => ({
-      value: bank ? JSON.stringify(record.id) : record.id,
-      label: `${record.title} · ${euro(record.amount)} · ${record.date}`
-    }))
+    ...expenses.map(record => {
+      const label = `${record.title} · ${euro(record.amount)} · ${record.date}`;
+      const source = recordedExpenseIds.has(record.id) ? 'Already recorded' : 'In this import';
+      return { value: bank ? JSON.stringify(record.id) : record.id, label: bank ? `${label} · ${source}` : label };
+    })
   ];
   if (draft.linkedId != null && draft.linkedId !== '' && selectedId(expenses, draft.linkedId) === undefined) {
     linkedExpenseOptions.push({
