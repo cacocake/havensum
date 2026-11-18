@@ -1,3 +1,4 @@
+import { validatePaybackState } from './paybackState.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey } from './storageKeys.js';
 import { parseMergeBaseline } from './storageSerialization.js';

@@ -1,3 +1,5 @@
+import { createEntityId } from './identifiers';
+import { saveTransaction, deleteTransaction } from './transactionActions.js';
 import { useDirtyForm } from './useDirtyForm.js';
 import React,{useState,useContext,useRef} from 'react';
 import {View,Pressable,ScrollView,TextInput} from 'react-native';
@@ -7,7 +9,7 @@ import CategoryGlyph from './CategoryGlyph.jsx';
 import CategorySelect from './CategorySelect.jsx';
 import {Squish} from './Playful.jsx';
 import Icon,{iconNames} from './Icon';
-import {categorySettings,cents,euro,validateTransaction,buildPlan} from './engine.js';
+import {categorySettings,cents,euro,buildPlan} from './engine.js';
 import {palette} from './seed.js';
 import { isPositiveCentAmount, k_centsPerEuro } from './money.js';
 import { k_transactionTypes, k_systemCategoryIds, k_entityIdPrefixes } from './domainConstants.js';
@@ -35,47 +37,94 @@ const k_loanFormMessages = {
 };
 export function TransactionForm({item,initialType='expense',draft,onClose}){
  const {state,setState,notify}=useApp(),c=useContext(Theme);
- const [type,setType]=useState(item?.type||initialType),[title,setTitle]=useState(item?.title||draft?.title||''),[amount,setAmount]=useState(item?String(item.amount/k_centsPerEuro):draft?String(draft.amount/k_centsPerEuro):''),[account,setAccount]=useState(item?.account||draft?.account||state.accounts[0]?.id||''),[category,setCategory]=useState(item?.category||draft?.category||(initialType==='income'?'salary':'groceries')),[date,setDate]=useState(item?.date||new Date().toISOString().slice(0,10)),[note,setNote]=useState(item?.note||''),[kind,setKind]=useState(item?.kind||''),[linkedId,setLinkedId]=useState(item?.linkedId||''),[link,setLink]=useState(item?!!item.linkedId:true),[toAccount,setToAccount]=useState(item?.toAccount||state.accounts[1]?.id||''),[error,setError]=useState(''),[deleting,setDeleting]=useState(false),[details,setDetails]=useState(!!item?.note||!!item?.kind);
+ const [type,setType]=useState(item?.type||initialType),[title,setTitle]=useState(item?.title||draft?.title||''),[amount,setAmount]=useState(item?String(item.amount/k_centsPerEuro):draft?String(draft.amount/k_centsPerEuro):''),[account,setAccount]=useState(item?.account??draft?.account??state.accounts[0]?.id??''),[category,setCategory]=useState(item?.category??draft?.category??(initialType==='income'?'salary':'groceries')),[date,setDate]=useState(item?.date||draft?.date||new Date().toISOString().slice(0,10)),[note,setNote]=useState(item?.note||''),[kind,setKind]=useState(item?.kind||''),[linkedId,setLinkedId]=useState(item?.linkedId??draft?.linkedId??''),[link,setLink]=useState(item?item.linkedId!=null&&item.linkedId!=='':true),[toAccount,setToAccount]=useState(item?.toAccount||state.accounts[1]?.id||''),[error,setError]=useState(''),[deleting,setDeleting]=useState(false),[details,setDetails]=useState(!!item?.note||!!item?.kind);
+ const task = state.paybackTasks?.find(record => item && record.expenseId === item.id);
+ const [expectPayback, setExpectPayback] = useState(Boolean(task && !task.manuallyClosed));
+ const [expectedAmount, setExpectedAmount] = useState(task ? String(task.expectedAmount / k_centsPerEuro) : '');
+ const [person, setPerson] = useState(task?.person ?? '');
+ const [dueDate, setDueDate] = useState(task?.dueDate ?? '');
+ const [taskNote, setTaskNote] = useState(task?.note ?? '');
+ const [confirmingClose, setConfirmingClose] = useState(false);
+ const paybackDraft = draft?.linkedId != null;
  const cats=state.categories.filter(x=>!['salary','interest'].includes(x.id));
  const expenses=state.transactions.filter(t=>t.type==='expense').sort((a,b)=>b.date.localeCompare(a.date));
- function save() {
+ function save(confirmClose = false) {
    try {
      if (!k_transactionAmountPattern.test(amount)) {
        throw Error(k_transactionFormMessages.invalidAmount);
      }
      const isTransfer = type === k_transactionTypes.transfer;
      const transaction = {
-       id: item?.id || createEntityId(k_entityIdPrefixes.transaction),
+       ...item,
+       id: item?.id ?? createEntityId(k_entityIdPrefixes.transaction),
+       linkedId: undefined,
+       toAccount: undefined,
        type, title: title.trim(), amount: cents(amount), account, date, note,
        category: isTransfer ? null : category,
-       loanId: category === k_systemCategoryIds.loan ? (item?.loanId || draft?.loanId) : undefined,
+       loanId: category === k_systemCategoryIds.loan ? (item?.loanId ?? draft?.loanId) : undefined,
        kind: kind || undefined
      };
      if (isTransfer) {
        transaction.toAccount = toAccount;
      }
-     if (type === k_transactionTypes.reimbursement && link && linkedId) {
+     if (type === k_transactionTypes.reimbursement && link && linkedId !== '') {
        transaction.linkedId = linkedId;
      }
-     validateTransaction(state, transaction);
-     setState(currentState => ({
-       ...currentState,
-       transactions: item
-         ? currentState.transactions.map(record => record.id === item.id ? transaction : record)
-         : [...currentState.transactions, transaction]
-     }));
+     const trackingExpense = type === k_transactionTypes.expense;
+     if (trackingExpense && task && !task.manuallyClosed && !expectPayback && !confirmClose) {
+       setConfirmingClose(true);
+       return;
+     }
+     if (trackingExpense && expectedAmount && !k_transactionAmountPattern.test(expectedAmount)) {
+       throw Error('Use a positive expected amount with at most two decimal places.');
+     }
+     const result = saveTransaction(state, transaction, {
+       expectPayback: trackingExpense ? expectPayback : undefined,
+       expectedAmount: expectedAmount ? cents(expectedAmount) : undefined,
+       taskId: trackingExpense && expectPayback && !task ? createEntityId('payback') : undefined,
+       person: person.trim(), dueDate: dueDate.trim(), note: taskNote.trim(),
+       confirmClose, at: new Date().toISOString()
+     });
+     setState(result);
      notify(item ? k_transactionFormMessages.updated : k_transactionFormMessages.added);
      onClose();
    } catch (error) {
      setError(error.message);
    }
  }
- function remove(){if(state.transactions.some(t=>t.linkedId===item.id)){setError('Remove or unlink its reimbursements before deleting this expense.');return;}setState(s=>({...s,transactions:s.transactions.filter(t=>t.id!==item.id)}));notify('Transaction deleted');onClose();}
- const footer=<View>{error&&<T accessibilityRole="alert" style={{color:c.negative,fontSize:12,marginBottom:15}}>{error}</T>}
- {deleting?<View style={{gap:12}}><T>Delete this transaction permanently?</T><Row style={{gap:10}}><Button kind="outline" onPress={()=>setDeleting(false)}>Keep it</Button><Button onPress={remove} style={{backgroundColor:c.negative}}>Delete transaction</Button></Row></View>:<Row style={{justifyContent:'space-between',gap:12}}>{item?<IB name="Trash2" label="Delete transaction" onPress={()=>setDeleting(true)}/>:<T style={{color:c.muted,fontSize:11}}>EUR only · stored on this device</T>}<Button onPress={save} icon="Check">{item?'Save changes':'Add transaction'}</Button></Row>}</View>;
- const isDirty = useDirtyForm([type,title,amount,account,category,date,note,kind,linkedId,link,toAccount]);
+ function remove() {
+   try {
+     setState(deleteTransaction(state, item.id, { confirmRemoveTask: Boolean(task) }));
+     notify('Transaction deleted');
+     onClose();
+   } catch (failure) {
+     setError(failure.message);
+   }
+ }
+ const footer = <View>
+   {error && <T accessibilityRole="alert" style={{color:c.negative,marginBottom:12}}>{error}</T>}
+   {deleting && <>
+     <T>{task ? 'Delete this expense, its payback task and closure history permanently?' : 'Delete this transaction permanently?'}</T>
+     <Row style={{gap:10,flexWrap:'wrap'}}>
+       <Button kind="outline" onPress={() => setDeleting(false)}>Keep it</Button>
+       <Button onPress={remove}>Delete transaction</Button>
+     </Row>
+   </>}
+   {confirmingClose && !deleting && <>
+     <T>Close without recording a payback? The closure will stay in your history.</T>
+     <Row style={{gap:10,flexWrap:'wrap'}}>
+       <Button kind="outline" onPress={() => { setExpectPayback(true); setConfirmingClose(false); }}>Keep tracking</Button>
+       <Button onPress={() => save(true)}>Close and save</Button>
+     </Row>
+   </>}
+   {!deleting && !confirmingClose && <Row style={{justifyContent:'space-between',gap:12}}>
+     {item ? <IB name="Trash2" label="Delete transaction" onPress={() => setDeleting(true)}/> : <T style={{color:c.muted,fontSize:11}}>EUR only</T>}
+     <Button onPress={() => save()} icon="Check">{item ? 'Save changes' : 'Add transaction'}</Button>
+   </Row>}
+ </View>;
+ const isDirty = useDirtyForm([type,title,amount,account,category,date,note,kind,linkedId,link,toAccount,expectPayback,expectedAmount,person,dueDate,taskNote]);
  return <Dialog dirty={isDirty} title={item?'Edit transaction':'Add a transaction'} subtitle="A few seconds, and back to your day." onClose={onClose} footer={footer}>
- <Row style={{gap:5,padding:4,backgroundColor:c.soft,borderRadius:12,marginBottom:23}}>{['expense','income','reimbursement','transfer'].map(t=><Pressable key={t} onPress={()=>{setType(t);if(t==='income')setCategory('salary');else if(category==='salary'||category==='interest')setCategory('groceries');}} accessibilityRole="button" accessibilityState={{selected:type===t}} style={{flex:1,minHeight:48,justifyContent:'center',paddingVertical:10,borderRadius:9,backgroundColor:type===t?c.card:'transparent',alignItems:'center'}}><T style={{fontSize:10.5,fontWeight:'600',color:type===t?c.accentText:c.sub}}>{t==='reimbursement'?'Payback':t[0].toUpperCase()+t.slice(1)}</T></Pressable>)}</Row>
+ <Row style={{gap:5,padding:4,backgroundColor:c.soft,borderRadius:12,marginBottom:23}}>{(paybackDraft || task ? [type] : ['expense','income','reimbursement','transfer']).map(t=><Pressable key={t} onPress={()=>{setType(t);if(t==='income')setCategory('salary');else if(category==='salary'||category==='interest')setCategory('groceries');}} accessibilityRole="button" accessibilityState={{selected:type===t}} style={{flex:1,minHeight:48,justifyContent:'center',paddingVertical:10,borderRadius:9,backgroundColor:type===t?c.card:'transparent',alignItems:'center'}}><T style={{fontSize:10.5,fontWeight:'600',color:type===t?c.accentText:c.sub}}>{t==='reimbursement'?'Payback':t[0].toUpperCase()+t.slice(1)}</T></Pressable>)}</Row>
  <View style={{backgroundColor:c.soft,borderRadius:21,padding:16,marginBottom:20}}><T style={{fontSize:12,color:c.sub,marginBottom:5}}>How much?</T><Row style={{gap:8}}><H size={32} style={{color:c.accent}}>€</H><TextInput accessibilityLabel="Amount · EUR" value={amount} onChangeText={setAmount} placeholder="0.00" placeholderTextColor={c.muted} keyboardType="decimal-pad" autoFocus={!item} style={{flex:1,minWidth:0,fontFamily:'Fredoka',fontSize:37,lineHeight:49,color:c.text,padding:0}}/></Row></View>
  <Field label="Title" value={title} onChangeText={setTitle} placeholder={type==='reimbursement'?'Who paid you back?':'What was it for?'}/>
  <Row style={{gap:14,alignItems:'flex-start'}}><Select label="Account" value={account} onChange={setAccount} options={state.accounts.map(a=>({value:a.id,label:a.name}))} style={{flex:1}}/><View style={{flex:1}}><DateField value={date} onChange={setDate}/></View></Row>
@@ -83,7 +132,17 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
  <CategorySelect label="Category" value={category} onChange={setCategory} categories={type==='income'?state.categories:cats}/>
 
  </>}
- {type==='reimbursement'&&<View style={{padding:15,borderRadius:12,backgroundColor:c.soft,marginBottom:16}}><Toggle value={link} onChange={setLink} label="Link to an expense" description="Reduces spending in the original month. Never counted as income."/>{link?<Select label="Original expense (optional)" value={linkedId} onChange={id=>{setLinkedId(id);const original=expenses.find(e=>e.id===id);if(original)setCategory(original.category)}} options={[{value:'',label:'Choose an expense, or link it later'},...expenses.map(t=>({value:t.id,label:`${t.title} · ${euro(t.amount)} · ${t.date}`}))]}/>:<T style={{fontSize:11,color:c.sub}}>This will adjust your account balance without changing income or spending.</T>}</View>}
+ {type === 'expense' && <View style={{marginBottom:14}}>
+   <Toggle value={expectPayback} onChange={setExpectPayback} label="Expect a payback" description="Add this expense to your follow-up list."/>
+   {(expectPayback || task) && <>
+     <Field label="Expected payback · EUR" value={expectedAmount} onChangeText={setExpectedAmount} placeholder={amount || 'Full expense amount'} keyboardType="decimal-pad"/>
+     <Field label="Person · optional" value={person} onChangeText={setPerson}/>
+     <Field label="Due date · YYYY-MM-DD · optional" value={dueDate} onChangeText={setDueDate}/>
+     <Field label="Payback note · optional" value={taskNote} onChangeText={setTaskNote} multiline/>
+   </>}
+ </View>}
+ {paybackDraft && <T style={{color:c.sub,marginBottom:12}}>Linked expense · {expenses.find(expense => expense.id === linkedId)?.title}</T>}
+ {type==='reimbursement'&&!paybackDraft&&<View style={{padding:15,borderRadius:12,backgroundColor:c.soft,marginBottom:16}}><Toggle value={link} onChange={setLink} label="Link to an expense" description="Reduces spending in the original month. Never counted as income."/>{link?<Select label="Original expense (optional)" value={linkedId} onChange={id=>{const original=expenses.find(e=>String(e.id)===String(id));setLinkedId(original?.id ?? '');if(original)setCategory(original.category)}} options={[{value:'',label:'Choose an expense, or link it later'},...expenses.map(t=>({value:t.id,label:`${t.title} · ${euro(t.amount)} · ${t.date}`}))]}/>:<T style={{fontSize:11,color:c.sub}}>This will adjust your account balance without changing income or spending.</T>}</View>}
  <Squish accessibilityLabel="Toggle extra transaction details" aria-expanded={details} accessibilityState={{expanded:details}} onPress={()=>setDetails(v=>!v)} style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',minHeight:48,paddingVertical:10,marginBottom:details?10:0}}><Row style={{gap:7}}><Icon name="Pencil" size={14} color={c.sub}/><T style={{fontSize:12,color:c.sub}}>{details?'A few extra details':'Add a note or change behaviour'}</T></Row><Icon name={details?'X':'Plus'} size={16} color={c.sub}/></Squish>{details&&<>{type!=='transfer'&&<Select label="Spending behaviour" value={kind} onChange={setKind} options={[{value:'',label:`Use category default · ${categorySettings(state.categories,category).kind}`},'Fixed','Variable','Occasional']}/>}<Field label="Note · optional" value={note} onChangeText={setNote} placeholder="Anything worth remembering" multiline/></>}
 
  </Dialog>;

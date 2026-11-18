@@ -14,7 +14,7 @@
 | Independent Expected savings | Integrated with frozen-target independence, historical reserves, confirmed months and individual bill cancellation. The separate planned-cost linking feature is in development. |
 | Havensum rename and vector/logo assets | Integrated across browser and Android. |
 | CSV primary export, template and reviewed import identity | Integrated with editable review, duplicate decisions and a separate recovery copy. |
-| Expected-payback tasks | Pending |
+| Expected-payback tasks | Integrated with manual closure, linked payments and reviewed backup merge. |
 | Bank-specific adapters | Pending sanitized samples and agreed normalized results when that stage is reached |
 
 New-record IDs use browser cryptographic random bytes and the Expo SDK 54-compatible native crypto provider. Migration preserves existing IDs, original expense/payback links, deterministic interest IDs, imported identities and both legacy storage keys.

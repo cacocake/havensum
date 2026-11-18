@@ -1,5 +1,6 @@
 import { validateTransaction } from './transactionValidation.js';
 import { validateOutlookState } from './outlookInputs.js';
+import { validatePaybackState } from './paybackState.js';
 
 export const k_currentStateVersion = 2;
 const k_legacyStateVersion = 1;
@@ -144,6 +145,7 @@ export function validateState(state) {
   }
   validatePlan(state.plan);
   validateOutlookState(state);
+  validatePaybackState(state);
   return state;
 }
 

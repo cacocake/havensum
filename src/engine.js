@@ -1,4 +1,5 @@
 import { accountBalance } from './ledger.js';
+import { mergePaybackTasks } from './paybackMerge.js';
 export { monthOf } from './calendar.js';
 export { categorySettings, netExpenses, monthStats, reportingMonthStats, accountBalance } from './ledger.js';
 export { buildPlan, driftAlerts } from './planning.js';
@@ -36,7 +37,7 @@ export function mergeThreeWay(base,local,remote){
   }
   conflicts.push({collection:field,id:field,field:`$${field}`,base:base[field],local:local[field],remote:remote[field]});
  }
- return {result,conflicts};
+ return { result: mergePaybackTasks(base, local, remote, result, conflicts), conflicts };
 }
 export function fingerprint(t){return t.externalId?`external:${t.externalId}`:[t.date,t.type,t.title?.trim().toLowerCase(),t.amount,t.account,t.category||'',t.note||''].join('|');}
 export function importUnique(state, rows) {
