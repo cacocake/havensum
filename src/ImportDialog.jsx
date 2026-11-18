@@ -150,7 +150,7 @@ export default function ImportDialog({ data, onClose }) {
   const unresolved = review?.rows.some(row => {
     const choice = choices[row.index];
     if (row.status === 'invalid') {
-      return !row.normalizationError || choice !== 'skip';
+      return choice !== 'skip';
     }
     return ['edited', 'possible'].includes(row.status) && !choice;
   });
@@ -235,11 +235,11 @@ export default function ImportDialog({ data, onClose }) {
                 <T key={field} style={{ fontSize: 12 }}>{label}: {displayField(state, field, row.existing[field])} → {displayField(state, field, row.transaction[field])}</T>
               ))}
               {row.error && <T style={{ color: colors.negative }}>Row {row.index + 1}: {row.error}</T>}
-              {row.normalizationError && (
+              {row.status === 'invalid' && (
                 <Select label={`Row ${row.index + 1} decision`} value={choices[row.index] || ''}
                   onChange={choice => setChoices(current => ({ ...current, [row.index]: choice }))} options={[
                     { value: '', label: 'Correct the source or choose to skip' },
-                    { value: 'skip', label: 'Skip this malformed row' }
+                    { value: 'skip', label: 'Skip this invalid row' }
                   ]} />
               )}
               {editingRow === row.index ? (

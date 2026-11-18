@@ -138,3 +138,16 @@ test('identical purchases remain distinct and reruns require an explicit duplica
   assert.equal(applyTransactionImport(firstImport, repeated, { 0: 'add' }, createIdentifier).transactions.length, 3);
   assert.equal(state.transactions.length, 0);
 });
+
+test('a legacy transaction without an ID cannot be overwritten by an unrelated ID-less import', async () => {
+  const { previewTransactionImport, applyTransactionImport } = await import('../src/importReview.js');
+  const oldPurchase = createTransaction({ id: undefined, title: 'Legacy purchase' });
+  const incoming = createTransaction({ id: undefined, title: 'New purchase' });
+  const state = createFinancialState({ transactions: [oldPurchase] });
+
+  const review = previewTransactionImport(state, [incoming]);
+
+  assert.equal(review.rows[0].status, 'new');
+  assert.deepEqual(applyTransactionImport(state, review, {}, () => 'new-import').transactions,
+    [oldPurchase, { ...incoming, id: 'new-import' }]);
+});

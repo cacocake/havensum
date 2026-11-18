@@ -49,7 +49,7 @@ export default function ImportResults({ results, fields, displayField, onDownloa
                 {' · '}{euro(transaction.amount)}
               </T>
             )}
-            {row.normalizationError && <T style={{ fontSize: 12, color: colors.sub }}>{row.normalizationError}</T>}
+            {row.status === 'invalid' && <T style={{ fontSize: 12, color: colors.sub }}>{row.error}</T>}
             {transaction.category != null && <T style={{ fontSize: 12, color: colors.sub }}>{displayField('category', transaction.category)}</T>}
             {transaction.note && <T style={{ fontSize: 12, color: colors.sub }}>{transaction.note}</T>}
             {transaction.kind && <T style={{ fontSize: 12, color: colors.sub }}>Spending behaviour · {transaction.kind}</T>}

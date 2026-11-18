@@ -1,4 +1,5 @@
 import { validateTransaction } from './transactionValidation.js';
+import { isRecordIdentifier } from './recordIdentity.js';
 
 const k_exchangeFields = [
   'type', 'title', 'amount', 'date', 'account', 'category', 'kind', 'note',
@@ -91,7 +92,9 @@ function markRepeatedIdentities(rows) {
 
 export function previewTransactionImport(state, transactions, originals = transactions) {
   const rows = transactions.map((transaction, index) => {
-    const matchingRecords = state.transactions.filter(record => record.id === transaction.id || hasSameExternalIdentity(record, transaction));
+    const hasLedgerId = isRecordIdentifier(transaction.id);
+    const matchingRecords = state.transactions.filter(record =>
+      (hasLedgerId && record.id === transaction.id) || hasSameExternalIdentity(record, transaction));
     if (matchingRecords.length > 1) {
       return {
         index, transaction, status: 'invalid',
@@ -161,7 +164,7 @@ export function applyTransactionImport(state, review, choices, createIdentifier)
   for (const row of review.rows) {
     const choice = choices[row.index];
     if (row.status === 'invalid') {
-      if (row.normalizationError && choice === 'skip') {
+      if (choice === 'skip') {
         continue;
       }
       throw Error(`Row ${row.index + 1}: ${row.error}`);

@@ -207,6 +207,34 @@ test('a malformed source row is excluded only after an explicit decision and its
   expect(saved[1]).toMatchObject({ title: 'Valid purchase', amount: 425 });
 });
 
+test('an ambiguous identity can be excluded explicitly while a valid row is still imported', async ({ page }) => {
+  await page.evaluate(() => {
+    const ledger = JSON.parse(localStorage.getItem('melo-state-v1'));
+    ledger.transactions.push({
+      ...ledger.transactions[0], id: 'external-purchase', title: 'Recorded bank purchase',
+      externalSource: 'synthetic-source', externalId: 'one'
+    });
+    localStorage.setItem('melo-state-v1', JSON.stringify(ledger));
+  });
+  await page.reload();
+  await openMoreSection(page, 'Settings');
+  const dialog = await previewFile(page, [
+    'id,date,title,amount,type,account,category,externalSource,externalId',
+    'weekly-shopping,2026-11-10,Ambiguous edit,15,expense,everyday,groceries,synthetic-source,one',
+    ',2026-11-12,Valid purchase,4.25,expense,everyday,groceries,,'
+  ].join('\n'));
+  const confirm = dialog.getByRole('button', { name: 'Import transactions', exact: true });
+  await expect(confirm).toBeDisabled();
+  await dialog.getByLabel('Row 1 decision', { exact: true }).selectOption('skip', { timeout: 2500 });
+  await confirm.click();
+  await expect(dialog.getByText('Row 1 · Skipped invalid row', { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/identifiers match different transactions/i)).toBeVisible();
+  const ledger = await page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')));
+  expect(ledger.transactions.map(transaction => transaction.title)).toEqual([
+    'Existing purchase', 'Recorded bank purchase', 'Valid purchase'
+  ]);
+});
+
 test('three quick entries append once and a repeated no-ID file requires duplicate choices', async ({ page }) => {
   const csv = 'Date,Title,Amount,Account,Category,Note\r\n2026-11-10,First entry,12.34,Everyday,Groceries,\r\n2026-11-11,Second entry,0.01,Shared,Shopping,\r\n2026-11-12,Third entry,99.99,Everyday,Groceries,\r\n';
   let dialog = await previewFile(page, csv);
