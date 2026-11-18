@@ -93,6 +93,33 @@ test('review shows invalid rows and a declined expense edit cannot allow an exce
   assert.equal(applyTransactionImport(state, review, { 0: 'replace' }).transactions.length, 2);
 });
 
+test('a CSV row cannot edit a transaction when its ledger ID and source reference identify different purchases', async () => {
+  const { previewTransactionImport, applyTransactionImport } = await import('../src/importReview.js');
+  const manualPurchase = createTransaction({ id: 'manual' });
+  const importedPurchase = createTransaction({ id: 'imported', externalSource: 'synthetic-bank-v1', externalId: '0001' });
+  const state = createFinancialState({ transactions: [manualPurchase, importedPurchase] });
+  const incoming = { ...importedPurchase, id: manualPurchase.id };
+  const review = previewTransactionImport(state, [incoming]);
+
+  assert.equal(review.rows[0].status, 'invalid');
+  assert.match(review.rows[0].error, /match different transactions/);
+  assert.throws(() => applyTransactionImport(state, review, { 0: 'replace' }), /match different transactions/);
+  assert.deepEqual(state.transactions, [manualPurchase, importedPurchase]);
+});
+
+test('conflicting rows cannot both edit the same purchase through different identifiers', async () => {
+  const { previewTransactionImport, applyTransactionImport } = await import('../src/importReview.js');
+  const purchase = createTransaction({ id: 'recorded', externalSource: 'synthetic-bank-v1', externalId: '0001' });
+  const state = createFinancialState({ transactions: [purchase] });
+  const ledgerEdit = createTransaction({ id: purchase.id, amount: 1500 });
+  const bankEdit = { ...purchase, id: undefined, amount: 2000 };
+  const review = previewTransactionImport(state, [ledgerEdit, bankEdit]);
+
+  assert.deepEqual(review.rows.map(row => row.status), ['invalid', 'invalid']);
+  assert.throws(() => applyTransactionImport(state, review, { 0: 'replace', 1: 'replace' }), /conflicting duplicate/i);
+  assert.deepEqual(state.transactions, [purchase]);
+});
+
 test('identical purchases remain distinct and reruns require an explicit duplicate decision', async () => {
   const { previewTransactionImport, applyTransactionImport } = await import('../src/importReview.js');
   const state = createFinancialState();

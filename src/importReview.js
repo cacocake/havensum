@@ -52,8 +52,10 @@ function markRepeatedIdentities(rows) {
   for (const row of rows) {
     const transaction = row.transaction;
     const identities = [];
-    if (transaction.id !== undefined) {
-      identities.push(JSON.stringify(['id', transaction.id]));
+    const ledgerIds = new Set([transaction.id, row.existing?.id]);
+    ledgerIds.delete(undefined);
+    for (const ledgerId of ledgerIds) {
+      identities.push(JSON.stringify(['id', ledgerId]));
     }
     if (hasExternalIdentity(transaction)) {
       identities.push(JSON.stringify(['source', transaction.externalSource, transaction.account, String(transaction.externalId)]));
@@ -69,8 +71,12 @@ function markRepeatedIdentities(rows) {
       continue;
     }
     const first = group[0];
-    if (group.every(row => row.transaction.id === first.transaction.id && sameTransaction(row.transaction, first.transaction))) {
+    const firstLedgerId = first.existing?.id ?? first.transaction.id;
+    if (group.every(row => (row.existing?.id ?? row.transaction.id) === firstLedgerId && sameTransaction(row.transaction, first.transaction))) {
       for (const row of group.slice(1)) {
+        if (row.status === 'invalid') {
+          continue;
+        }
         row.status = 'unchanged';
         row.duplicateOf = first.index;
       }
@@ -85,16 +91,22 @@ function markRepeatedIdentities(rows) {
 
 export function previewTransactionImport(state, transactions) {
   const rows = transactions.map((transaction, index) => {
-    const existing = state.transactions.find(record => record.id === transaction.id)
-      || state.transactions.find(record => hasSameExternalIdentity(record, transaction));
+    const matchingRecords = state.transactions.filter(record => record.id === transaction.id || hasSameExternalIdentity(record, transaction));
+    if (matchingRecords.length > 1) {
+      return {
+        index, transaction, status: 'invalid',
+        error: 'The identifiers match different transactions. Correct the ledger ID or source reference before importing.'
+      };
+    }
+    const [existing] = matchingRecords;
     const possibleMatches = state.transactions.filter(record => possibleDuplicate(record, transaction));
     return {
       index, transaction, existing, possibleMatches,
       status: reviewStatus(existing, transaction, possibleMatches)
     };
   });
-  markRepeatedIdentities(rows);
-  const candidates = new Map(rows.filter(row => row.duplicateOf === undefined).map(row => [row.index,
+  markRepeatedIdentities(rows.filter(row => row.status !== 'invalid'));
+  const candidates = new Map(rows.filter(row => row.status !== 'invalid' && row.duplicateOf === undefined).map(row => [row.index,
     row.existing ? updatedTransaction(row.existing, row.transaction) : { ...row.transaction, id: row.transaction.id ?? Symbol('preview') }
   ]));
   const importedIds = new Set([...candidates.values()].map(transaction => transaction.id));
