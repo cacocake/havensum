@@ -38,6 +38,9 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
      const isTransfer = type === k_transactionTypes.transfer;
      const transaction = {
        id: item?.id || `tx-${Date.now()}`,
+       externalSource: item?.externalSource,
+       externalId: item?.externalId,
+       sourceFingerprint: item?.sourceFingerprint,
        type, title: title.trim(), amount: cents(amount), account, date, note,
        category: isTransfer ? null : category,
        loanId: category === k_systemCategoryIds.loan ? (item?.loanId || draft?.loanId) : undefined,

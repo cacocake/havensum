@@ -28,6 +28,7 @@ Use a shared pure parsing/validation/normalization layer, with native/browser fi
 | kind | Optional Fixed / Variable / Occasional override; empty means use category default |
 | note | Optional free text, correctly quoted |
 | external_source / external_id | Optional provenance, namespaced and scoped to source account/profile |
+| source_fingerprint | Optional source-content fingerprint used to suggest duplicate candidates. A fingerprint cannot prove identity or cause an automatic skip. |
 | loan_id | Optional registered-loan relationship; map/review rather than inventing a loan |
 | expect_payback | Optional true/false on expense; absent preserves compatibility with old files |
 | expected_payback_amount | Optional total expected reimbursement in EUR; task metadata only |
@@ -72,7 +73,9 @@ Parsing keeps the transaction direction, value date, source row and amount in in
 
 For expense rows, use `Categoria` as a source label in the existing category mapping. Suggest an existing category only for a unique exact match, and ask the user to resolve unknown or ambiguous labels in preview. A match uses the existing category ID and preserves its settings. A transfer does not need a spending category, and a linked reimbursement offsets the category of its original expense.
 
-The adapter is under development. It reads the confirmed debit example and reports row errors. Applying a statement requires the reviewed import flow, including account mapping, classification, duplicate review, transfer pairing and reimbursement linking. Verification of actual credit, transfer, refund, fee and overlap examples is pending.
+The adapter opens the shared import review after the user selects a Havensum account for each statement. Debit and credit classifications require a choice. A reimbursement also requires either an existing expense link or an explicit unlinked balance adjustment. Transfer review combines an unclassified credit and debit from different accounts with the same source amount after the user selects the pair. If the two value dates differ, the user chooses which to use.
+
+Repeated or overlapping rows are offered as possible matches within the same profile and target account. The adapter fingerprints the source movement before draft edits. Identical purchases remain separate candidates for the user to evaluate. The one supplied debit example is verified. Credit, refund, overlap and two-sided transfer behavior use synthetic fixtures; other actual export variants and different-date transfer pairs need verification.
 
 ## Minimum acceptance suite
 

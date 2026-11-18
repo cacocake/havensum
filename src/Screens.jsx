@@ -58,9 +58,6 @@ export function Settings(){
     return;
    }
    const data = await readImport(file);
-   if (data.bank) {
-    throw Error('Real Bank CSV needs bank transaction review before it can be imported.');
-   }
    if (!data.rows.length) {
     throw Error('This file contains no transaction rows.');
    }

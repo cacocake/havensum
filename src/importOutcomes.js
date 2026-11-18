@@ -1,5 +1,11 @@
 import { accountBalance } from './ledger.js';
 
+export function formatReviewRowLabel(row, multipleStatements) {
+  return multipleStatements && row.bank
+    ? `Statement ${row.bank.statementNumber}, row ${row.sourceRow}`
+    : `Row ${row.sourceRow}`;
+}
+
 export function getImportBalances(state, review, result) {
   const affectedAccountIds = new Set();
   for (const row of review.rows) {
@@ -23,6 +29,9 @@ function describeRowOutcome(row, choice) {
   if (row.status === 'invalid' && choice === 'skip') {
     const label = row.normalizationError ? 'Skipped malformed source row' : 'Skipped invalid row';
     return { outcome: 'skipped', label };
+  }
+  if (row.status === 'paired') {
+    return { outcome: 'skipped', label: 'Combined with its matching transfer debit' };
   }
   if (row.status === 'edited') {
     return choice === 'replace'

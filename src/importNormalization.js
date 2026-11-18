@@ -137,7 +137,10 @@ export function normalizeImportRows(state, data, options = {}) {
       if (type === 'transfer') {
         transaction.toAccount = resolveRecordId(state.accounts, text(canonical ? 'to_account_id' : 'toAccount'), text('to_account_name'), 'destination account', options.accounts);
       }
-      for (const [column, field] of Object.entries({ linked_id: 'linkedId', note: 'note', external_source: 'externalSource', external_id: 'externalId', loan_id: 'loanId' })) {
+      for (const [column, field] of Object.entries({
+        linked_id: 'linkedId', note: 'note', external_source: 'externalSource',
+        external_id: 'externalId', source_fingerprint: 'sourceFingerprint', loan_id: 'loanId'
+      })) {
         let sourceColumn = column;
         if (field === 'note') {
           sourceColumn = mapping.note;

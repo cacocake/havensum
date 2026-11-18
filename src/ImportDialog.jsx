@@ -9,12 +9,15 @@ import { previewImportFile } from './importFileReview.js';
 import { applyTransactionImport, reviseTransactionImport } from './importReview.js';
 import ImportRowEditor from './ImportRowEditor.jsx';
 import ImportResults, { AccountBalanceReview } from './ImportResults.jsx';
-import { getImportBalances, getImportResults } from './importOutcomes.js';
+import { formatReviewRowLabel, getImportBalances, getImportResults } from './importOutcomes.js';
+import { bankTransferCounterparts } from './realBankReview.js';
 import { createEntityId } from './identifiers';
 import { isDemoSession, readImportRecovery, writeImportRecovery, writeState } from './storage';
-import { downloadJSON } from './files';
+import { chooseFile, downloadJSON, readImport } from './files';
 
-const k_statusLabels = { new: 'new', unchanged: 'unchanged', edited: 'edited', possible: 'possible duplicate', invalid: 'invalid' };
+const k_statusLabels = {
+  new: 'new', unchanged: 'unchanged', edited: 'edited', possible: 'possible duplicate', invalid: 'invalid', paired: 'paired credit'
+};
 const k_fieldLabels = { title: 'Title', amount: 'Amount', date: 'Date', type: 'Type', account: 'Account', category: 'Category', note: 'Note' };
 const k_reviewFields = {
   type: 'Type', title: 'Title', amount: 'Amount', date: 'Date', account: 'Account', category: 'Category',
@@ -65,6 +68,7 @@ export default function ImportDialog({ data, onClose }) {
   const [mapping, setMapping] = useState(() => getImportMapping(data));
   const [unit, setUnit] = useState(data.backup ? 'cents' : 'euros');
   const [targetAccount, setTargetAccount] = useState('');
+  const [additionalStatements, setAdditionalStatements] = useState([]);
   const [accounts, setAccounts] = useState({});
   const [categories, setCategories] = useState({});
   const [review, setReview] = useState(null);
@@ -78,15 +82,39 @@ export default function ImportDialog({ data, onClose }) {
   const hasTargetAccount = targetAccount !== '';
   const accountSources = sourceValues(data, mapping, 'account', hasTargetAccount);
   const accountOptions = state.accounts.map(account => ({ value: account.id, label: account.name }));
+  const statements = [{ data, targetAccount }, ...additionalStatements];
+  const accountsPending = statements.some(statement => statement.targetAccount === '');
+  const rowCount = statements.reduce((count, statement) => count + statement.data.rows.length, 0);
+
+  async function addStatement() {
+    try {
+      const file = await chooseFile('.csv');
+      if (!file) {
+        return;
+      }
+      const statement = await readImport(file);
+      if (statement.bank?.profile !== data.bank.profile || !statement.rows.length) {
+        throw Error('Choose another Real Bank statement with transaction rows.');
+      }
+      setAdditionalStatements(current => [...current, { data: { ...statement, name: file.name }, targetAccount: '' }]);
+      setError('');
+    } catch (failure) {
+      setError(failure.message);
+    }
+  }
 
   function preview() {
     try {
-      if (!mapping.title || !mapping.amount || !mapping.date) {
+      if (data.bank && accountsPending) {
+        throw Error('Choose an account for each statement.');
+      }
+      if (!data.bank && (!mapping.title || !mapping.amount || !mapping.date)) {
         throw Error('Map title, amount and date before continuing.');
       }
       setReview(previewImportFile(state, data, {
         mapping, unit, accounts, categories,
-        targetAccount: hasTargetAccount ? targetAccount : undefined
+        targetAccount: hasTargetAccount ? targetAccount : undefined,
+        statements: data.bank ? statements : undefined
       }));
       setChoices({});
       setError('');
@@ -170,13 +198,39 @@ export default function ImportDialog({ data, onClose }) {
     ...review.rows.filter(row => row.status !== 'invalid').map(row => row.transaction)
   ].filter(transaction => transaction.type === 'expense' && transaction.id !== undefined)
     .map(transaction => [transaction.id, transaction])).values()];
+  const counterparts = editingRow !== null && review.rows[editingRow].bank?.direction === 'debit'
+    ? bankTransferCounterparts(review, editingRow) : [];
 
   return (
     <Dialog title={results ? 'Import results' : review ? 'Review your transactions' : 'Bring your history along'}
-      subtitle={`${data.name} · ${data.rows.length} rows`} onClose={dismiss} width={640}>
+      subtitle={statements.length > 1 ? `${statements.length} statements · ${rowCount} rows` : `${data.name} · ${rowCount} rows`}
+      onClose={dismiss} width={640}>
       {results ? (
         <ImportResults results={results} fields={k_reviewFields} displayField={(field, value) => displayField(state, field, value)}
           onDone={dismiss} onDownloadRecovery={results.changed && !isDemoSession() ? downloadRecovery : undefined} />
+      ) : !review && data.bank ? (
+        <>
+          <H size={18} style={{ marginBottom: 12 }}>Real Bank statement</H>
+          <Select label="Import into account" value={targetAccount} onChange={setTargetAccount} options={[
+            { value: '', label: 'Choose the account from this statement' },
+            ...accountOptions
+          ]} />
+          {additionalStatements.map((statement, index) => (
+            <View key={index} style={{ marginBottom: 12 }}>
+              <Select label={`Account for ${statement.data.name}`} value={statement.targetAccount}
+                onChange={id => setAdditionalStatements(current => current.map((entry, position) =>
+                  position === index ? { ...entry, targetAccount: id } : entry))}
+                options={[{ value: '', label: 'Choose the account from this statement' }, ...accountOptions]} />
+              <Button small kind="soft" onPress={() => setAdditionalStatements(current => current.filter((_, position) => position !== index))}>
+                Remove {statement.data.name}
+              </Button>
+            </View>
+          ))}
+          <Row style={{ gap: 10, flexWrap: 'wrap' }}>
+            <Button kind="soft" onPress={addStatement}>Add another statement</Button>
+            <Button onPress={preview} disabled={accountsPending}>Preview import</Button>
+          </Row>
+        </>
       ) : !review ? (
         <>
           <Row style={{ gap: 12, flexWrap: 'wrap' }}>
@@ -206,15 +260,19 @@ export default function ImportDialog({ data, onClose }) {
         <>
           <AccountBalanceReview balances={balances} afterLabel="Projected" />
           <Row style={{ gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-            {Object.entries(k_statusLabels).map(([status, label]) => <T key={status} style={{ fontSize: 12 }}>{review.rows.filter(row => row.status === status).length} {label}</T>)}
+            {Object.entries(k_statusLabels).filter(([status]) => status !== 'paired' || statements.length > 1)
+              .map(([status, label]) => <T key={status} style={{ fontSize: 12 }}>{review.rows.filter(row => row.status === status).length} {label}</T>)}
           </Row>
-          {review.rows.map(row => (
+          {review.rows.map(row => {
+            const rowLabel = formatReviewRowLabel(row, statements.length > 1);
+            return (
             <View key={row.index} style={{ paddingVertical: 14, borderBottomWidth: 1, borderColor: colors.line, gap: 8 }}>
-              <T style={{ fontSize: 12, color: colors.sub }}>Row {row.index + 1}</T>
+              <T style={{ fontSize: 12, color: colors.sub }}>{rowLabel}</T>
               <T style={{ fontWeight: '600' }}>{row.transaction.title}</T>
+              {row.bank?.category && <T style={{ fontSize: 12, color: colors.sub }}>Bank category · {row.bank.category}</T>}
               {row.transaction.amount !== undefined && (
                 <T style={{ fontSize: 12, color: colors.sub }}>
-                  {row.transaction.date} · {row.transaction.type} · {displayField(state, 'account', row.transaction.account)}
+                  {row.transaction.date} · {row.transaction.type || row.bank?.direction} · {displayField(state, 'account', row.transaction.account)}
                   {row.transaction.toAccount !== undefined && ` → ${displayField(state, 'toAccount', row.transaction.toAccount)}`}
                   {' · '}{euro(row.transaction.amount)}
                 </T>
@@ -234,23 +292,25 @@ export default function ImportDialog({ data, onClose }) {
               {row.status === 'edited' && Object.entries(k_reviewFields).filter(([field]) => (row.existing[field] ?? '') !== (row.transaction[field] ?? '')).map(([field, label]) => (
                 <T key={field} style={{ fontSize: 12 }}>{label}: {displayField(state, field, row.existing[field])} → {displayField(state, field, row.transaction[field])}</T>
               ))}
-              {row.error && <T style={{ color: colors.negative }}>Row {row.index + 1}: {row.error}</T>}
+              {row.error && <T style={{ color: colors.negative }}>{rowLabel}: {row.error}</T>}
               {row.status === 'invalid' && (
-                <Select label={`Row ${row.index + 1} decision`} value={choices[row.index] || ''}
+                <Select label={`${rowLabel} decision`} value={choices[row.index] || ''}
                   onChange={choice => setChoices(current => ({ ...current, [row.index]: choice }))} options={[
                     { value: '', label: 'Correct the source or choose to skip' },
                     { value: 'skip', label: 'Skip this invalid row' }
                   ]} />
               )}
               {editingRow === row.index ? (
-                <ImportRowEditor transaction={row.transaction} state={state} expenses={expenses} lockAccount={hasTargetAccount}
+                <ImportRowEditor transaction={row.transaction} state={state} expenses={expenses} lockAccount={hasTargetAccount} bank={row.bank}
+                  counterparts={counterparts} pair={row.pair}
                   onUpdate={changes => updateRow(row.index, changes)} onCancel={() => setEditingRow(null)} />
-              ) : (!row.normalizationError && row.duplicateOf === undefined && row.transaction.type && (
-                <Button small kind="soft" disabled={busy || editingRow !== null} onPress={() => setEditingRow(row.index)}>{`Edit row ${row.index + 1}`}</Button>
+              ) : (!row.normalizationError && row.status !== 'paired' && row.duplicateOf === undefined && (row.transaction.type || row.bank) && (
+                <Button small kind="soft" disabled={busy || editingRow !== null} onPress={() => setEditingRow(row.index)}>{`Edit ${rowLabel.toLowerCase()}`}</Button>
               ))}
-              {['edited', 'possible'].includes(row.status) && <Select label={`Row ${row.index + 1} decision`} value={choices[row.index] || ''} onChange={choice => setChoices(current => ({ ...current, [row.index]: choice }))} options={row.status === 'edited' ? [{ value: '', label: 'Choose what to keep' }, { value: 'keep', label: 'Keep the existing transaction' }, { value: 'replace', label: 'Use the imported changes' }] : [{ value: '', label: 'Review this possible duplicate' }, { value: 'skip', label: 'Skip this row' }, { value: 'add', label: 'Add as a separate purchase' }]} />}
+              {['edited', 'possible'].includes(row.status) && <Select label={`${rowLabel} decision`} value={choices[row.index] || ''} onChange={choice => setChoices(current => ({ ...current, [row.index]: choice }))} options={row.status === 'edited' ? [{ value: '', label: 'Choose what to keep' }, { value: 'keep', label: 'Keep the existing transaction' }, { value: 'replace', label: 'Use the imported changes' }] : [{ value: '', label: 'Review this possible duplicate' }, { value: 'skip', label: 'Skip this row' }, { value: 'add', label: 'Add as a separate transaction' }]} />}
             </View>
-          ))}
+            );
+          })}
           <T style={{ fontSize: 12, color: colors.sub, marginTop: 16 }}>A separate pre-import recovery copy is saved before any change. Existing records stay unless you explicitly approve their edits.</T>
           {projection.error && <T accessibilityRole="alert" style={{ color: colors.negative }}>{projection.error}</T>}
           <Row style={{ gap: 10, marginTop: 20, flexWrap: 'wrap' }}>

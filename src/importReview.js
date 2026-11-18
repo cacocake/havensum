@@ -1,9 +1,11 @@
 import { validateTransaction } from './transactionValidation.js';
 import { isRecordIdentifier } from './recordIdentity.js';
+import { bankTransferCounterparts, validateBankDraft } from './realBankReview.js';
+import { k_transactionTypes } from './domainConstants.js';
 
 const k_exchangeFields = [
   'type', 'title', 'amount', 'date', 'account', 'category', 'kind', 'note',
-  'linkedId', 'toAccount', 'externalSource', 'externalId', 'loanId'
+  'linkedId', 'toAccount', 'externalSource', 'externalId', 'sourceFingerprint', 'loanId'
 ];
 
 function comparableTransaction(transaction) {
@@ -37,7 +39,13 @@ function possibleDuplicate(first, second) {
   if (hasExternalIdentity(first) && hasExternalIdentity(second)) {
     return false;
   }
-  const fields = k_exchangeFields.filter(field => !['externalSource', 'externalId'].includes(field));
+  if (first.externalSource && first.sourceFingerprint
+    && first.externalSource === second.externalSource
+    && first.account === second.account
+    && first.sourceFingerprint === second.sourceFingerprint) {
+    return true;
+  }
+  const fields = k_exchangeFields.filter(field => !['externalSource', 'externalId', 'sourceFingerprint'].includes(field));
   return fields.every(field => (first[field] ?? '') === (second[field] ?? ''));
 }
 
@@ -90,14 +98,25 @@ function markRepeatedIdentities(rows) {
   }
 }
 
-export function previewTransactionImport(state, transactions, originals = transactions) {
+export function previewTransactionImport(state, transactions, options = {}) {
+  const { originals = transactions, bankRows = [], bankPairs = {} } = options;
+  const pairedCredits = new Map(Object.entries(bankPairs).map(([debit, pair]) => [pair.counterpartIndex, Number(debit)]));
   const rows = transactions.map((transaction, index) => {
+    const bank = bankRows[index];
+    const sourceRow = bank?.sourceRow ?? index + 1;
+    const pairedBy = pairedCredits.get(index);
+    if (pairedBy !== undefined) {
+      return { index, sourceRow, bank, transaction, pairedBy, status: 'paired' };
+    }
+    if (bank?.error) {
+      return { index, sourceRow, bank, transaction, status: 'invalid', normalizationError: bank.error, error: bank.error };
+    }
     const hasLedgerId = isRecordIdentifier(transaction.id);
     const matchingRecords = state.transactions.filter(record =>
       (hasLedgerId && record.id === transaction.id) || hasSameExternalIdentity(record, transaction));
     if (matchingRecords.length > 1) {
       return {
-        index, transaction, status: 'invalid',
+        index, sourceRow, bank, transaction, status: 'invalid',
         error: 'The identifiers match different transactions. Correct the ledger ID or source reference before importing.'
       };
     }
@@ -106,12 +125,13 @@ export function previewTransactionImport(state, transactions, originals = transa
     const possibleMatches = state.transactions.filter(record => possibleDuplicate(record, transaction)
       || (original !== transaction && possibleDuplicate(record, original)));
     return {
-      index, transaction, existing, possibleMatches,
+      index, sourceRow, bank, transaction, existing, possibleMatches, pair: bankPairs[index],
       status: reviewStatus(existing, transaction, possibleMatches)
     };
   });
-  markRepeatedIdentities(rows.filter(row => row.status !== 'invalid'));
-  const candidates = new Map(rows.filter(row => row.status !== 'invalid' && row.duplicateOf === undefined).map(row => [row.index,
+  const candidateRows = rows.filter(row => row.status !== 'invalid' && row.status !== 'paired');
+  markRepeatedIdentities(candidateRows);
+  const candidates = new Map(candidateRows.filter(row => row.status !== 'invalid' && row.duplicateOf === undefined).map(row => [row.index,
     row.existing ? updatedTransaction(row.existing, row.transaction) : { ...row.transaction, id: row.transaction.id ?? Symbol('preview') }
   ]));
   const importedIds = new Set([...candidates.values()].map(transaction => transaction.id));
@@ -123,28 +143,49 @@ export function previewTransactionImport(state, transactions, originals = transa
     ]
   };
   for (const row of rows) {
-    if (row.status === 'invalid') {
+    if (row.status === 'invalid' || row.status === 'paired') {
       continue;
     }
     try {
       const transaction = candidates.get(row.duplicateOf ?? row.index);
+      if (row.bank) {
+        validateBankDraft(row.bank, transaction, row.pair);
+      }
       validateTransaction(combinedState, transaction);
     } catch (error) {
       row.status = 'invalid';
       row.error = error.message;
     }
   }
-  return { rows, originals, baseline: JSON.stringify(state) };
+  return { rows, originals, bankRows, bankPairs, baseline: JSON.stringify(state) };
 }
 
-export function reviseTransactionImport(state, review, rowIndex, changes) {
+export function reviseTransactionImport(state, review, rowIndex, { counterpartIndex, transferDate, ...changes }) {
   if (JSON.stringify(state) !== review.baseline) {
     throw Error('The ledger changed after preview. Preview this file again before editing.');
+  }
+  const bankPairs = { ...review.bankPairs };
+  const editedRow = review.rows[rowIndex];
+  if (editedRow.bank) {
+    delete bankPairs[rowIndex];
+    if (changes.type === k_transactionTypes.transfer) {
+      const counterpart = bankTransferCounterparts(review, rowIndex).find(row => row.index === counterpartIndex);
+      changes.toAccount = counterpart?.transaction.account;
+      if (counterpart) {
+        const sourceDates = [editedRow.bank.valueDate, counterpart.bank.valueDate];
+        const sameDate = sourceDates[0] === sourceDates[1];
+        const dateConfirmed = sameDate || sourceDates.includes(transferDate);
+        if (!sameDate && dateConfirmed) {
+          changes.date = transferDate;
+        }
+        bankPairs[rowIndex] = { counterpartIndex: counterpart.index, dateConfirmed };
+      }
+    }
   }
   const transactions = review.rows.map(row => row.index === rowIndex
     ? { ...row.transaction, ...changes }
     : row.transaction);
-  const revised = previewTransactionImport(state, transactions, review.originals);
+  const revised = previewTransactionImport(state, transactions, { originals: review.originals, bankRows: review.bankRows, bankPairs });
   for (const row of review.rows) {
     if (row.normalizationError) {
       const revisedRow = revised.rows[row.index];
@@ -167,9 +208,9 @@ export function applyTransactionImport(state, review, choices, createIdentifier)
       if (choice === 'skip') {
         continue;
       }
-      throw Error(`Row ${row.index + 1}: ${row.error}`);
+      throw Error(`Row ${row.sourceRow}: ${row.error}`);
     }
-    if (row.status === 'unchanged') {
+    if (row.status === 'unchanged' || row.status === 'paired') {
       continue;
     }
     if (row.status === 'edited') {
