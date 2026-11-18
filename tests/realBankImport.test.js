@@ -38,6 +38,14 @@ test('Real Bank CSV recognizes its preamble and reads the transaction table with
   }]);
 });
 
+test('a trailing booked-balance summary is excluded without hiding a malformed movement', async () => {
+  const malformed = '06-02-2032,06-02-2032,,4,,,100,Outros';
+  const footer = ',,,,Saldo contabilístico,Synthetic balance,,';
+  const statement = await parseImportContent('synthetic.csv', [k_realBankStatement, malformed, footer, ',,,,,,,'].join('\r\n'));
+  assert.deepEqual(statement.rows.map(row => row.sourceRow), [10, 11]);
+  assert.match(statement.rows[1].error, /description/i);
+});
+
 test('a Windows-1252 Real Bank file keeps Portuguese accents and punctuation when picked on web', async () => {
   const statement = k_realBankStatement.replace('Café, chá', 'Café, chá \x96 lanche');
   const file = new File([Buffer.from(statement, 'latin1')], 'synthetic.CSV');

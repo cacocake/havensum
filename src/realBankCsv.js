@@ -2,6 +2,7 @@ import { k_calendarDateLength } from './calendar.js';
 import { cents, isPositiveCentAmount } from './money.js';
 
 const k_reportTitle = 'Consultar saldos e movimentos à ordem - ';
+const k_bookedBalanceFooter = 'Saldo contabilístico';
 const k_valueDatePattern = /^(\d{2})-(\d{2})-(\d{4})$/;
 const k_unsignedEuroPattern = /^\d+(?:[.,]\d{1,2})?$/;
 const k_headers = [
@@ -53,9 +54,17 @@ export function readRealBankStatement(csvRows) {
   const metadata = csvRows.slice(1, headerIndex);
   const accountRow = metadata.find(row => row[0] === 'Conta');
   const rows = [];
-  for (let index = headerIndex + 1; index < csvRows.length; index += 1) {
+  let lastContentRow = csvRows.length - 1;
+  while (lastContentRow > headerIndex && csvRows[lastContentRow].every(cell => cell === '')) {
+    lastContentRow -= 1;
+  }
+  for (let index = headerIndex + 1; index <= lastContentRow; index += 1) {
     const [movementDate, valueDate, title, debit, credit, , , category] = csvRows[index];
     if (csvRows[index].every(cell => cell === '')) {
+      continue;
+    }
+    if (index === lastContentRow && credit === k_bookedBalanceFooter
+      && csvRows[index][5] && csvRows[index].every((cell, column) => column === 4 || column === 5 || cell === '')) {
       continue;
     }
     const row = { sourceRow: index + 1, movementDate, valueDate, title, debit, credit, category };
