@@ -2,6 +2,21 @@ import { test, expect } from '@playwright/test';
 import { createFinancialState, createTransaction } from '../helpers/financialFixtures.js';
 import { openMoreSection } from '../helpers/userFlows.js';
 
+test('Averages shows booked category spending from completed history', async ({ page }) => {
+  await page.route('https://fonts.googleapis.com/**', route => route.abort());
+  await page.clock.install({ time: new Date('2026-11-15T12:00:00Z') });
+  const state = createFinancialState({
+    outlook: { completeMonths: ['2026-10'] },
+    transactions: [createTransaction({ amount: 30000, date: '2026-10-10' })]
+  });
+  await page.addInitScript(initialState => localStorage.setItem('melo-state-v1', JSON.stringify(initialState)), state);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Plan Averages', exact: true }).click();
+  await expect(page.getByText('Average spending by category', { exact: true })).toBeVisible({ timeout: 2500 });
+  await expect(page.getByText('Groceries', { exact: true })).toBeVisible();
+});
+
 test('individual bill cancellation survives reload without changing the plan or another bill', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-15T12:00:00') });
   const state = createFinancialState({
