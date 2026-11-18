@@ -34,7 +34,7 @@ export function expectedSavings(state, month, today = new Date().toISOString().s
   const days = daysInMonth(month);
   const elapsedDays = month > monthOf(today) ? 0 : Number(today.slice(8, 10));
   const remainingFraction = (days - elapsedDays) / days;
-  const events = expectedOccasionalEvents(state, month, registered);
+  const events = expectedOccasionalEvents(state, month, registered, today);
   const upcomingOccasional = events.reduce((total, event) => total + event.remaining, 0);
   const registeredOccasional = occasionalSpending(state, registered);
   const occasional = Math.max(registeredOccasional + upcomingOccasional, monthlyReserve);

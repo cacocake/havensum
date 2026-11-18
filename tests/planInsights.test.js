@@ -2,6 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {planInsights} from '../src/planInsights.js';
 import {selectTransactions} from '../src/activity.js';
+
+test('cash activity keeps the posted month when filtering expenses and spending drill-down uses the occurrence month', () => {
+  const state = { categories: [], transactions: [
+    { id: 'deposit', title: 'Deposit', type: 'expense', date: '2027-03-01',
+      plannedCost: { eventId: 'trip', month: '2027-11' } }
+  ] };
+  assert.deepEqual(selectTransactions(state, '2027-03').map(expense => expense.id), ['deposit']);
+  assert.deepEqual(selectTransactions(state, '2027-03', { type: 'expense' }).map(expense => expense.id), ['deposit']);
+  assert.deepEqual(selectTransactions(state, '2027-11', { type: 'expense', spending: true }).map(expense => expense.id), ['deposit']);
+});
 const legacyFixture=()=>({categories:[{id:'home',name:'Home',kind:'Fixed'},{id:'rent',parentId:'home',name:'Rent'},{id:'food',name:'Food',kind:'Variable'},{id:'fun',name:'Fun',kind:'Occasional'},{id:'loan',name:'Loan',kind:'Fixed'}],transactions:[{id:'rent',type:'expense',category:'rent',date:'2026-11-02',amount:80000,account:'a',title:'Rent'},{id:'food',type:'expense',category:'food',date:'2026-11-04',amount:10000,account:'a',title:'Food'},{id:'loan',type:'expense',category:'loan',date:'2026-11-03',amount:10000,account:'a',title:'Loan'},{id:'salary',type:'income',date:'2026-11-01',amount:200000,account:'a',title:'Salary'}],plan:{window:6,months:{'2026-11':{income:200000,expense:120000,balance:80000,loan:10000,cushion:10000,event:0,lines:[{category:'home',kind:'Fixed',amount:80000},{category:'food',kind:'Variable',amount:20000}]}}}});
 function fixture() {
   const state = legacyFixture();

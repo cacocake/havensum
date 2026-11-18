@@ -1,6 +1,7 @@
 import { categorySettings } from './ledger.js';
 import { isLoanExpense, isFixedBill } from './expectedBills.js';
 import { k_spendingBehaviors, k_systemCategoryIds } from './domainConstants.js';
+import { isPlannedCostLink } from './plannedCosts.js';
 
 export function expectedVariableSpending(state, historyStats, actual, registered, remainingFraction) {
   const buckets = new Map();
@@ -8,7 +9,7 @@ export function expectedVariableSpending(state, historyStats, actual, registered
     for (const expense of stats.expenses) {
       const category = categorySettings(state.categories, expense.category);
       const kind = expense.kind || category.kind;
-      if (isLoanExpense(state, expense) || isFixedBill(state, expense) || kind === k_spendingBehaviors.occasional) {
+      if (isPlannedCostLink(expense.plannedCost) || isLoanExpense(state, expense) || isFixedBill(state, expense) || kind === k_spendingBehaviors.occasional) {
         continue;
       }
       const categoryId = category.parentId ?? category.id ?? k_systemCategoryIds.uncategorized;

@@ -23,7 +23,7 @@ const k_fieldLabels = { title: 'Title', amount: 'Amount', date: 'Date', type: 'T
 const k_reviewFields = {
   type: 'Type', title: 'Title', amount: 'Amount', date: 'Date', account: 'Account', category: 'Category',
   kind: 'Behaviour', note: 'Note', linkedId: 'Linked expense', toAccount: 'Destination account',
-  externalSource: 'External source', externalId: 'External reference', loanId: 'Loan'
+  externalSource: 'External source', externalId: 'External reference', loanId: 'Loan', plannedCost: 'Planned cost'
 };
 
 function sourceValue(row, column) {
@@ -59,6 +59,10 @@ function displayField(state, field, value) {
   }
   if (field === 'loanId') {
     return state.loans.find(loan => loan.id === value)?.name || String(value);
+  }
+  if (field === 'plannedCost') {
+    const event = state.events.find(candidate => candidate.id === value.eventId);
+    return `${event?.name ?? 'Planned cost'} · ${value.month}`;
   }
   return String(value);
 }
@@ -294,6 +298,7 @@ export default function ImportDialog({ data, onClose }) {
                 </T>
               )}
               {row.transaction.category !== undefined && <T style={{ fontSize: 12, color: colors.sub }}>{displayField(state, 'category', row.transaction.category)}</T>}
+              {row.transaction.plannedCost && <T style={{ fontSize: 12, color: colors.sub }}>{displayField(state, 'plannedCost', row.transaction.plannedCost)}</T>}
               <T style={{ fontSize: 12, color: colors.sub }}>{k_statusLabels[row.status]}</T>
               {row.status === 'paired' && (
                 <T style={{ fontSize: 12, color: colors.sub }}>

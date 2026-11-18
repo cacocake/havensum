@@ -40,7 +40,7 @@ As of 17 November 2026. Latest requirements in docs/HAVENSUM_REQUIREMENTS.md sup
 | F07 | Working choice / open | Cushion is its own monthly plan line | Keeps it visible; owner originally left its presentation open |
 | F08 | Working choice | Fixed baseline = latest non-zero category/behaviour total | A prototype approximation, not recurring-contract recognition; see HANDOFF caveats |
 | F09 | Working choice | Interview is a three-step form launched manually | Automatic first-launch/annual prompting and interview completion state are not implemented |
-| F11 | Owner approved, pending implementation | An early payment explicitly linked to a specific event occurrence counts toward spending in the event month | Cash follows each payment date. Linked payments reduce that occurrence's remaining amount. The frozen plan keeps the original estimate. |
+| F11 | Owner approved, implemented | An early payment explicitly linked to a specific event occurrence counts toward spending in the event month | Cash follows each payment date. Linked payments reduce that occurrence's remaining amount. The frozen plan keeps the original estimate. When a cost moves, its linked payments require review. |
 
 ## UI direction
 

@@ -1,6 +1,7 @@
 import { categorySettings, netExpenses } from './ledger.js';
 import { monthOf } from './calendar.js';
 import { billIdentity } from './outlookInputs.js';
+import { isPlannedCostLink } from './plannedCosts.js';
 import { k_spendingBehaviors, k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
 
 export function isLoanExpense(state, expense) {
@@ -13,7 +14,8 @@ export function hasLoanLink(expense) {
 }
 
 export function isFixedBill(state, expense) {
-  return !isLoanExpense(state, expense) && (expense.kind || categorySettings(state.categories, expense.category).kind) === k_spendingBehaviors.fixed;
+  return !isPlannedCostLink(expense.plannedCost) && !isLoanExpense(state, expense)
+    && (expense.kind || categorySettings(state.categories, expense.category).kind) === k_spendingBehaviors.fixed;
 }
 
 export function expectedBills(state, month, today) {

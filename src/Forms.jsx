@@ -13,6 +13,7 @@ import {palette} from './seed.js';
 import { isPositiveCentAmount, k_centsPerEuro } from './money.js';
 import { k_transactionTypes, k_systemCategoryIds, k_entityIdPrefixes } from './domainConstants.js';
 import { createEntityId } from './identifiers';
+import { isPlannedCostLink, plannedCostOptions } from './plannedCosts.js';
 
 const k_percentageScale = 100;
 const k_draftEventId = 'event-draft';
@@ -47,6 +48,12 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
  const paybackDraft = draft?.linkedId != null;
  const cats=state.categories.filter(x=>!['salary','interest'].includes(x.id));
  const expenses=state.transactions.filter(t=>t.type==='expense').sort((a,b)=>b.date.localeCompare(a.date));
+ const savedPlannedCost = isPlannedCostLink(item?.plannedCost) ? item.plannedCost : undefined;
+ const [plannedCostChoice, setPlannedCostChoice] = useState(savedPlannedCost ? JSON.stringify(savedPlannedCost) : '');
+ const activePlannedCost = plannedCostChoice ? JSON.parse(plannedCostChoice) : undefined;
+ const costOptions = plannedCostOptions(state.events ?? [], date, activePlannedCost);
+ const canLinkPlannedCost = type === k_transactionTypes.expense && category !== k_systemCategoryIds.loan
+   && categorySettings(state.categories, category).parentId !== k_systemCategoryIds.loan;
  function save(confirmClose = false) {
    try {
      if (!k_transactionAmountPattern.test(amount)) {
@@ -73,6 +80,7 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
      if (type === k_transactionTypes.reimbursement && link && linkedId !== '') {
        transaction.linkedId = linkedId;
      }
+     transaction.plannedCost = canLinkPlannedCost ? activePlannedCost : undefined;
      const trackingExpense = type === k_transactionTypes.expense;
      if (trackingExpense && task && !task.manuallyClosed && !expectPayback && !confirmClose) {
        setConfirmingClose(true);
@@ -125,7 +133,7 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
      <Button onPress={() => save()} icon="Check">{item ? 'Save changes' : 'Add transaction'}</Button>
    </Row>}
  </View>;
- const isDirty = useDirtyForm([type,title,amount,account,category,date,note,kind,linkedId,link,toAccount,expectPayback,expectedAmount,person,dueDate,taskNote]);
+ const isDirty = useDirtyForm([type,title,amount,account,category,date,note,kind,linkedId,link,toAccount,expectPayback,expectedAmount,person,dueDate,taskNote,plannedCostChoice]);
  return <Dialog dirty={isDirty} title={item?'Edit transaction':'Add a transaction'} subtitle="A few seconds, and back to your day." onClose={onClose} footer={footer}>
  <Row style={{gap:5,padding:4,backgroundColor:c.soft,borderRadius:12,marginBottom:23}}>{(paybackDraft || task ? [type] : ['expense','income','reimbursement','transfer']).map(t=><Pressable key={t} onPress={()=>{setType(t);if(t==='income')setCategory('salary');else if(category==='salary'||category==='interest')setCategory('groceries');}} accessibilityRole="button" accessibilityState={{selected:type===t}} style={{flex:1,minHeight:48,justifyContent:'center',paddingVertical:10,borderRadius:9,backgroundColor:type===t?c.card:'transparent',alignItems:'center'}}><T style={{fontSize:10.5,fontWeight:'600',color:type===t?c.accentText:c.sub}}>{t==='reimbursement'?'Payback':t[0].toUpperCase()+t.slice(1)}</T></Pressable>)}</Row>
  <View style={{backgroundColor:c.soft,borderRadius:21,padding:16,marginBottom:20}}><T style={{fontSize:12,color:c.sub,marginBottom:5}}>How much?</T><Row style={{gap:8}}><H size={32} style={{color:c.accent}}>€</H><TextInput accessibilityLabel="Amount · EUR" value={amount} onChangeText={setAmount} placeholder="0.00" placeholderTextColor={c.muted} keyboardType="decimal-pad" autoFocus={!item} style={{flex:1,minWidth:0,fontFamily:'Fredoka',fontSize:37,lineHeight:49,color:c.text,padding:0}}/></Row></View>
@@ -133,6 +141,10 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
  <Row style={{gap:14,alignItems:'flex-start'}}><Select label="Account" value={account} onChange={setAccount} options={state.accounts.map(a=>({value:a.id,label:a.name}))} style={{flex:1}}/><View style={{flex:1}}><DateField value={date} onChange={setDate}/></View></Row>
  {type==='transfer'?<><Select label="To account" value={toAccount} onChange={setToAccount} options={state.accounts.filter(a=>a.id!==account).map(a=>({value:a.id,label:a.name}))}/><Badge color={c.positive}>Transfers stay out of income, spending, and averages.</Badge></>:<>
  <CategorySelect label="Category" value={category} onChange={setCategory} categories={type==='income'?state.categories:cats}/>
+ {canLinkPlannedCost && costOptions.length > 0 && (
+   <Select label="Link to a planned cost" value={plannedCostChoice} onChange={setPlannedCostChoice}
+     options={[{ value: '', label: 'No planned cost' }, ...costOptions]} />
+ )}
 
  </>}
  {type === 'expense' && <View style={{marginBottom:14}}>

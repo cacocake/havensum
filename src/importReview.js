@@ -6,12 +6,19 @@ import { validatePaybackState } from './paybackState.js';
 
 const k_exchangeFields = [
   'type', 'title', 'amount', 'date', 'account', 'category', 'kind', 'note',
-  'linkedId', 'toAccount', 'externalSource', 'externalId', 'sourceFingerprint', 'counterpartSourceFingerprint', 'loanId'
+  'linkedId', 'toAccount', 'externalSource', 'externalId', 'sourceFingerprint', 'counterpartSourceFingerprint', 'loanId',
+  'plannedCost'
 ];
-const k_provenanceFields = new Set(['externalSource', 'externalId', 'sourceFingerprint', 'counterpartSourceFingerprint']);
+const k_duplicateIgnoredFields = new Set(['externalSource', 'externalId', 'sourceFingerprint', 'counterpartSourceFingerprint', 'plannedCost']);
 
 function comparableTransaction(transaction) {
-  return k_exchangeFields.map(field => field === 'externalId' ? String(transaction[field] ?? '') : transaction[field] ?? '');
+  return k_exchangeFields.map(field => {
+    if (field === 'plannedCost' && transaction.plannedCost) {
+      const { eventId, month, singleOccurrence } = transaction.plannedCost;
+      return [eventId, month, singleOccurrence === true];
+    }
+    return field === 'externalId' ? String(transaction[field] ?? '') : transaction[field] ?? '';
+  });
 }
 
 function sameTransaction(first, second) {
@@ -24,6 +31,9 @@ function updatedTransaction(existing, incoming) {
     delete transaction[field];
   }
   const updated = { ...transaction, ...incoming, id: existing.id };
+  if (updated.type === k_transactionTypes.expense && !Object.hasOwn(incoming, 'plannedCost') && existing.plannedCost !== undefined) {
+    updated.plannedCost = existing.plannedCost;
+  }
   if (existing.counterpartSourceFingerprint && updated.counterpartSourceFingerprint === undefined
     && updated.type === k_transactionTypes.transfer
     && updated.account === existing.account && updated.toAccount === existing.toAccount
@@ -66,7 +76,7 @@ function possibleDuplicate(first, second) {
       return true;
     }
   }
-  const fields = k_exchangeFields.filter(field => !k_provenanceFields.has(field));
+  const fields = k_exchangeFields.filter(field => !k_duplicateIgnoredFields.has(field));
   return fields.every(field => (first[field] ?? '') === (second[field] ?? ''));
 }
 

@@ -3,7 +3,96 @@ import assert from 'node:assert/strict';
 import { expectedSavings } from '../src/expectedSavings.js';
 import { billIdentity } from '../src/outlookInputs.js';
 import { planInsights } from '../src/planInsights.js';
+import { accountBalance, reportingMonthStats } from '../src/ledger.js';
+import { plannedCostOptions } from '../src/plannedCosts.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
+
+test('the planned-cost picker offers dated occurrences and retains a saved choice when the original month moved', () => {
+  const events = [
+    { id: 'service', name: 'Car service', year: 2027, month: 6 },
+    { id: 'gifts', name: 'Gifts', month: 12 },
+    { id: 'past', name: 'Past event', year: 2027, month: 1 }
+  ];
+  const prior = { eventId: 'service', month: '2027-05', singleOccurrence: true };
+  const options = plannedCostOptions(events, '2027-03-12', prior);
+  assert.deepEqual(options.map(option => JSON.parse(option.value)), [
+    prior,
+    { eventId: 'service', month: '2027-06', singleOccurrence: true },
+    { eventId: 'gifts', month: '2027-12' },
+    { eventId: 'gifts', month: '2028-12' }
+  ]);
+  assert.match(options[0].label, /original month 2027-05/);
+});
+
+test('two early payments count once in their specific planned month and keep their cash dates', () => {
+  const plannedCost = { eventId: 'trip', month: '2027-11' };
+  const state = createFinancialState({
+    events: [{ id: 'trip', name: 'Trip', month: 11, amount: 120000 }],
+    outlook: { completeMonths: ['2027-03', '2027-04'] },
+    transactions: [
+      createTransaction({ id: 'tickets', amount: 40000, category: 'shopping', date: '2027-03-12', plannedCost }),
+      createTransaction({ id: 'bookings', amount: 30000, category: 'shopping', date: '2027-04-16', plannedCost })
+    ]
+  });
+  const today = '2027-05-01';
+  assert.equal(accountBalance(state, 'everyday', '2027-03-31'), 60000);
+  assert.equal(accountBalance(state, 'everyday', '2027-04-30'), 30000);
+  assert.equal(reportingMonthStats(state, '2027-03', today).spent, 0);
+  assert.equal(reportingMonthStats(state, '2027-04', today).spent, 0);
+  assert.equal(reportingMonthStats(state, '2027-11', today).spent, 70000);
+  const estimate = expectedSavings(state, '2027-11', today);
+  assert.equal(estimate.events[0].paid, 70000);
+  assert.equal(estimate.events[0].remaining, 50000);
+  assert.equal(estimate.expense, 120000);
+  assert.equal(expectedSavings(state, '2028-11', today).events[0].remaining, 120000);
+});
+
+test('moving a planned cost flags its linked payments without moving spending or counting the estimate twice', () => {
+  const earlyPayment = createTransaction({
+    id: 'tickets', title: 'Tickets', amount: 70000, date: '2027-03-12',
+    plannedCost: { eventId: 'trip', month: '2027-11' }
+  });
+  const state = createFinancialState({
+    events: [{ id: 'trip', name: 'Trip', year: 2027, month: 12, amount: 120000 }],
+    transactions: [earlyPayment]
+  });
+  const today = '2027-05-01';
+  assert.equal(reportingMonthStats(state, '2027-11', today).spent, 70000);
+  assert.equal(reportingMonthStats(state, '2027-12', today).spent, 0);
+  const december = expectedSavings(state, '2027-12', today);
+  assert.deepEqual(december.events[0].paymentsToReview.map(payment => payment.id), ['tickets']);
+  assert.equal(december.events[0].remaining, 50000);
+  assert.equal(december.expense, 50000);
+});
+
+test('a former recurring occurrence cannot reduce a later occurrence that becomes a one-off', () => {
+  const state = createFinancialState({
+    events: [{ id: 'trip', name: 'Trip', year: 2028, month: 11, amount: 120000 }],
+    transactions: [createTransaction({ amount: 40000, date: '2027-03-12',
+      plannedCost: { eventId: 'trip', month: '2027-11' } })]
+  });
+  const event = expectedSavings(state, '2028-11', '2028-01-01').events[0];
+  assert.equal(event.remaining, 120000);
+  assert.deepEqual(event.paymentsToReview, []);
+});
+
+test('a received payback reduces the net cost without reopening the planned payment', () => {
+  const state = createFinancialState({
+    events: [{ id: 'trip', name: 'Trip', year: 2027, month: 11, amount: 120000 }],
+    transactions: [
+      createTransaction({ id: 'tickets', amount: 40000, date: '2027-03-12',
+        plannedCost: { eventId: 'trip', month: '2027-11' } }),
+      createTransaction({ id: 'share', type: 'reimbursement', linkedId: 'tickets', amount: 10000, date: '2027-05-02' })
+    ]
+  });
+  const today = '2027-05-03';
+  const november = expectedSavings(state, '2027-11', today);
+  assert.equal(accountBalance(state, 'everyday', today), 70000);
+  assert.equal(reportingMonthStats(state, '2027-11', today).spent, 30000);
+  assert.equal(november.events[0].paid, 40000);
+  assert.equal(november.events[0].remaining, 80000);
+  assert.equal(november.expense, 110000);
+});
 
 test('expected savings uses confirmed history without requiring a frozen target', () => {
   const state = createFinancialState({

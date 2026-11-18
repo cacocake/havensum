@@ -194,3 +194,14 @@ test('exported CSV imports exact cents and text without executing or retaining s
   assert.equal(rows[1].linkedId, '0007');
   assert.equal(rows[2].toAccount, 'shared');
 });
+test('canonical transaction CSV preserves an explicitly linked planned cost', async () => {
+  const { createTransactionCsv } = await import('../src/csvExchange.js');
+  const { previewImportFile } = await import('../src/importFileReview.js');
+  const plannedCost = { eventId: 0, month: '2026-12', singleOccurrence: true };
+  const transaction = createTransaction({ plannedCost });
+  const original = createFinancialState({ transactions: [transaction] });
+  const file = await readImport(new File([createTransactionCsv(original)], 'planned.csv'));
+  const review = previewImportFile(createFinancialState(), file);
+  assert.equal(review.rows[0].status, 'new');
+  assert.deepEqual(review.rows[0].transaction.plannedCost, plannedCost);
+});
