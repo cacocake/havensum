@@ -4,7 +4,25 @@ import { expectedSavings } from '../src/expectedSavings.js';
 import { billIdentity } from '../src/outlookInputs.js';
 import { planInsights } from '../src/planInsights.js';
 import { accountBalance, reportingMonthStats } from '../src/ledger.js';
+import { plannedCostOptions } from '../src/plannedCosts.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
+
+test('the planned-cost picker offers dated occurrences and retains a saved choice when the original month moved', () => {
+  const events = [
+    { id: 'service', name: 'Car service', year: 2027, month: 6 },
+    { id: 'gifts', name: 'Gifts', month: 12 },
+    { id: 'past', name: 'Past event', year: 2027, month: 1 }
+  ];
+  const prior = { eventId: 'service', month: '2027-05', singleOccurrence: true };
+  const options = plannedCostOptions(events, '2027-03-12', prior);
+  assert.deepEqual(options.map(option => JSON.parse(option.value)), [
+    prior,
+    { eventId: 'service', month: '2027-06', singleOccurrence: true },
+    { eventId: 'gifts', month: '2027-12' },
+    { eventId: 'gifts', month: '2028-12' }
+  ]);
+  assert.match(options[0].label, /original month 2027-05/);
+});
 
 test('two early payments count once in their specific planned month and keep their cash dates', () => {
   const plannedCost = { eventId: 'trip', month: '2027-11' };
