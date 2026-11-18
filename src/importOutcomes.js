@@ -20,6 +20,9 @@ export function getImportBalances(state, review, result) {
 }
 
 function describeRowOutcome(row, choice) {
+  if (row.normalizationError && choice === 'skip') {
+    return { outcome: 'skipped', label: 'Skipped malformed source row' };
+  }
   if (row.status === 'edited') {
     return choice === 'replace'
       ? { outcome: 'updated', label: 'Updated existing transaction' }

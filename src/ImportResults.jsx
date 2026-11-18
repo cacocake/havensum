@@ -42,11 +42,14 @@ export default function ImportResults({ results, fields, displayField, onDownloa
           <View key={row.index} style={{ gap: 5, paddingVertical: 12, borderBottomWidth: 1, borderColor: colors.line }}>
             <T style={{ fontSize: 12, color: colors.sub }}>Row {row.index + 1} · {row.label}</T>
             <T style={{ fontWeight: '600' }}>{transaction.title}</T>
-            <T style={{ fontSize: 12, color: colors.sub }}>
-              {transaction.date} · {transaction.type} · {displayField('account', transaction.account)}
-              {transaction.toAccount !== undefined && ` → ${displayField('toAccount', transaction.toAccount)}`}
-              {' · '}{euro(transaction.amount)}
-            </T>
+            {transaction.amount !== undefined && (
+              <T style={{ fontSize: 12, color: colors.sub }}>
+                {transaction.date} · {transaction.type} · {displayField('account', transaction.account)}
+                {transaction.toAccount !== undefined && ` → ${displayField('toAccount', transaction.toAccount)}`}
+                {' · '}{euro(transaction.amount)}
+              </T>
+            )}
+            {row.normalizationError && <T style={{ fontSize: 12, color: colors.sub }}>{row.normalizationError}</T>}
             {transaction.category != null && <T style={{ fontSize: 12, color: colors.sub }}>{displayField('category', transaction.category)}</T>}
             {transaction.note && <T style={{ fontSize: 12, color: colors.sub }}>{transaction.note}</T>}
             {transaction.kind && <T style={{ fontSize: 12, color: colors.sub }}>Spending behaviour · {transaction.kind}</T>}

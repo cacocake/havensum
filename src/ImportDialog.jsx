@@ -147,7 +147,13 @@ export default function ImportDialog({ data, onClose }) {
     onClose();
   }
 
-  const unresolved = review?.rows.some(row => row.status === 'invalid' || (['edited', 'possible'].includes(row.status) && !choices[row.index]));
+  const unresolved = review?.rows.some(row => {
+    const choice = choices[row.index];
+    if (row.status === 'invalid') {
+      return !row.normalizationError || choice !== 'skip';
+    }
+    return ['edited', 'possible'].includes(row.status) && !choice;
+  });
   const projection = useMemo(() => {
     if (!review || unresolved || results) {
       return {};
@@ -229,6 +235,13 @@ export default function ImportDialog({ data, onClose }) {
                 <T key={field} style={{ fontSize: 12 }}>{label}: {displayField(state, field, row.existing[field])} → {displayField(state, field, row.transaction[field])}</T>
               ))}
               {row.error && <T style={{ color: colors.negative }}>Row {row.index + 1}: {row.error}</T>}
+              {row.normalizationError && (
+                <Select label={`Row ${row.index + 1} decision`} value={choices[row.index] || ''}
+                  onChange={choice => setChoices(current => ({ ...current, [row.index]: choice }))} options={[
+                    { value: '', label: 'Correct the source or choose to skip' },
+                    { value: 'skip', label: 'Skip this malformed row' }
+                  ]} />
+              )}
               {editingRow === row.index ? (
                 <ImportRowEditor transaction={row.transaction} state={state} expenses={expenses} lockAccount={hasTargetAccount}
                   onUpdate={changes => updateRow(row.index, changes)} onCancel={() => setEditingRow(null)} />

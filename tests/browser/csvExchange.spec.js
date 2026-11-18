@@ -194,6 +194,19 @@ test('a specific target account can be chosen for a file before reviewing and co
   expect(saved[1]).toMatchObject({ account: 'shared', amount: 425 });
 });
 
+test('a malformed source row is excluded only after an explicit decision and its error is shown in results', async ({ page }) => {
+  const dialog = await previewFile(page,
+    'date,title,amount,account,category\n2026-11-12,Malformed amount,oops,everyday,groceries\n2026-11-13,Valid purchase,4.25,everyday,groceries\n');
+  await expect(dialog.getByRole('button', { name: 'Import transactions', exact: true })).toBeDisabled();
+  await dialog.getByLabel('Row 1 decision', { exact: true }).selectOption('skip', { timeout: 2500 });
+  await dialog.getByRole('button', { name: 'Import transactions', exact: true }).click();
+  await expect(dialog.getByText('Row 1 · Skipped malformed source row', { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/at most two decimals/)).toBeVisible();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).transactions);
+  expect(saved).toHaveLength(2);
+  expect(saved[1]).toMatchObject({ title: 'Valid purchase', amount: 425 });
+});
+
 test('three quick entries append once and a repeated no-ID file requires duplicate choices', async ({ page }) => {
   const csv = 'Date,Title,Amount,Account,Category,Note\r\n2026-11-10,First entry,12.34,Everyday,Groceries,\r\n2026-11-11,Second entry,0.01,Shared,Shopping,\r\n2026-11-12,Third entry,99.99,Everyday,Groceries,\r\n';
   let dialog = await previewFile(page, csv);

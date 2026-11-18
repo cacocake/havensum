@@ -161,6 +161,9 @@ export function applyTransactionImport(state, review, choices, createIdentifier)
   for (const row of review.rows) {
     const choice = choices[row.index];
     if (row.status === 'invalid') {
+      if (row.normalizationError && choice === 'skip') {
+        continue;
+      }
       throw Error(`Row ${row.index + 1}: ${row.error}`);
     }
     if (row.status === 'unchanged') {
