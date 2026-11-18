@@ -171,3 +171,29 @@ test('a saved legacy ledger with a missing category opens for review and preserv
   expect(stored.state.transactions).toEqual([{ ...transaction, category: null }]);
   expect(stored.recovery).toBe(originalBytes);
 });
+
+test('keeping a locally edited category during backup review preserves its existing assignment', async ({ page }) => {
+  const transaction = createTransaction({ amount: 4200 });
+  const baseline = createFinancialState({ transactions: [transaction] });
+  const localState = { ...baseline, categories: baseline.categories.map(category =>
+    category.id === 'groceries' ? { ...category, name: 'Food shopping' } : category) };
+  const remoteState = { ...baseline, categories: baseline.categories.filter(category => category.id !== 'groceries') };
+  await page.addInitScript(({ local, base }) => {
+    localStorage.setItem('melo-state-v1', JSON.stringify(local));
+    localStorage.setItem('melo-sync-base', JSON.stringify(base));
+  }, { local: localState, base: baseline });
+  await page.goto('/');
+  await openMoreSection(page, 'Settings');
+  const choosingFile = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Review backup merge', exact: true }).click();
+  await (await choosingFile).setFiles({
+    name: 'synthetic-deleted-category.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(remoteState))
+  });
+
+  const review = page.getByRole('dialog');
+  await review.getByText('THIS DEVICE', { exact: true }).click();
+  await expect(review.getByText('Missing categories', { exact: true })).toHaveCount(0);
+  await review.getByRole('button', { name: 'Apply reviewed merge', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('melo-sync-base')).transactions))
+    .toEqual([transaction]);
+});

@@ -86,14 +86,17 @@ export function Settings(){
      if (!file) {
        return;
      }
-     const source = clearMissingTransactionCategories(JSON.parse(await file.text()));
-     const remoteState = migrateState(source.state);
+     const backup = JSON.parse(await file.text());
+     const { state: previewableBackup } = clearMissingTransactionCategories(backup);
+     const validatedBackup = migrateState(previewableBackup);
+     // Keep source references until the merged categories and choices are known.
+     const remoteState = { ...validatedBackup, transactions: backup.transactions };
      const baseline = await readSnapshot();
      if (!baseline) {
        throw Error(k_backupMessages.missingBaseline);
      }
      const mergedState = mergeThreeWay(baseline, state, remoteState);
-     setMerge({ ...mergedState, choices: {}, missingCategories: source.missingCategories, categoryEdits: {} });
+     setMerge({ ...mergedState, choices: {}, categoryEdits: {} });
    } catch (error) {
      notify(error.message);
    }
@@ -102,7 +105,11 @@ export function Settings(){
    const result = JSON.parse(JSON.stringify(merge.result));
    for (const conflict of merge.conflicts) {
      const key = `${conflict.collection}|${conflict.id}|${conflict.field}`;
-     const selectedValue = merge.choices[key] === 'remote' ? conflict.remote : conflict.local;
+     const selectedSide = merge.choices[key];
+     if (!selectedSide) {
+       continue;
+     }
+     const selectedValue = conflict[selectedSide];
      if (conflict.field === k_mergeConflictFields.plan) {
        result.plan = selectedValue;
        continue;
@@ -120,7 +127,7 @@ export function Settings(){
      }
    }
    const normalized = clearMissingTransactionCategories(result);
-   const rows = categoryReviewRows(normalized.state, [...merge.missingCategories, ...normalized.missingCategories]);
+   const rows = categoryReviewRows(normalized.state, normalized.missingCategories);
    return { state: normalized.state, rows };
  }
  const reviewedMerge = merge ? getReviewedMerge() : null;
