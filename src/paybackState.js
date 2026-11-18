@@ -18,7 +18,7 @@ function isCalendarDate(value) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
-function isTimestamp(value) {
+export function isTimestamp(value) {
   if (typeof value !== 'string') {
     return false;
   }

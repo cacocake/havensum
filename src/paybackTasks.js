@@ -1,4 +1,11 @@
-import { k_paybackTasksVersion, validatePaybackState } from './paybackState.js';
+import { isTimestamp, k_paybackTasksVersion, validatePaybackState } from './paybackState.js';
+
+function nextTaskTimestamp(task, at) {
+  if (!isTimestamp(at)) {
+    throw new SyntaxError('Invalid payback task timestamp.');
+  }
+  return at < task.updatedAt ? task.updatedAt : at;
+}
 
 function changePaybackTask(state, taskId, change) {
   validatePaybackState(state);
@@ -39,11 +46,12 @@ export function closePaybackTask(state, taskId, input) {
     if (task.manuallyClosed) {
       return task;
     }
+    const updatedAt = nextTaskTimestamp(task, input.at);
     return {
       ...task,
       manuallyClosed: true,
-      updatedAt: input.at,
-      closureHistory: [...task.closureHistory, { at: input.at, reason: input.reason || 'Closed without recording a payback' }]
+      updatedAt,
+      closureHistory: [...task.closureHistory, { at: updatedAt, reason: input.reason || 'Closed without recording a payback' }]
     };
   });
 }
@@ -59,7 +67,7 @@ export function paybackTaskWithDetails(task, input) {
     person: input.person ?? task.person,
     dueDate: input.dueDate ?? task.dueDate,
     note: input.note ?? task.note,
-    updatedAt: input.at
+    updatedAt: nextTaskTimestamp(task, input.at)
   };
 }
 
@@ -68,12 +76,11 @@ export function reopenPaybackTask(state, taskId, input) {
     if (!task.manuallyClosed) {
       return task;
     }
-    return { ...task, manuallyClosed: false, updatedAt: input.at };
+    return { ...task, manuallyClosed: false, updatedAt: nextTaskTimestamp(task, input.at) };
   });
 }
 
 export function paybackTaskSummary(state, taskId, asOf) {
-  validatePaybackState(state);
   const task = state.paybackTasks?.find(record => record.id === taskId);
   if (!task) {
     throw Error('This payback task no longer exists.');
@@ -94,13 +101,14 @@ export function paybackTaskSummary(state, taskId, asOf) {
   return {
     status, received, outstanding,
     overdue: !task.manuallyClosed && outstanding > 0 && Boolean(task.dueDate) && task.dueDate < asOf,
-    recordable: Math.max(0, expense.amount - recordedTotal)
+    recordable: Math.max(0, expense.amount - recordedTotal),
+    suggestedAmount: Math.max(0, task.expectedAmount - recordedTotal)
   };
 }
 
 export function createPaybackDraft(state, taskId, asOf) {
   const summary = paybackTaskSummary(state, taskId, asOf);
-  if (summary.recordable === 0) {
+  if (summary.suggestedAmount === 0) {
     return null;
   }
   const task = state.paybackTasks.find(record => record.id === taskId);
@@ -108,7 +116,7 @@ export function createPaybackDraft(state, taskId, asOf) {
   return {
     type: 'reimbursement',
     title: `${task.person || 'Payback'} · ${expense.title}`,
-    amount: Math.min(summary.outstanding || summary.recordable, summary.recordable),
+    amount: Math.min(summary.suggestedAmount, summary.recordable),
     account: expense.account,
     category: expense.category,
     linkedId: expense.id,

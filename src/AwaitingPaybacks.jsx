@@ -56,7 +56,7 @@ export default function AwaitingPaybacks() {
         {task.closureHistory.map((closure, index) => <T key={index} style={{color:colors.sub}}>{closure.at.slice(0, 10)} · {closure.reason}</T>)}
         <Row style={{gap:8,flexWrap:'wrap'}}>
           <Button small kind="outline" onPress={() => setModal({type:'transaction-detail',id:expense.id})}>View expense</Button>
-          {summary.recordable > 0 && <Button small onPress={() => openPayback(task.id)}>Record payback</Button>}
+          {summary.suggestedAmount > 0 && <Button small onPress={() => openPayback(task.id)}>Record payback</Button>}
           {(summary.status === 'open' || summary.status === 'partial') && <Button small kind="soft" onPress={() => { setReason(''); setError(''); setClosingTask(task.id); }}>Close without payback</Button>}
           {task.manuallyClosed && <Button small kind="soft" onPress={() => updateTask(() => reopenPaybackTask(state, task.id, { at: new Date().toISOString() }))}>Resume tracking</Button>}
         </Row>

@@ -1,5 +1,5 @@
 import { accountBalance } from './ledger.js';
-import { withPaybackTasks } from './paybackState.js';
+import { mergePaybackTasks } from './paybackMerge.js';
 export { monthOf } from './calendar.js';
 export { categorySettings, netExpenses, monthStats, reportingMonthStats, accountBalance } from './ledger.js';
 export { buildPlan, driftAlerts } from './planning.js';
@@ -28,18 +28,7 @@ export function mergeThreeWay(base,local,remote){
   if(JSON.stringify(base.plan)===JSON.stringify(local.plan))result.plan=remote.plan;
   else conflicts.push({collection:'plan',id:'plan',field:'$plan',base:base.plan,local:local.plan,remote:remote.plan});
  }
- const baseTasks = base.paybackTasks;
- const localTasks = local.paybackTasks ?? baseTasks;
- const remoteTasks = remote.paybackTasks ?? baseTasks;
- const serialize = tasks => JSON.stringify(tasks ?? []);
- if (serialize(remoteTasks) !== serialize(localTasks) && serialize(remoteTasks) !== serialize(baseTasks)) {
-   if (serialize(localTasks) === serialize(baseTasks)) {
-     Object.assign(result, withPaybackTasks(result, remoteTasks));
-   } else {
-     conflicts.push({ collection: 'paybackTasks', id: 'tasks', field: '$paybackTasks', base: baseTasks, local: localTasks, remote: remoteTasks });
-   }
- }
- return {result,conflicts};
+ return { result: mergePaybackTasks(base, local, remote, result, conflicts), conflicts };
 }
 export function fingerprint(t){return t.externalId?`external:${t.externalId}`:[t.date,t.type,t.title?.trim().toLowerCase(),t.amount,t.account,t.category||'',t.note||''].join('|');}
 export function importUnique(state, rows) {

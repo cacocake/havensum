@@ -30,6 +30,15 @@ test('a future-dated payback counts as received when its date arrives and reserv
   assert.equal(paybackTaskSummary(state, 'task', '2026-11-20').status, 'received');
 });
 
+test('a future payment covering the expectation suppresses redundant reimbursement drafts', async () => {
+  const { createPaybackTask, createPaybackDraft } = await import('../src/paybackTasks.js');
+  const expense = createTransaction({ amount: 10000 });
+  const futurePayback = createTransaction({ id: 'future', type: 'reimbursement', linkedId: expense.id, amount: 6000, date: '2026-11-20' });
+  const state = createPaybackTask(createFinancialState({ transactions: [expense, futurePayback] }), expense.id,
+    { id: 'task', at: k_createdAt, expectedAmount: 6000 });
+  assert.equal(createPaybackDraft(state, 'task', '2026-11-19'), null);
+});
+
 test('a backup merge requires a choice between concurrent closure and task edits', async () => {
   const { createPaybackTask, closePaybackTask, updatePaybackTask } = await import('../src/paybackTasks.js');
   const base = createPaybackTask(createFinancialState({ transactions: [createTransaction()] }), 'weekly-shopping', { id: 'task', at: k_createdAt });
@@ -40,6 +49,29 @@ test('a backup merge requires a choice between concurrent closure and task edits
   assert.deepEqual(mergeThreeWay(base, base, remote).result.paybackTasks, remote.paybackTasks);
   const removed = { ...base, paybackTasks: [] };
   assert.equal(mergeThreeWay(base, local, removed).conflicts[0].collection, 'paybackTasks');
+});
+
+test('backup merge combines independent payback tasks without discarding either history', async () => {
+  const { createPaybackTask, closePaybackTask } = await import('../src/paybackTasks.js');
+  const base = createFinancialState({ transactions: [createTransaction(), createTransaction({ id: 'train' })] });
+  const local = closePaybackTask(createPaybackTask(base, 'weekly-shopping', { id: 'local', at: k_createdAt }),
+    'local', { at: '2026-11-18T12:00:00.000Z' });
+  const remote = createPaybackTask(base, 'train', { id: 'remote', at: k_createdAt });
+  const { result, conflicts } = mergeThreeWay(base, local, remote);
+  assert.deepEqual(conflicts, []);
+  assert.deepEqual(result.paybackTasks, [...local.paybackTasks, ...remote.paybackTasks]);
+});
+
+test('deleting an expense in an older backup requires review when this device tracks its payback', async () => {
+  const { createPaybackTask } = await import('../src/paybackTasks.js');
+  const base = createFinancialState({ transactions: [createTransaction()] });
+  const local = createPaybackTask(base, 'weekly-shopping', { id: 'local', at: k_createdAt });
+  const remote = { ...base, transactions: [] };
+  const merged = mergeThreeWay(base, local, remote);
+  const conflict = merged.conflicts.find(choice => choice.field === '$trackedExpense');
+  assert.deepEqual(conflict.local, { expense: local.transactions[0], task: local.paybackTasks[0] });
+  assert.deepEqual(conflict.remote, { expense: undefined, task: undefined });
+  assert.deepEqual(merged.result.transactions, local.transactions);
 });
 
 test('expecting a payback creates follow-up metadata without changing cash, spending or the frozen target', async () => {
@@ -55,13 +87,14 @@ test('expecting a payback creates follow-up metadata without changing cash, spen
   assert.equal(state.paybackTasks, undefined);
 });
 
-test('task due dates and closure chronology are validated without altering existing records', async () => {
+test('task due dates are validated and a slow device clock does not prevent closure', async () => {
   const { createPaybackTask, closePaybackTask } = await import('../src/paybackTasks.js');
   const state = createFinancialState({ transactions: [createTransaction()] });
   assert.throws(() => createPaybackTask(state, 'weekly-shopping', { id: 'follow-up', at: k_createdAt, dueDate: '2026-02-30' }), /due date/i);
   assert.throws(() => createPaybackTask(state, 'weekly-shopping', { id: 'follow-up', at: 'not-a-time' }), /timestamp/i);
   const tracked = createPaybackTask(state, 'weekly-shopping', { id: 'follow-up', at: k_createdAt });
-  assert.throws(() => closePaybackTask(tracked, 'follow-up', { at: '2026-11-01T10:00:00.000Z' }), /chronology/i);
+  const closed = closePaybackTask(tracked, 'follow-up', { at: '2026-11-01T10:00:00.000Z' });
+  assert.equal(closed.paybackTasks[0].closureHistory[0].at, k_createdAt);
   assert.equal(tracked.paybackTasks[0].manuallyClosed, false);
 });
 
@@ -131,7 +164,7 @@ test('partial and full linked paybacks resolve tasks and deletion reopens automa
   const expense = createTransaction({ amount: 10000, date: '2026-10-10' });
   const state = createPaybackTask(createFinancialState({ transactions: [expense] }), expense.id, { id: 'follow-up', at: k_createdAt, expectedAmount: 6000, dueDate: '2026-11-15' });
   const partial = { ...state, transactions: [...state.transactions, createTransaction({ id: 'partial', type: 'reimbursement', amount: 2500, linkedId: expense.id, date: '2026-11-10' })] };
-  assert.deepEqual(paybackTaskSummary(partial, 'follow-up', '2026-11-18'), { status: 'partial', received: 2500, outstanding: 3500, overdue: true, recordable: 7500 });
+  assert.deepEqual(paybackTaskSummary(partial, 'follow-up', '2026-11-18'), { status: 'partial', received: 2500, outstanding: 3500, overdue: true, recordable: 7500, suggestedAmount: 3500 });
   const paid = { ...partial, transactions: [...partial.transactions, createTransaction({ id: 'remainder', type: 'reimbursement', amount: 3500, linkedId: expense.id, date: '2026-11-17' })] };
   assert.equal(paybackTaskSummary(paid, 'follow-up', '2026-11-18').status, 'received');
   assert.equal(paybackTaskSummary(partial, 'follow-up', '2026-11-18').status, 'partial');
