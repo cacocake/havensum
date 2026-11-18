@@ -20,3 +20,7 @@ Independent Expected savings, task tracking, schema migrations/restore, historic
 Claude reviewed the corrective changes and confirmed the startup retry/error split, shared validation cleanup, preview-mode behavior, import-row errors, hook cleanup and named unit constants. It found two remaining issues: the Transactions drill-down aggregate still used raw net expenses, and carried historical months still referenced the prior plan. Both were reproduced with failing regressions and fixed on the same branch. The drill-down now uses the shared reporting cutoff while retaining all registered rows, and carried JSON plan months are copied independently of the source revision.
 
 All actionable review findings were addressed before merge. The final fixes were checked with the regression suite and both builds; this is not a claim that Claude independently executed those checks or issued a formal approval of the final commit.
+
+## Identifier foundation task — review pending
+
+A read-only Claude review was requested for `codex/collision-resistant-identifiers`. Claude read the two identifier adapters, then returned a weekly-usage-limit error without a completed review. This is not approval or a clean review. Per the owner's explicit merge gate, this branch remains open, unmerged and undeleted until Claude can review it after access returns. Local checks passed: 113 Node tests, 72 browser checks, web build and Android Hermes compilation. Native crypto execution on a physical device remains unverified.

@@ -334,3 +334,101 @@ test('non-ISO CSV dates identify the rejected data row and cannot partially impo
 
   await expect(page.getByLabel('View net spending transactions')).toContainText('€0.00');
 });
+
+test('purchases created in the same millisecond retain independent identities when edited', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-17T12:00:00Z'));
+  await addTransaction(page, { title: 'First same-time purchase', amount: '10.00' });
+  await addTransaction(page, { title: 'Second same-time purchase', amount: '20.00' });
+  const editor = await editTransaction(page, 'First same-time purchase');
+  await editor.getByLabel('Amount · EUR', { exact: true }).fill('15.00');
+  await editor.getByRole('button', { name: 'Save changes', exact: true }).click();
+
+  await expect(page.getByLabel('View Second same-time purchase', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('View net spending transactions')).toContainText('€35.00');
+});
+
+test('categories created in the same millisecond remain independently editable', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-17T12:00:00Z'));
+  await openMoreSection(page, 'Categories');
+  for (const categoryName of ['First same-time category', 'Second same-time category']) {
+    await page.getByRole('button', { name: 'New category', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Category name', { exact: true }).fill(categoryName);
+    await dialog.getByRole('button', { name: 'Save category', exact: true }).click();
+  }
+  await page.getByLabel('Edit First same-time category', { exact: true }).click();
+  const editor = page.getByRole('dialog');
+  await editor.getByLabel('Category name', { exact: true }).fill('Renamed first category');
+  await editor.getByRole('button', { name: 'Save category', exact: true }).click();
+
+  await expect(page.getByLabel('Edit Second same-time category', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Edit Renamed first category', { exact: true })).toHaveCount(1);
+});
+
+test('planned events created in the same millisecond have distinct identities in a full backup', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-17T12:00:00Z'));
+  await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Build this year’s plan', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  for (const eventName of ['First same-time event', 'Second same-time event']) {
+    await dialog.getByLabel('A trip, a big purchase, a seasonal cost · optional', { exact: true }).fill(eventName);
+    await dialog.getByLabel('One-off amount · EUR', { exact: true }).fill('100');
+    await dialog.getByRole('button', { name: 'Add another event', exact: true }).click();
+  }
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Freeze my plan', exact: true }).click();
+  await returnHome(page);
+  await openMoreSection(page, 'Settings');
+  const downloading = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Full JSON backup', exact: true }).click();
+  const download = await downloading;
+  const backup = JSON.parse(await readFile(await download.path(), 'utf8'));
+
+  expect(backup.events).toHaveLength(2);
+  expect(new Set(backup.events.map(event => event.id)).size).toBe(2);
+});
+
+test('accounts created in the same millisecond remain independently editable', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-17T12:00:00Z'));
+  await openMoreSection(page, 'Accounts');
+  for (const accountName of ['First same-time account', 'Second same-time account']) {
+    await page.getByRole('button', { name: 'Add account', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Account name', { exact: true }).fill(accountName);
+    await dialog.getByRole('button', { name: 'Save account', exact: true }).click();
+  }
+  await page.getByLabel('View First same-time account account', { exact: true }).click();
+  await page.getByRole('button', { name: 'Edit account', exact: true }).click();
+  const editor = page.getByRole('dialog');
+  await editor.getByLabel('Account name', { exact: true }).fill('Renamed first account');
+  await editor.getByRole('button', { name: 'Save account', exact: true }).click();
+  await returnHome(page);
+  await openMoreSection(page, 'Accounts');
+
+  await expect(page.getByLabel('View Second same-time account account', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('View Renamed first account account', { exact: true })).toHaveCount(1);
+});
+
+test('loans created in the same millisecond have distinct identities without inventing proceeds', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-17T12:00:00Z'));
+  await openMoreSection(page, 'Loans');
+  for (const loanName of ['First same-time loan', 'Second same-time loan']) {
+    await page.getByRole('button', { name: 'Add loan', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Loan name', { exact: true }).fill(loanName);
+    await dialog.getByLabel('Remaining balance · EUR', { exact: true }).fill('1000');
+    await dialog.getByLabel('Monthly payment · EUR', { exact: true }).fill('100');
+    await dialog.getByRole('button', { name: 'Add loan', exact: true }).click();
+  }
+  await returnHome(page);
+  await openMoreSection(page, 'Settings');
+  const downloading = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Full JSON backup', exact: true }).click();
+  const download = await downloading;
+  const backup = JSON.parse(await readFile(await download.path(), 'utf8'));
+
+  expect(backup.loans).toHaveLength(2);
+  expect(new Set(backup.loans.map(loan => loan.id)).size).toBe(2);
+  expect(backup.transactions).toHaveLength(0);
+});

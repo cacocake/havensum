@@ -54,6 +54,7 @@ The new-repo handoff intentionally excludes the original hosting project identit
 - Keep all bugs caught by a task's tests or review on that same task branch; do not split those fixes into separate branches.
 - The owner's flow routes bug fixes through `develop` too. Do not create a release-hotfix exception from `master` without the owner's explicit instruction.
 - Request a read-only Claude review of the local branch at the end of each task when Claude is available; this does not require a push. Resolve actionable findings and rerun the affected checks before merging. If Claude cannot review, report the attempt and the reason; do not imply that an independent review happened.
+- Claude review is a required merge/branch-closure gate. If its usage limit or another problem prevents a completed review, commit work on the task branch for safekeeping but leave the branch open, unmerged and undeleted until Claude can review it. Passing tests or an agent's own review do not waive this gate.
 - Do not push changes or recreate hosting bindings unless the owner requests it.
 - Ask the owner before resolving ambiguous product behavior or open decisions. Continue independent work while waiting, but do not implement behavior that depends on an unanswered required choice.
 - Owner clarification takes precedence over immediate implementation: record a finding that depends on an unanswered product decision and keep that dependent work unimplemented/unmerged until the owner answers. Do not guess a fix merely to satisfy the merge gate.
