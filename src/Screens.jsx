@@ -7,17 +7,18 @@ import Icon from './Icon';
 import CategoryGlyph from './CategoryGlyph.jsx';
 import {euro,monthOf,reportingMonthStats,netExpenses,categorySettings,accountBalance,driftAlerts,mergeThreeWay,importUnique,cents,validateTransaction} from './engine.js';
 import {AccountCard,TransactionRow} from './Dashboard.jsx';
-import {exportExcel,downloadJSON,chooseFile,readImport} from './files';
-import {readSnapshot,writeSnapshot,isDemoSession} from './storage';
+import {exportExcel,downloadJSON,downloadSavedLedgerCopy,chooseFile,readImport} from './files';
+import {readInvalidSnapshotCopy,readSnapshot,writeSnapshot,isDemoSession} from './storage';
+import { clearMissingTransactionCategories, migrateState, validateState } from './stateSchema.js';
+import MissingCategoryReview from './MissingCategoryReview.jsx';
+import { applyCategoryReviewEdits, categoryReviewRows } from './categoryReview.js';
 const k_backupMessages = {
   saved: 'Backup exported · local merge baseline saved',
   previewExported: 'Example backup exported · merge baselines are unavailable in preview mode.',
   previewUnavailable: 'Merge baselines are unavailable in preview mode. Open the main app to review a backup merge.',
-  missingBaseline: 'Export a backup first to establish a shared merge baseline.',
-  invalidBackup: 'Choose a complete Melo JSON backup.',
-  missingVersion: 'This backup has no Melo version.'
+  missingBaseline: 'Export a backup first to establish a shared merge baseline.'
 };
-const k_requiredBackupCollections = ['accounts', 'transactions', 'categories', 'loans'];
+const k_mergeConflictFields = { plan: '$plan', record: '$record' };
 const k_filteredSpendingHint = 'Past and current totals use entries through today. Future months show registered entries. The list includes future-dated rows; open a movement for its breakdown.';
 export function Transactions(){
  const {state,month,search,setSearch,filters,setFilters,searchFocus}=useApp(),c=useContext(Theme),searchRef=useRef(null);
@@ -63,6 +64,18 @@ export function Settings(){
      notify(error.message);
    }
  }
+ async function downloadInvalidBaseline() {
+   try {
+     const encodedBaseline = await readInvalidSnapshotCopy();
+     if (encodedBaseline === null) {
+       notify('No invalid baseline copy is saved on this device.');
+       return;
+     }
+     await downloadSavedLedgerCopy(encodedBaseline, 'Havensum-invalid-baseline-recovery.txt');
+   } catch (error) {
+     notify(error.message);
+   }
+ }
  async function mergeFile() {
    if (isPreview) {
      notify(k_backupMessages.previewUnavailable);
@@ -73,37 +86,80 @@ export function Settings(){
      if (!file) {
        return;
      }
-     const remoteState = JSON.parse(await file.text());
-     if (!k_requiredBackupCollections.every(collection => Array.isArray(remoteState[collection]))) {
-       throw Error(k_backupMessages.invalidBackup);
-     }
-     if (!remoteState.version) {
-       throw Error(k_backupMessages.missingVersion);
-     }
-     for (const transaction of remoteState.transactions) {
-       validateTransaction(remoteState, transaction);
-     }
+     const backup = JSON.parse(await file.text());
+     const { state: previewableBackup } = clearMissingTransactionCategories(backup);
+     const validatedBackup = migrateState(previewableBackup);
+     // Keep source references until the merged categories and choices are known.
+     const remoteState = { ...validatedBackup, transactions: backup.transactions };
      const baseline = await readSnapshot();
      if (!baseline) {
        throw Error(k_backupMessages.missingBaseline);
      }
      const mergedState = mergeThreeWay(baseline, state, remoteState);
-     setMerge({ ...mergedState, choices: {} });
+     setMerge({ ...mergedState, choices: {}, categoryEdits: {} });
    } catch (error) {
      notify(error.message);
    }
  }
- async function applyMerge(){const result=JSON.parse(JSON.stringify(merge.result));for(const cf of merge.conflicts){const key=cf.collection+'|'+cf.id+'|'+cf.field,selected=merge.choices[key]==='remote'?cf.remote:cf.local;if(cf.field==='$plan'){result.plan=selected;continue;}if(cf.field==='$record'){result[cf.collection]=result[cf.collection].filter(x=>x.id!==cf.id);if(selected)result[cf.collection].push(selected);}else{const rec=result[cf.collection].find(x=>x.id===cf.id);if(rec)rec[cf.field]=selected;}}
- try{for(const t of result.transactions)validateTransaction(result,t);for(const t of result.transactions){if(t.category&&!result.categories.some(c=>c.id===t.category))throw Error('The merged data contains a deleted category still used by a transaction. Resolve that record before merging.');}setState(result);await writeSnapshot(result);setMerge(null);notify('Reviewed changes merged');}catch(e){notify(e.message);}}
+ function getReviewedMerge() {
+   const result = JSON.parse(JSON.stringify(merge.result));
+   for (const conflict of merge.conflicts) {
+     const key = `${conflict.collection}|${conflict.id}|${conflict.field}`;
+     const selectedSide = merge.choices[key];
+     if (!selectedSide) {
+       continue;
+     }
+     const selectedValue = conflict[selectedSide];
+     if (conflict.field === k_mergeConflictFields.plan) {
+       result.plan = selectedValue;
+       continue;
+     }
+     if (conflict.field === k_mergeConflictFields.record) {
+       result[conflict.collection] = result[conflict.collection].filter(record => record.id !== conflict.id);
+       if (selectedValue) {
+         result[conflict.collection].push(selectedValue);
+       }
+       continue;
+     }
+     const record = result[conflict.collection].find(record => record.id === conflict.id);
+     if (record) {
+       record[conflict.field] = selectedValue;
+     }
+   }
+   const normalized = clearMissingTransactionCategories(result);
+   const rows = categoryReviewRows(normalized.state, normalized.missingCategories);
+   return { state: normalized.state, rows };
+ }
+ const reviewedMerge = merge ? getReviewedMerge() : null;
+
+ function editMissingCategory(key, change) {
+   setMerge(previous => ({
+     ...previous,
+     categoryEdits: { ...previous.categoryEdits, [key]: { ...previous.categoryEdits[key], ...change } }
+   }));
+ }
+
+ async function applyMerge() {
+   try {
+     const result = validateState(applyCategoryReviewEdits(reviewedMerge.state, reviewedMerge.rows, merge.categoryEdits));
+     setState(result);
+     await writeSnapshot(result);
+     setMerge(null);
+     notify('Reviewed changes merged');
+   } catch (error) {
+     notify(error.message);
+   }
+ }
  return <View style={{gap:22}}><Card><H size={22}>A little more you</H><Toggle value={state.theme==='dark'} onChange={v=>setState(s=>({...s,theme:v?'dark':'light'}))} label="Dark theme" description="A softer glow when the day winds down."/><Divider/><Row style={{justifyContent:'space-between',gap:12}}><View style={{flex:1}}><T style={{fontSize:13}}>Currency</T><T style={{fontSize:11,color:c.muted,marginTop:3}}>All balances, amounts, and exports use euros.</T></View><Badge>EUR · €</Badge></Row></Card>
  <Card><Row style={{gap:12,marginBottom:20}}><TileIcon name="ArrowDownToLine" color="#91A4CE"/><View><H size={22}>Your data travels with you</H><T style={{fontSize:11,color:c.sub,marginTop:4}}>Portable files. No bank connection. No lock-in.</T></View></Row><Row style={{gap:10,flexWrap:'wrap'}}><Button small onPress={excel} disabled={busy} icon="Sheet">{busy?'Preparing Excel…':'Export Excel'}</Button><Button small kind="outline" onPress={selectImport} icon="Upload">Import transactions</Button><Button small kind="outline" onPress={exportBackup} icon="Download">Full JSON backup</Button></Row><T style={{fontSize:11,color:c.muted,marginTop:16}}>Excel includes a styled monthly summary, plain transaction rows, and account/category tables. JSON preserves the complete plan and all settings.</T><Divider/><T style={{fontSize:12,fontWeight:'500'}}>Coming from Cashew?</T><T style={{fontSize:11,color:c.sub,marginTop:6}}>Import CSV, Excel, or a transaction-array JSON with column and account/category mapping. Preview every row before importing. Exact compatibility with your Cashew export is unverified until a real file is tested.</T></Card>
- <Card><Row style={{gap:12,marginBottom:18}}><TileIcon name="UsersRound" color="#91B6A9"/><View><H size={22}>A shared rhythm</H><T style={{fontSize:11,color:c.sub,marginTop:4}}>For you and Marina, without the guesswork.</T></View></Row><Row style={{justifyContent:'space-between'}}><T style={{fontSize:13}}>Google Drive</T><Badge>Not connected</Badge></Row><T style={{fontSize:12,color:c.sub,marginTop:12}}>Automatic Drive sync needs Google OAuth configuration. Until then, exchange full JSON backups manually using a common exported baseline.</T><Row style={{gap:10,marginTop:17,flexWrap:'wrap'}}><Button small kind="outline" icon="GitMerge" disabled={isPreview} onPress={mergeFile}>Review backup merge</Button><Button small kind="soft" icon="Download" onPress={exportBackup}>{isPreview ? 'Export example backup' : 'Export shared baseline'}</Button></Row>{isPreview&&<T style={{fontSize:11,color:c.muted,marginTop:15}}>{k_backupMessages.previewUnavailable}</T>}<T style={{fontSize:11,color:c.muted,marginTop:15}}>Different-field edits merge silently. Same-field edits and edit-versus-delete always require your choice. A saved local baseline is used for the three-way comparison.</T><Divider/><Row style={{gap:10}}><Icon name="Eye" size={16} color={c.sub}/><T style={{flex:1,fontSize:11,color:c.sub}}>Both people's accounts are included in an exchanged backup. Account tags are labels, not privacy controls.</T></Row></Card>
+ <Card><Row style={{gap:12,marginBottom:18}}><TileIcon name="UsersRound" color="#91B6A9"/><View><H size={22}>A shared rhythm</H><T style={{fontSize:11,color:c.sub,marginTop:4}}>For you and Marina, without the guesswork.</T></View></Row><Row style={{justifyContent:'space-between'}}><T style={{fontSize:13}}>Google Drive</T><Badge>Not connected</Badge></Row><T style={{fontSize:12,color:c.sub,marginTop:12}}>Automatic Drive sync needs Google OAuth configuration. Until then, exchange full JSON backups manually using a common exported baseline.</T><Row style={{gap:10,marginTop:17,flexWrap:'wrap'}}><Button small kind="outline" icon="GitMerge" disabled={isPreview} onPress={mergeFile}>Review backup merge</Button><Button small kind="soft" icon="Download" onPress={exportBackup}>{isPreview ? 'Export example backup' : 'Export shared baseline'}</Button><Button small kind="soft" disabled={isPreview} onPress={downloadInvalidBaseline}>Download invalid baseline copy</Button></Row>{isPreview&&<T style={{fontSize:11,color:c.muted,marginTop:15}}>{k_backupMessages.previewUnavailable}</T>}<T style={{fontSize:11,color:c.muted,marginTop:15}}>Different-field edits merge silently. Same-field edits and edit-versus-delete always require your choice. A saved local baseline is used for the three-way comparison.</T><Divider/><Row style={{gap:10}}><Icon name="Eye" size={16} color={c.sub}/><T style={{flex:1,fontSize:11,color:c.sub}}>Both people's accounts are included in an exchanged backup. Account tags are labels, not privacy controls.</T></Row></Card>
  <Card><Row style={{gap:12}}><TileIcon name="ChartNoAxesCombined" color="#B3A0CA"/><View style={{flex:1}}><H size={20}>Investment prices</H><T style={{fontSize:11,color:c.sub,marginTop:6}}>Twelve Data is not connected. Your investments use manual balances. ETF coverage, end-of-day access, and licensing still need verification.</T></View><Badge>Manual</Badge></Row></Card>
  {state.demo&&<Card style={{borderColor:c.dark?'#5b4637':'#f0d6c1'}}><H size={20}>A fresh start</H><T style={{fontSize:12,color:c.sub,marginTop:8,marginBottom:16}}>You are exploring example data. Clear it to begin with your own accounts and transactions. Export a backup first if you want to keep any changes.</T>{clear?<Row style={{gap:10,flexWrap:'wrap'}}><Button small kind="outline" onPress={()=>setClear(false)}>Keep my data</Button><Button small onPress={()=>{setState(s=>({...s,demo:false,accounts:[],transactions:[],loans:[],events:[],plan:null}));setClear(false);notify('Example data cleared');}}>Clear example data permanently</Button></Row>:<Button small kind="outline" onPress={()=>setClear(true)} icon="Eraser">Clear example data</Button>}</Card>}
  <T style={{fontSize:11,color:c.muted,textAlign:'center'}}>Melo 0.1 · Android-first React Native · Browser preview</T>
  {importData&&<ImportDialog data={importData} onClose={()=>setImportData(null)}/>}
  {merge&&<Dialog title="Two sides. Your choice." subtitle={`${merge.conflicts.length} conflicts need review. Nothing is applied until you finish.`} onClose={()=>setMerge(null)} width={650}>
  {!merge.conflicts.length&&<View style={{gap:13,paddingBottom:25}}><H size={21}>These changes fit together.</H><T style={{fontSize:12,color:c.sub}}>No conflicting fields were found. Review the merged record counts before applying.</T>{['transactions','accounts','categories','loans'].map(k=><Row key={k} style={{justifyContent:'space-between'}}><T style={{fontSize:12}}>{k}</T><T style={{fontSize:12}}>{merge.result[k].length}</T></Row>)}</View>}
+ <MissingCategoryReview rows={reviewedMerge.rows} categories={reviewedMerge.state.categories} edits={merge.categoryEdits} onChange={editMissingCategory}/>
  {merge.conflicts.map(cf=>{const key=cf.collection+'|'+cf.id+'|'+cf.field;return <View key={key} style={{padding:14,borderWidth:1,borderColor:c.line,borderRadius:12,marginBottom:15}}><T style={{fontSize:12,fontWeight:'600',marginBottom:12}}>{cf.collection} · {cf.id} · {cf.field==='$record'?'Edit vs. delete':cf.field}</T><Row style={{gap:10,alignItems:'stretch'}}>{['local','remote'].map(side=><Pressable key={side} onPress={()=>setMerge(m=>({...m,choices:{...m.choices,[key]:side}}))} style={{flex:1,padding:12,borderRadius:9,borderWidth:1,borderColor:merge.choices[key]===side?c.accent:c.line,backgroundColor:merge.choices[key]===side?c.peach:c.soft}}><T style={{fontSize:10,color:c.sub,marginBottom:6}}>{side==='local'?'THIS DEVICE':'BACKUP FILE'}</T><T style={{fontSize:11}}>{cf[side]===undefined?'Deleted':typeof cf[side]==='object'?JSON.stringify(cf[side],null,2):String(cf[side])}</T></Pressable>)}</Row></View>})}<Button icon="Check" disabled={merge.conflicts.some(cf=>!merge.choices[cf.collection+'|'+cf.id+'|'+cf.field])} onPress={applyMerge}>Apply reviewed merge</Button>
  </Dialog>}
  </View>;

@@ -9,7 +9,7 @@ Private and proprietary. All rights reserved to the project owner. See [LICENSE]
 ## Start here
 
 1. Read **HANDOFF.md** and **docs/HAVENSUM_REQUIREMENTS.md**.
-2. Open this folder in Codex. Paste **NEXT_AGENT_PROMPT.md** as the initial task.
+2. Open this folder in Codex and describe the task in chat.
 3. Use **DECISIONS.md**, **docs/ARCHITECTURE.md**, **docs/CSV_SPEC.md** and **docs/IMPLEMENTATION_PLAN.md** for context.
 
 ## Run locally

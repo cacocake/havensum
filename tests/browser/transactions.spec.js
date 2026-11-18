@@ -308,7 +308,7 @@ test('an unreadable merge baseline produces recovery guidance instead of a parse
     buffer: Buffer.from(JSON.stringify(createFinancialState()))
   });
 
-  await expect(page.getByText('Your saved merge baseline is unreadable. Export a new baseline.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Your saved merge baseline is unreadable. Keep this device data while recovering a verified backup.', { exact: true })).toBeVisible();
 });
 
 test('preview exports explain that merge baselines are unavailable', async ({ page }) => {

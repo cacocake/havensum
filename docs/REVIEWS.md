@@ -21,6 +21,10 @@ Claude reviewed the corrective changes and confirmed the startup retry/error spl
 
 All actionable review findings were addressed before merge. The final fixes were checked with the regression suite and both builds; this is not a claim that Claude independently executed those checks or issued a formal approval of the final commit.
 
-## Identifier foundation task — review pending
+## Identifier foundation
 
-A read-only Claude review was requested for `codex/collision-resistant-identifiers`. Claude read the two identifier adapters, then returned a weekly-usage-limit error without a completed review. This is not approval or a clean review. Per the owner's explicit merge gate, this branch remains open, unmerged and undeleted until Claude can review it after access returns. Local checks passed: 113 Node tests, 72 browser checks, web build and Android Hermes compilation. Native crypto execution on a physical device remains unverified.
+Claude completed a read-only review of `codex/collision-resistant-identifiers` after its initial usage limit cleared. The reviewed identifiers were integrated into `develop` at `bc68657`. Local verification covered 113 automated tests, 72 browser checks, the web build and Android Hermes compilation.
+
+## Migration foundation
+
+Claude reviewed recovery and the missing-category flow. The review reproduced a case where retaining a local category still cleared a transaction's reference. The regression and fix in `24fb7ab` preserve the assignment and continue to surface categories missing from the reviewed result.

@@ -1,6 +1,9 @@
 import {createWorkbook} from './workbook.js';
 import { isTextImport, parseImportContent } from './importFiles.js';
 import {euro,monthStats,accountBalance,categorySettings} from './engine.js';
+export function downloadSavedLedgerCopy(encodedLedger, fileName = 'Havensum-saved-ledger-recovery.txt') {
+  download(new Blob([encodedLedger], { type: 'text/plain' }), fileName);
+}
 export function downloadJSON(state){download(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),`Melo-backup-${new Date().toISOString().slice(0,10)}.json`);}
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 export async function exportExcel(state,month){

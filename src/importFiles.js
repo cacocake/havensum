@@ -1,3 +1,5 @@
+import { migrateState } from './stateSchema.js';
+
 const k_jsonExtension = '.json';
 const k_csvExtension = '.csv';
 const k_transactionSheet = 'Raw transactions';
@@ -16,7 +18,10 @@ export async function parseImportContent(fileName, content) {
       return { rows: data };
     }
     if (Array.isArray(data?.transactions)) {
-      return { rows: data.transactions, backup: data.version ? data : null };
+      const isLedgerBackup = data.version !== undefined
+        && ['accounts', 'categories', 'loans', 'events', 'plan', 'preferences', 'theme', 'demo'].some(key => Object.hasOwn(data, key));
+      const backup = isLedgerBackup ? migrateState(data) : null;
+      return { rows: data.transactions, backup };
     }
     throw Error(k_missingTransactionsMessage);
   }

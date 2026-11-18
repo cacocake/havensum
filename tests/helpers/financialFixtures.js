@@ -1,6 +1,6 @@
 export function createFinancialState(overrides = {}) {
   return {
-    version: 1,
+    version: 2,
     demo: false,
     theme: 'light',
     preferences: {},

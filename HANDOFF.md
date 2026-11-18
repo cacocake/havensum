@@ -1,5 +1,9 @@
 # Havensum — developer handoff
 
+## Migration foundation — 18 November 2026
+
+The identifier and migration foundations are integrated into `develop`. Startup and backup review can surface a transaction's missing category and keep the row uncategorized or accept user corrections. The original local ledger is retained before migration. See [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) and [docs/STATE_MIGRATIONS.md](docs/STATE_MIGRATIONS.md). A complete restore flow and independent Expected savings remain pending.
+
 ## Local test hardening — 17 November 2026
 
 The imported baseline now has additional financial, file, storage/native-adapter and browser regression coverage. Tests exposed and fixed validation, history/receipt-date, persistence, CSV decoding, monetary conversion and account-edit defects. See [docs/TESTING.md](docs/TESTING.md) for the test boundaries, commands and limits. Financial code touched by these fixes has been separated into readable modules; `src/engine.js` retains its public compatibility exports. The new Havensum handoff features remain pending. The historical package/source verification statements below describe the imported baseline.
@@ -16,7 +20,7 @@ The last conversation began an independent forecast correction but it was not co
 
 Melo is an Android-first personal expense tracker for Hugo and Marina. It is implemented in React Native/Expo with a browser adaptation for PC viewing. This is a working prototype with a tested accounting core, not a finished or device-certified finance product.
 
-Read this file, [DECISIONS.md](DECISIONS.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) before changing behavior. [NEXT_AGENT_PROMPT.md](NEXT_AGENT_PROMPT.md) is a paste-ready continuation brief. [AGENTS.md](AGENTS.md) records repository-specific constraints.
+Read this file, [DECISIONS.md](DECISIONS.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) before changing behavior. [AGENTS.md](AGENTS.md) records repository-specific constraints.
 
 The fresh-repo ZIP includes source, the lockfile, tests, Expo/Vite configuration, these documents, and implementation specifications. Example browser screenshots are omitted from this source package. It excludes Git history/remotes, the previous hosting identity, dependencies, compiled outputs, local runtime data, and credentials. `BUNDLE-MANIFEST.json` identifies the packaged source revision. No GitHub repository has been created by this handoff.
 

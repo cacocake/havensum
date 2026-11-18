@@ -20,6 +20,51 @@ beforeEach(() => {
   g_values.clear();
 });
 
+test('native legacy ledger and baseline migration retain independent original recovery copies', async () => {
+  const originalState = createFinancialState({ version: 1 });
+  const originalBaseline = createFinancialState({ version: 1, theme: 'dark' });
+  const stateBytes = JSON.stringify(originalState, null, 2);
+  const baselineBytes = JSON.stringify(originalBaseline, null, 2);
+  g_values.set('melo-state-v1', stateBytes);
+  g_values.set('melo-sync-base', baselineBytes);
+
+  assert.deepEqual(await readState(), { ...originalState, version: 2 });
+  assert.deepEqual(await readSnapshot(), { ...originalBaseline, version: 2 });
+  await writeState(createFinancialState({ version: 2, theme: 'dark' }));
+  await writeSnapshot(createFinancialState({ version: 2 }));
+  assert.equal(g_values.get('melo-state-v1:recovery:v1'), stateBytes);
+  assert.equal(g_values.get('melo-sync-base:recovery:v1'), baselineBytes);
+});
+
+test('a native migration in flight cannot overwrite a newer save', async context => {
+  g_values.set('melo-state-v1', JSON.stringify(createFinancialState({ version: 1 })));
+  let releaseMigration;
+  let reportMigrationStarted;
+  const migrationGate = new Promise(resolve => {
+    releaseMigration = resolve;
+  });
+  const migrationStarted = new Promise(resolve => {
+    reportMigrationStarted = resolve;
+  });
+  let delayNextLedgerWrite = true;
+  context.mock.method(g_storageAdapter, 'setItem', async (key, value) => {
+    if (key === 'melo-state-v1' && delayNextLedgerWrite) {
+      delayNextLedgerWrite = false;
+      reportMigrationStarted();
+      await migrationGate;
+    }
+    g_values.set(key, value);
+  });
+
+  const reading = readState();
+  await migrationStarted;
+  const saving = writeState(createFinancialState({ version: 2, theme: 'dark' }));
+  setImmediate(releaseMigration);
+  await Promise.all([reading, saving]);
+
+  assert.equal((await readState()).theme, 'dark');
+});
+
 test('native storage retains legacy state and baseline independently', async () => {
   const state = createFinancialState();
   const snapshot = createFinancialState({ theme: 'dark' });
