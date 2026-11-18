@@ -159,6 +159,6 @@ test('a pre-existing invalid ledger row is named when it prevents a reviewed imp
   const state = createFinancialState({ transactions: [invalid] });
   const review = previewTransactionImport(state, [incoming]);
   assert.equal(review.rows[0].status, 'new');
-  assert.throws(() => applyTransactionImport(state, review, {}), /Historic market purchase.*valid category/i);
+  assert.throws(() => applyTransactionImport(state, review, {}), /existing ledger transaction.*Historic market purchase.*valid category/i);
   assert.deepEqual(state.transactions, [invalid]);
 });

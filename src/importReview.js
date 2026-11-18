@@ -202,7 +202,8 @@ export function applyTransactionImport(state, review, choices, createIdentifier)
       validateTransaction(result, transaction);
     } catch (error) {
       const title = transaction.title || 'Untitled transaction';
-      throw Error(`${title} (${transaction.date || 'unknown date'}): ${error.message}`, { cause: error });
+      const origin = state.transactions.includes(transaction) ? 'Existing ledger transaction' : 'Imported transaction';
+      throw Error(`${origin} ${title} (${transaction.date || 'unknown date'}): ${error.message}`, { cause: error });
     }
   }
   return result;
