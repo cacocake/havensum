@@ -26,6 +26,7 @@ React 19.1, React Native 0.81.5 and Expo SDK 54 form the native application. Vit
 | `src/Charts.web.jsx`, `src/Charts.native.jsx` | Platform chart rendering and interaction |
 | `src/chartGeometry.js` | Shared ring fractions and responsive bar geometry |
 | `src/storage.*.js` | localStorage/AsyncStorage ports and separately stored merge baseline |
+| `src/stateSchema.js`, `src/persistedState.js` | Supported schema validation/migration and serialized persistence with original recovery copies; see STATE_MIGRATIONS.md for branch status and limitations |
 | `src/files.*.js`, `src/workbook.js` | File picker, JSON/XLSX import, download/share and workbook creation |
 | `src/DateControl.*.jsx` | Browser date input / native Android date picker |
 | `src/fonts.*.js`, `src/insets.*.js`, `src/Icon.*.jsx` | Platform font, safe-area and icon adapters |

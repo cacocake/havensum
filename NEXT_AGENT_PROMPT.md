@@ -1,4 +1,8 @@
-# Paste this into Codex in the extracted repository
+# Continue in a fresh Codex session
+
+Latest local checkpoint, 18 November 2026: read docs/IMPLEMENTATION_STATUS.md and docs/STATE_MIGRATIONS.md alongside AGENTS.md, HANDOFF.md and DECISIONS.md. The migration foundation is on `codex/state-migration-recovery`, from `develop`. The identifiers task is separately committed at `b51034d` on `codex/collision-resistant-identifiers`. Neither branch is merged. The owner requested committing migration work for safekeeping; Claude is available only after 12:00. Review each branch read-only with Claude before integration, resolve findings test-first on the corresponding task branch, and use `develop` for integration and `master` only for owner-requested releases. Do not push.
+
+Policies H07–H10 are approved: historical occasional reserve absorbs known occasional costs; missing fixed costs require explicit cancellation; owners confirm complete historical months, with partial estimates otherwise; original ledger and baseline recovery copies are retained per migrated version. Independent Expected savings is the next feature after foundation review/integration. Use the current package checks and the owner's TDD boundaries. The instructions below describe the original product handoff; their baseline-test count and initial setup sequence are historical.
 
 Continue this Android-first React Native/Expo expense tracker locally. Its new name is **Havensum**; source still uses the former name Melo. Read AGENTS.md, HANDOFF.md, DECISIONS.md, docs/HAVENSUM_REQUIREMENTS.md, docs/CSV_SPEC.md and docs/ARCHITECTURE.md before editing. These files contain the full product context and acceptance criteria; do not rebuild from a web mockup.
 

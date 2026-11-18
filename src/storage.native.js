@@ -1,33 +1,26 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { k_stateStorageKey, k_snapshotStorageKey } from './storageKeys.js';
 import { parseMergeBaseline } from './storageSerialization.js';
+import { createPersistedStorage } from './persistedState.js';
 
-let g_stateWriteQueue = Promise.resolve();
+const k_persistedStorage = createPersistedStorage(() => AsyncStorage);
 
 export function isDemoSession() {
   return false;
 }
 
 export async function readState() {
-  const encodedState = await AsyncStorage.getItem(k_stateStorageKey);
-  return encodedState ? JSON.parse(encodedState) : null;
+  return k_persistedStorage.read(k_stateStorageKey);
 }
 
-export function writeState(state) {
-  const encodedState = JSON.stringify(state);
-  // A failed write is still reported to its caller, but must not poison later saves.
-  const currentWrite = g_stateWriteQueue.catch(() => {}).then(() => (
-    AsyncStorage.setItem(k_stateStorageKey, encodedState)
-  ));
-  g_stateWriteQueue = currentWrite;
-  return currentWrite;
+export async function writeState(state) {
+  await k_persistedStorage.write(k_stateStorageKey, state);
 }
 
 export async function readSnapshot() {
-  const encodedSnapshot = await AsyncStorage.getItem(k_snapshotStorageKey);
-  return encodedSnapshot ? parseMergeBaseline(encodedSnapshot) : null;
+  return k_persistedStorage.read(k_snapshotStorageKey, parseMergeBaseline);
 }
 
 export async function writeSnapshot(state) {
-  await AsyncStorage.setItem(k_snapshotStorageKey, JSON.stringify(state));
+  await k_persistedStorage.write(k_snapshotStorageKey, state);
 }

@@ -1,5 +1,11 @@
 # Havensum — developer handoff
 
+## Migration foundation — 18 November 2026
+
+Schema version 2 validation and original recovery retention are implemented on `codex/state-migration-recovery`, created from `develop`. See [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) and [docs/STATE_MIGRATIONS.md](docs/STATE_MIGRATIONS.md). The identifier implementation remains separately committed at `b51034d` on its open, unmerged branch. Approved policies H07–H10 are carried forward as documentation without integrating identifier code.
+
+The owner requested a local commit and deferred Claude review until availability after 12:00 on 18 November. Keep both branches unmerged pending their reviews; start a fresh session for a different task. A complete restore/recovery UI and independent Expected savings remain pending.
+
 ## Local test hardening — 17 November 2026
 
 The imported baseline now has additional financial, file, storage/native-adapter and browser regression coverage. Tests exposed and fixed validation, history/receipt-date, persistence, CSV decoding, monetary conversion and account-edit defects. See [docs/TESTING.md](docs/TESTING.md) for the test boundaries, commands and limits. Financial code touched by these fixes has been separated into readable modules; `src/engine.js` retains its public compatibility exports. The new Havensum handoff features remain pending. The historical package/source verification statements below describe the imported baseline.

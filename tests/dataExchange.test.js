@@ -56,6 +56,16 @@ test('transaction-array JSON and full-backup JSON are distinguished without chan
   assert.deepEqual(transactionFile, { rows: state.transactions });
 });
 
+test('legacy full backups migrate for review while future schema backups are rejected', async () => {
+  const legacyState = createFinancialState({ version: 1, transactions: [createTransaction()] });
+  const originalBytes = JSON.stringify(legacyState);
+  const imported = await readImport(new File([originalBytes], 'legacy-backup.json'));
+  assert.deepEqual(imported.backup, { ...legacyState, version: 2 });
+  assert.deepEqual(imported.rows, legacyState.transactions);
+  assert.equal(legacyState.version, 1);
+  await assert.rejects(readImport(new File([JSON.stringify({ ...legacyState, version: 99 })], 'future-backup.json')), /schema version/);
+});
+
 test('malformed JSON and JSON without a transactions array are rejected', async () => {
   await assert.rejects(readImport(new File(['{broken'], 'broken.json')), SyntaxError);
   await assert.rejects(readImport(new File(['{}'], 'empty.json')), /transactions array/);

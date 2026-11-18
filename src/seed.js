@@ -1,4 +1,5 @@
 import {buildPlan,compoundSavings} from './engine.js';
+import { k_currentStateVersion } from './stateSchema.js';
 export const palette=['#E88A5B','#D99941','#C8A448','#45A2B2','#5B91C4','#8A88CC','#A084D0','#C47DA3','#C68C95','#A78669','#78989F','#8B819D'];
 export function seed(){
  const categories=[
@@ -51,7 +52,7 @@ export function seed(){
  add('lunch-11','expense','Lunch with Marina',2850,'2026-11-16','dining','joint');
  add('game-11','expense','Something for the collection',3499,'2026-11-15','fun');
  add('transport-11','expense','Navegante pass',4000,'2026-11-01','transport');
- let state={version:1,demo:true,accounts,categories,transactions,loans:[{id:'car',name:'Car loan',remaining:610500,payment:18500,start:'2025-09',end:'2029-08',account:'main',original:888000}],theme:'light',preferences:{visibility:'shared',cushion:true},plan:null,events:[{id:'winter',name:'December celebrations',month:12,amount:30000}]};
+ let state={version:k_currentStateVersion,demo:true,accounts,categories,transactions,loans:[{id:'car',name:'Car loan',remaining:610500,payment:18500,start:'2025-09',end:'2029-08',account:'main',original:888000}],theme:'light',preferences:{visibility:'shared',cushion:true},plan:null,events:[{id:'winter',name:'December celebrations',month:12,amount:30000}]};
  state=compoundSavings(state,'2026-11');
  state.plan=buildPlan(state,{year:2026,fromMonth:11,income:245000,cushion:12000});
  // Example plan made at the beginning of the year, preserved as a frozen snapshot.

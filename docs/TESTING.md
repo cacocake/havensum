@@ -28,7 +28,7 @@ npm run check:android
 | Outlook and historical averages | `outlook.test.js`, original `planInsights.test.js`: transfer/adjustment neutrality, receipt-date cutoff, missing history, leap months, paid rent, month end and scheduled loan/occasional floors | Current outlook still derives assumptions from the frozen plan; this suite does not certify independent Expected savings |
 | Savings interest | `interest.test.js`: independent worked amounts, monthly compounding, leap/year boundaries, deposits/withdrawals, future cash exclusion, non-positive balances, multiple accounts and idempotence | Working effective-annual/month-end convention; no bank reconciliation or backdated correction model |
 | Import/export/merge | `dataExchange.test.js`, native file tests and browser flows: real workbook serialization, cent/euro boundaries, Unicode/quoted CSV, JSON, validation atomicity, payback order, concurrent plan conflicts, deletion conflicts, preview/cancel/append/rerun and actual backup download | Legacy import identity and same-ID edit review remain incomplete; bank adapters and the new CSV export/template are pending |
-| Storage/startup | `storage.test.js`, native storage tests and browser startup: old keys, separate baseline, demo isolation, failures, ordered saves, immutable saved snapshots and fail-closed corrupt startup | Device storage APIs are substituted; a reviewed full restore and versioned schema migrations are still pending |
+| Storage/startup | `storage.test.js`, native storage tests and browser startup: old keys, separate baseline, demo isolation, failures, ordered saves, immutable saved snapshots and fail-closed corrupt startup; migration-branch additions below | Device storage APIs are substituted; a reviewed full restore remains pending |
 | User transaction flows | Browser scenarios: create/inspect/reload/edit/delete/cancel, linked-payback safeguards, transfers, loan proceeds opt-in, invalid monetary inputs and preservation of zero interest on edit | Chromium browser adaptation, not Android installation, accessibility certification or physical-device QA |
 
 Native tests substitute only the external AsyncStorage, Expo document-picker, filesystem and sharing APIs. They execute the real native adapter, shared parsers and workbook writer. The filesystem test resolver accommodates Expo's Metro-only TypeScript entry; it never replaces application logic.
@@ -65,6 +65,12 @@ Corrupt saved data and unavailable device storage have distinct startup messages
 
 ## Pending requirements stay pending
 
-Do not treat old plan-derived forecast tests as the final product specification. Replace the superseded expectations when implementing independent Expected savings, and add the required target-independence regression then. Payback tasks, CSV template/export and reconciliation, migrations/restore, historical plan archives, bank adapters, Drive and investment quotes require their own test-first slices when implemented. No self-learning prediction model is implemented or verified by these tests.
+Do not treat old plan-derived forecast tests as the final product specification. Replace the superseded expectations when implementing independent Expected savings, and add the required target-independence regression then. Payback tasks, CSV template/export and reconciliation, full restore, historical plan archives, bank adapters, Drive and investment quotes require their own test-first slices when implemented. No self-learning prediction model is implemented or verified by these tests.
 
 The successful Hermes export checks Android compilation only. Native module substitutes and browser runs cannot establish Android installability or physical-device behavior.
+
+## Migration branch — 18 November 2026
+
+`codex/state-migration-recovery` adds schema 1 → 2 migration, retained raw recovery copies for ledger and merge baseline, legacy numeric import-ID/link compatibility, validation of supported saved/backup data, quota/interruption retry and ordering between migration and newer saves. Browser scenarios cover repeated legacy startup, blocked recovery and retry, current-schema export on first launch, and unsupported backup review. The identifier branch's separate changes are not included.
+
+Claude review is deferred until after 12:00 at the owner's request; this branch remains unmerged. The final check results are recorded in IMPLEMENTATION_STATUS.md. No coverage figure certifies every possible legacy file or an Android device installation.
