@@ -221,6 +221,61 @@ test('the credit side of a recorded transfer remains a possible duplicate after 
   assert.throws(() => applyTransactionImport(restored, classified, {}), /make a review choice/i);
 });
 
+test('an older CSV can update a transfer title without dropping the credit reference', async () => {
+  const transfer = createTransaction({
+    id: 'older-transfer', type: 'transfer', toAccount: 'shared', title: 'Reviewed transfer',
+    externalSource: 'real-bank-v1', sourceFingerprint: 'debit-fingerprint', counterpartSourceFingerprint: 'credit-fingerprint'
+  });
+  const state = createFinancialState({ transactions: [transfer] });
+  const newerCsv = createTransactionCsv(state);
+  const olderCsv = newerCsv.replace(',counterpart_source_fingerprint', '').replace(',"\'credit-fingerprint"', '');
+  const file = await parseImportContent('older.csv', olderCsv);
+  assert.equal(previewImportFile(state, file).rows[0].status, 'unchanged');
+  const editedCsv = await parseImportContent('older.csv', olderCsv.replace('Reviewed transfer', 'Updated title'));
+  const review = previewImportFile(state, editedCsv);
+  const saved = applyTransactionImport(state, review, { 0: 'replace' });
+  assert.equal(saved.transactions[0].title, 'Updated title');
+  assert.equal(saved.transactions[0].counterpartSourceFingerprint, 'credit-fingerprint');
+});
+
+test('pairing a transfer flags its credit when that movement has already been recorded', async () => {
+  const state = createFinancialState();
+  const outgoing = await parseImportContent('outgoing.csv', k_realBankStatement);
+  const incoming = await parseImportContent('incoming.csv', k_realBankStatement.replace(
+    k_realBankStatement.split('\r\n').at(-1), '03-02-2032,04-02-2032,Recebimento,,12.45,112.45,112.45,Outros'
+  ));
+  const credit = previewImportFile(state, incoming, { targetAccount: 'shared' });
+  const classified = reviseTransactionImport(state, credit, 0, { type: 'reimbursement', linkedId: null });
+  const ledger = applyTransactionImport(state, classified, {}, () => 'saved-credit');
+  const preview = previewImportFile(ledger, outgoing, { statements: [
+    { data: outgoing, targetAccount: 'everyday' }, { data: incoming, targetAccount: 'shared' }
+  ] });
+  const paired = reviseTransactionImport(ledger, preview, 0, { type: 'transfer', counterpartIndex: 1 });
+  assert.deepEqual(paired.rows[0].possibleMatches.map(record => record.id), ['saved-credit']);
+  assert.throws(() => applyTransactionImport(ledger, paired, {}), /make a review choice/i);
+  assert.equal(accountBalance(applyTransactionImport(ledger, paired, { 0: 'skip' }), 'shared'), 51245);
+});
+
+test('a credit repeated across statements needs review even when its other copy is paired', async () => {
+  const state = createFinancialState();
+  const outgoing = await parseImportContent('outgoing.csv', k_realBankStatement);
+  const incoming = await parseImportContent('incoming.csv', k_realBankStatement.replace(
+    k_realBankStatement.split('\r\n').at(-1), '03-02-2032,04-02-2032,Recebimento,,12.45,112.45,112.45,Outros'
+  ));
+  const preview = previewImportFile(state, outgoing, { statements: [
+    { data: incoming, targetAccount: 'shared' }, { data: outgoing, targetAccount: 'everyday' },
+    { data: { ...incoming, name: 'incoming-overlap.csv' }, targetAccount: 'shared' }
+  ] });
+  for (const [chosenCredit, otherCredit] of [[0, 2], [2, 0]]) {
+    const paired = reviseTransactionImport(state, preview, 1, { type: 'transfer', counterpartIndex: chosenCredit });
+    const reviewed = reviseTransactionImport(state, paired, otherCredit, { type: 'reimbursement', linkedId: null });
+    assert.equal(reviewed.rows[otherCredit].status, 'possible');
+    assert.throws(() => applyTransactionImport(state, reviewed, {}, () => 'saved-transfer'), /make a review choice/i);
+    const saved = applyTransactionImport(state, reviewed, { [otherCredit]: 'skip' }, () => 'saved-transfer');
+    assert.equal(accountBalance(saved, 'shared'), 51245);
+  }
+});
+
 test('a bank refund requires an explicit expense or balance-adjustment choice and never becomes earnings', async () => {
   const originalExpense = createTransaction({ date: '2032-01-31', amount: 1000 });
   const state = createFinancialState({ transactions: [originalExpense] });

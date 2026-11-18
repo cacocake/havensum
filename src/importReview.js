@@ -22,7 +22,14 @@ function updatedTransaction(existing, incoming) {
   for (const field of k_exchangeFields) {
     delete transaction[field];
   }
-  return { ...transaction, ...incoming, id: existing.id };
+  const updated = { ...transaction, ...incoming, id: existing.id };
+  if (existing.counterpartSourceFingerprint && updated.counterpartSourceFingerprint === undefined
+    && updated.type === k_transactionTypes.transfer
+    && updated.account === existing.account && updated.toAccount === existing.toAccount
+    && updated.externalSource === existing.externalSource && updated.sourceFingerprint === existing.sourceFingerprint) {
+    updated.counterpartSourceFingerprint = existing.counterpartSourceFingerprint;
+  }
+  return updated;
 }
 
 function hasSameExternalIdentity(first, second) {
@@ -36,15 +43,21 @@ function hasExternalIdentity(transaction) {
   return Boolean(transaction.externalSource) && transaction.externalId !== undefined && transaction.externalId !== null && transaction.externalId !== '';
 }
 
+function matchesTransferCredit(transfer, credit) {
+  return transfer.type === k_transactionTypes.transfer
+    && Boolean(credit.sourceFingerprint)
+    && transfer.toAccount === credit.account
+    && transfer.counterpartSourceFingerprint === credit.sourceFingerprint;
+}
+
 function possibleDuplicate(first, second) {
   if (hasExternalIdentity(first) && hasExternalIdentity(second)) {
     return false;
   }
-  if (first.externalSource && first.externalSource === second.externalSource && second.sourceFingerprint) {
-    const ownMovement = first.account === second.account && first.sourceFingerprint === second.sourceFingerprint;
-    const transferCredit = first.type === k_transactionTypes.transfer
-      && first.toAccount === second.account && first.counterpartSourceFingerprint === second.sourceFingerprint;
-    if (ownMovement || transferCredit) {
+  if (first.externalSource && first.externalSource === second.externalSource) {
+    const ownMovement = first.account === second.account
+      && Boolean(second.sourceFingerprint) && first.sourceFingerprint === second.sourceFingerprint;
+    if (ownMovement || matchesTransferCredit(first, second) || matchesTransferCredit(second, first)) {
       return true;
     }
   }
@@ -54,7 +67,7 @@ function possibleDuplicate(first, second) {
 
 function reviewStatus(existing, transaction, hasPossibleMatch) {
   if (existing) {
-    return sameTransaction(existing, transaction) ? 'unchanged' : 'edited';
+    return sameTransaction(existing, updatedTransaction(existing, transaction)) ? 'unchanged' : 'edited';
   }
   return hasPossibleMatch ? 'possible' : 'new';
 }
@@ -101,10 +114,27 @@ function markRepeatedIdentities(rows) {
   }
 }
 
+function bankOverlapLookup(originals, bankRows) {
+  const groups = new Map();
+  const identities = new Map();
+  for (const [index, original] of originals.entries()) {
+    if (!bankRows[index] || !original.sourceFingerprint) {
+      continue;
+    }
+    const identity = JSON.stringify([original.externalSource, original.account, original.sourceFingerprint]);
+    const matches = groups.get(identity) ?? [];
+    matches.push(index);
+    groups.set(identity, matches);
+    identities.set(index, identity);
+  }
+  return index => (groups.get(identities.get(index)) ?? [])
+    .filter(match => bankRows[match].statementNumber !== bankRows[index].statementNumber);
+}
+
 export function previewTransactionImport(state, transactions, options = {}) {
   const { originals = transactions, bankRows = [], bankPairs = {} } = options;
   const pairedCredits = new Map(Object.entries(bankPairs).map(([debit, pair]) => [pair.counterpartIndex, Number(debit)]));
-  const precedingBankRows = new Map();
+  const overlappingBankRows = bankOverlapLookup(originals, bankRows);
   const rows = transactions.map((transaction, index) => {
     const bank = bankRows[index];
     const sourceRow = bank?.sourceRow ?? index + 1;
@@ -128,16 +158,16 @@ export function previewTransactionImport(state, transactions, options = {}) {
     const original = originals[index];
     const possibleMatches = state.transactions.filter(record => possibleDuplicate(record, transaction)
       || (original !== transaction && possibleDuplicate(record, original)));
-    let possibleStatementMatches = [];
-    if (bank && original.sourceFingerprint) {
-      const bankIdentity = JSON.stringify([original.externalSource, original.account, original.sourceFingerprint]);
-      const precedingMatches = precedingBankRows.get(bankIdentity) ?? [];
-      possibleStatementMatches = precedingMatches.filter(rowIndex => bankRows[rowIndex].statementNumber !== bank.statementNumber);
-      precedingMatches.push(index);
-      precedingBankRows.set(bankIdentity, precedingMatches);
+    const possibleStatementMatches = overlappingBankRows(index)
+      .filter(match => match < index || pairedCredits.has(match));
+    const pair = bankPairs[index];
+    if (pair) {
+      const matchingPairedCredits = overlappingBankRows(pair.counterpartIndex)
+        .filter(match => pairedCredits.get(match) < index);
+      possibleStatementMatches.push(...matchingPairedCredits);
     }
     return {
-      index, sourceRow, bank, transaction, existing, possibleMatches, possibleStatementMatches, pair: bankPairs[index],
+      index, sourceRow, bank, transaction, existing, possibleMatches, possibleStatementMatches, pair,
       status: reviewStatus(existing, transaction, possibleMatches.length > 0 || possibleStatementMatches.length > 0)
     };
   });
