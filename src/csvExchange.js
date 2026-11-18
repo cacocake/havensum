@@ -45,7 +45,7 @@ function quoteCell(value) {
   return `"${String(value).replaceAll('"', '""')}"`;
 }
 
-function formatEuroAmount(amount) {
+export function formatEuroAmount(amount) {
   const integerAmount = BigInt(amount);
   return `${integerAmount / k_centsPerEuro}.${String(integerAmount % k_centsPerEuro).padStart(2, '0')}`;
 }

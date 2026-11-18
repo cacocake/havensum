@@ -14,6 +14,7 @@ export function previewImportFile(state, data, options = {}) {
   });
   const review = previewTransactionImport(state, transactions);
   for (const [index, error] of errors) {
+    review.rows[index].normalizationError = error;
     review.rows[index].status = 'invalid';
     review.rows[index].error = error;
   }

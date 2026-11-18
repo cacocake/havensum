@@ -161,8 +161,10 @@ test('CSV preview can be cancelled, appends on approval and safely skips a repea
   await openMoreSection(page, 'Settings');
   await previewCsvImport(page);
   await page.getByRole('dialog').getByRole('button', { name: 'Import transactions', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Done', exact: true }).click();
   await previewCsvImport(page);
   await page.getByRole('dialog').getByRole('button', { name: 'Import transactions', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Done', exact: true }).click();
   await returnHome(page);
 
   await expect(page.getByLabel('View net spending transactions')).toContainText('€22.34');

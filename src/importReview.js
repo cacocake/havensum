@@ -89,7 +89,7 @@ function markRepeatedIdentities(rows) {
   }
 }
 
-export function previewTransactionImport(state, transactions) {
+export function previewTransactionImport(state, transactions, originals = transactions) {
   const rows = transactions.map((transaction, index) => {
     const matchingRecords = state.transactions.filter(record => record.id === transaction.id || hasSameExternalIdentity(record, transaction));
     if (matchingRecords.length > 1) {
@@ -99,7 +99,9 @@ export function previewTransactionImport(state, transactions) {
       };
     }
     const [existing] = matchingRecords;
-    const possibleMatches = state.transactions.filter(record => possibleDuplicate(record, transaction));
+    const original = originals[index];
+    const possibleMatches = state.transactions.filter(record => possibleDuplicate(record, transaction)
+      || (original !== transaction && possibleDuplicate(record, original)));
     return {
       index, transaction, existing, possibleMatches,
       status: reviewStatus(existing, transaction, possibleMatches)
@@ -129,7 +131,26 @@ export function previewTransactionImport(state, transactions) {
       row.error = error.message;
     }
   }
-  return { rows, baseline: JSON.stringify(state) };
+  return { rows, originals, baseline: JSON.stringify(state) };
+}
+
+export function reviseTransactionImport(state, review, rowIndex, changes) {
+  if (JSON.stringify(state) !== review.baseline) {
+    throw Error('The ledger changed after preview. Preview this file again before editing.');
+  }
+  const transactions = review.rows.map(row => row.index === rowIndex
+    ? { ...row.transaction, ...changes }
+    : row.transaction);
+  const revised = previewTransactionImport(state, transactions, review.originals);
+  for (const row of review.rows) {
+    if (row.normalizationError) {
+      const revisedRow = revised.rows[row.index];
+      revisedRow.normalizationError = row.normalizationError;
+      revisedRow.status = 'invalid';
+      revisedRow.error = row.normalizationError;
+    }
+  }
+  return revised;
 }
 
 export function applyTransactionImport(state, review, choices, createIdentifier) {

@@ -23,7 +23,7 @@ export function getImportMapping(data) {
   ]));
 }
 
-function parseAmount(value, unit) {
+export function parseImportAmount(value, unit) {
   const text = String(value ?? '').trim();
   const pattern = unit === 'cents' ? /^\d+$/ : /^\d+(?:[.,]\d{1,2})?$/;
   if (!pattern.test(text)) {
@@ -111,8 +111,10 @@ export function normalizeImportRows(state, data, options = {}) {
         type,
         date: row[mapping.date] instanceof Date ? row[mapping.date].toISOString().slice(0, 10) : row[mapping.date],
         title: text(mapping.title),
-        amount: parseAmount(row[mapping.amount], canonical ? 'euros' : options.unit || (data.backup ? 'cents' : 'euros')),
-        account: resolveRecordId(state.accounts, text(mapping.account), text(canonical ? 'account_name' : 'Account'), 'account', options.accounts)
+        amount: parseImportAmount(row[mapping.amount], canonical ? 'euros' : options.unit || (data.backup ? 'cents' : 'euros')),
+        account: options.targetAccount === undefined
+          ? resolveRecordId(state.accounts, text(mapping.account), text(canonical ? 'account_name' : 'Account'), 'account', options.accounts)
+          : resolveRecordId(state.accounts, '', '', 'account', { '': options.targetAccount })
       };
       transaction.id = preserveTransactionIdentifier(state, canonical ? text('id') : row.id);
       const categoryId = text(mapping.category);
