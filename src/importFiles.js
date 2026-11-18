@@ -18,7 +18,9 @@ export async function parseImportContent(fileName, content) {
       return { rows: data };
     }
     if (Array.isArray(data?.transactions)) {
-      const backup = data.version !== undefined ? migrateState(data) : null;
+      const isLedgerBackup = data.version !== undefined
+        && ['accounts', 'categories', 'loans', 'events', 'plan', 'preferences', 'theme', 'demo'].some(key => Object.hasOwn(data, key));
+      const backup = isLedgerBackup ? migrateState(data) : null;
       return { rows: data.transactions, backup };
     }
     throw Error(k_missingTransactionsMessage);

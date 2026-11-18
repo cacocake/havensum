@@ -3,6 +3,17 @@ import { createFinancialState, createTransaction } from '../helpers/financialFix
 import { openMoreSection } from '../helpers/userFlows.js';
 import { readFile } from 'node:fs/promises';
 
+test('startup recovery downloads exact saved bytes when the ledger cannot be opened', async ({ page }) => {
+  const originalBytes = '{synthetic invalid ledger';
+  await page.route('https://fonts.googleapis.com/**', route => route.abort());
+  await page.addInitScript(bytes => localStorage.setItem('melo-state-v1', bytes), originalBytes);
+  await page.goto('/');
+  const button = page.getByRole('button', { name: 'Download saved ledger copy', exact: true });
+  await expect(button).toBeVisible();
+  const download = page.waitForEvent('download');
+  await button.click();
+  expect(await readFile(await (await download).path(), 'utf8')).toBe(originalBytes);
+});
 test('legacy startup preserves the original ledger and links across repeated app loads', async ({ page }) => {
   const state = createFinancialState({ version: 1, transactions: [createTransaction()] });
   const originalBytes = JSON.stringify(state, null, 2);

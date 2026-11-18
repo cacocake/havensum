@@ -5,6 +5,28 @@ import { installBrowserStorage } from './helpers/browserStorage.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 import { buildPlan } from '../src/engine.js';
 
+test('exporting a new baseline retains the original corrupt baseline bytes', async context => {
+  const storage = installBrowserStorage(context);
+  const baselineKey = 'melo-sync-base';
+  const damaged = '{broken-baseline';
+  storage.setItem(baselineKey, damaged);
+  const state = createFinancialState();
+  await writeSnapshot(state);
+  assert.deepEqual(await readSnapshot(), state);
+  assert.equal(storage.getItem(`${baselineKey}:recovery:invalid`), damaged);
+});
+
+test('a merged deletion cannot persist while a transaction still uses the numeric zero category', async context => {
+  installBrowserStorage(context);
+  const initial = createFinancialState({
+    categories: [{ id: 0, name: 'Household' }],
+    transactions: [createTransaction({ category: 0 })]
+  });
+  await writeState(initial);
+  await assert.rejects(writeState({ ...initial, categories: [] }), /valid category/);
+  assert.deepEqual(await readState(), initial);
+});
+
 test('legacy ledger migration preserves original bytes, identities and frozen targets across subsequent saves', async context => {
   const storage = installBrowserStorage(context);
   const legacyState = createFinancialState({

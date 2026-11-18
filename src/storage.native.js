@@ -5,6 +5,10 @@ import { createPersistedStorage } from './persistedState.js';
 
 const k_persistedStorage = createPersistedStorage(() => AsyncStorage);
 
+export async function readSavedLedgerCopy() {
+  return AsyncStorage.getItem(k_stateStorageKey);
+}
+
 export function isDemoSession() {
   return false;
 }
@@ -22,5 +26,5 @@ export async function readSnapshot() {
 }
 
 export async function writeSnapshot(state) {
-  await k_persistedStorage.write(k_snapshotStorageKey, state);
+  await k_persistedStorage.write(k_snapshotStorageKey, state, { recoverInvalid: true });
 }

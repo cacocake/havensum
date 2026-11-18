@@ -56,6 +56,12 @@ test('transaction-array JSON and full-backup JSON are distinguished without chan
   assert.deepEqual(transactionFile, { rows: state.transactions });
 });
 
+test('a third-party versioned transaction file remains eligible for row import', async () => {
+  const rows = [createTransaction()];
+  const file = new File([JSON.stringify({ version: 'third-party-v3', transactions: rows })], 'external.json');
+  assert.deepEqual(await readImport(file), { rows, backup: null });
+});
+
 test('legacy full backups migrate for review while future schema backups are rejected', async () => {
   const legacyState = createFinancialState({ version: 1, transactions: [createTransaction()] });
   const originalBytes = JSON.stringify(legacyState);

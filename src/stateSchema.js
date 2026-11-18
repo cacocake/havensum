@@ -63,9 +63,13 @@ function validatePlan(plan) {
   }
 }
 
+export class UnsupportedStateVersionError extends SyntaxError {}
+
 export function validateState(state) {
   requireValid(isRecord(state), 'ledger must be a record');
-  requireValid(state.version === k_legacyStateVersion || state.version === k_currentStateVersion, 'unsupported schema version');
+  if (state.version !== k_legacyStateVersion && state.version !== k_currentStateVersion) {
+    throw new UnsupportedStateVersionError('Invalid stored data: unsupported schema version.');
+  }
   for (const collectionName of k_collectionNames) {
     const records = state[collectionName];
     requireValid(Array.isArray(records), `${collectionName} must be an array`);
@@ -118,6 +122,10 @@ export function validateState(state) {
     requireValid(Number.isInteger(event.month) && event.month >= 1 && event.month <= 12, 'event month');
   }
   for (const transaction of state.transactions) {
+    const categoryId = transaction.category;
+    if (categoryId !== undefined && categoryId !== null && categoryId !== '') {
+      requireValid(categoriesById.has(categoryId), 'transaction must reference a valid category');
+    }
     if (transaction.kind) {
       requireValid(k_spendingKinds.has(transaction.kind), 'transaction spending behaviour');
     }

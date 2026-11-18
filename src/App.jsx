@@ -9,7 +9,8 @@ import {useMeloFonts} from './fonts';
 import {upgradeCategoryVisuals} from './categoryVisuals.js';
 import {seed} from './seed.js';
 import {compoundSavings, monthOf} from './engine.js';
-import {readState,writeState} from './storage';
+import {readState,writeState,readSavedLedgerCopy} from './storage';
+import { downloadSavedLedgerCopy } from './files';
 import Dashboard from './Dashboard.jsx';
 import {Transactions,Accounts,Categories,Reimbursements,YearPlan,Loans,Settings} from './Screens.jsx';
 import {AccountDetail,TransactionDetail} from './Details.jsx';
@@ -30,12 +31,14 @@ const nav=[['Overview','LayoutDashboard'],['Transactions','ArrowLeftRight'],['Ac
 const descriptions={Overview:'A little clarity for your everyday.',Transactions:'The full story, one movement at a time.',Accounts:'Different pockets. One clear picture.',Categories:'A home for every little thing.', 'Year Plan':'Make room for what matters.',Reimbursements:'Because paybacks are not a pay rise.',Loans:'Small steps toward lighter days.',Settings:'Make yourself at home.'};
 export default function App(){
  const [loadError, setLoadError] = useState(null);
+ const [recoveryError, setRecoveryError] = useState('');
  const [filters,setFilters]=useState({}),[searchFocus,setSearchFocus]=useState(0),[accountId,setAccountId]=useState(null),[pickerYear,setPickerYear]=useState(null);
  const searchRequest=useRef(0);
  const [fontsLoaded]=useMeloFonts();const insets=useInsets();const scrollRef=useRef(null);
  const [state,setState]=useState(null),[screen,setScreen]=useState('Overview'),[month,setMonth]=useState(new Date().toISOString().slice(0,7)),[modal,setModal]=useState(null),[toast,setToast]=useState(''),[search,setSearch]=useState(''),[mobileMenu,setMobileMenu]=useState(false),[monthOpen,setMonthOpen]=useState(false),[saveError,setSaveError]=useState(false);const {width}=useWindowDimensions(),wide=width>=1130,desktop=width>=850,c=state?.theme==='dark'?dark:light;
  async function loadStoredState() {
    setLoadError(null);
+   setRecoveryError('');
    let savedState;
    try {
      savedState = await readState();
@@ -51,6 +54,19 @@ export default function App(){
    } catch {
      // An invalid saved structure must not be replaced with sample state either.
      setLoadError(k_startupErrors.unreadableData);
+   }
+ }
+ async function exportSavedLedger() {
+   setRecoveryError('');
+   try {
+     const encodedLedger = await readSavedLedgerCopy();
+     if (encodedLedger === null) {
+       setRecoveryError('No saved ledger copy is available.');
+       return;
+     }
+     await downloadSavedLedgerCopy(encodedLedger);
+   } catch {
+     setRecoveryError('The saved ledger copy could not be downloaded.');
    }
  }
  useEffect(() => { loadStoredState(); }, []);
@@ -72,6 +88,8 @@ export default function App(){
          <H>{loadError.title}</H>
          <T>{loadError.description}</T>
          <Button onPress={loadStoredState}>Retry loading</Button>
+         <Button kind="outline" onPress={exportSavedLedger}>Download saved ledger copy</Button>
+         {Boolean(recoveryError) && <T accessibilityRole="alert">{recoveryError}</T>}
        </View>
      </Theme.Provider>
    );

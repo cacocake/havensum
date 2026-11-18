@@ -5,6 +5,9 @@ import ExcelJS from 'exceljs/dist/exceljs.min.js';
 import {Buffer} from 'buffer';
 import {createWorkbook} from './workbook.js';
 import { isTextImport, parseImportContent } from './importFiles.js';
+export async function downloadSavedLedgerCopy(encodedLedger) {
+  await shareFile('Havensum-saved-ledger-recovery.txt', encodedLedger, 'text/plain');
+}
 async function shareFile(name,content,mimeType,encoding=FileSystem.EncodingType.UTF8){
  const uri=FileSystem.cacheDirectory+name;
  await FileSystem.writeAsStringAsync(uri,content,{encoding});
