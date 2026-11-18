@@ -1,6 +1,6 @@
 # Havensum — local development package
 
-Android-first React Native/Expo expense tracker for Hugo and Marina, with a responsive PC browser display. The project starts from the last verified published **Melo** implementation, with subsequent local test hardening documented below. **Havensum branding and the newly requested features are documented work to implement**, not completed functionality.
+Android-first React Native/Expo expense tracker for Hugo and Marina, with a responsive PC browser display. This branch adds Havensum branding to the tested legacy implementation while preserving its data and install identities. See [docs/BRANDING.md](docs/BRANDING.md); the foundation and independent Expected savings work remain on separate branches pending review and integration.
 
 ## License
 
@@ -9,7 +9,7 @@ Private and proprietary. All rights reserved to the project owner. See [LICENSE]
 ## Start here
 
 1. Read **HANDOFF.md** and **docs/HAVENSUM_REQUIREMENTS.md**.
-2. Open this folder in Codex and describe the task in chat.
+2. Open this folder in Codex. Continuation prompts are supplied directly in chat.
 3. Use **DECISIONS.md**, **docs/ARCHITECTURE.md**, **docs/CSV_SPEC.md** and **docs/IMPLEMENTATION_PLAN.md** for context.
 
 ## Run locally
@@ -54,6 +54,6 @@ Source transfer does **not** copy the ledger in the hosted app's browser storage
 
 The original 25 tests have been expanded with financial invariants, native adapter checks and browser flows. Local test hardening and the defects it exposed are documented in [docs/TESTING.md](docs/TESTING.md). The outlook remains **plan-derived**, not the proposed independent Expected savings algorithm. BUNDLE-MANIFEST.json records the original imported package's provenance; it is not a manifest of later local edits.
 
-Generic CSV/XLSX import, XLSX export and JSON backup exist. Downloadable Havensum templates, CSV export, verified bank adapters, expected-payback tasks and the rebrand are pending. Drive sync, ETF prices, exact Cashew compatibility, automatic annual interview and physical Android certification are also unfinished.
+Generic CSV/XLSX import, XLSX export and JSON backup exist. Havensum naming and vector assets are implemented on this unmerged branding branch. Downloadable templates, CSV export, verified bank adapters and expected-payback tasks remain pending. Drive sync, ETF prices, exact Cashew compatibility, automatic annual interview and physical Android certification are also unfinished.
 
 Averages and forecasting limitations, current balance date behavior, ID/schema migration and multi-year plan archival are detailed in HANDOFF.md. Read docs/UX_UPDATE.md as a historical implementation record; the later requirements supersede its plan-derived prediction formula.

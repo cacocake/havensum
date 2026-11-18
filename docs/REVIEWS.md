@@ -1,5 +1,9 @@
 # Test-hardening review
 
+## Branding review pending — 18 November 2026
+
+The owner reiterated that Claude availability must not block development. `codex/havensum-branding` was implemented locally from `develop` while the earlier task branches remained unmerged. Read-only Claude review is deferred to the stated noon availability and is required before merging. No independent review is claimed. Test-first startup/data-continuity and native export regressions, visual checks and compilation results are recorded in BRANDING.md. The earlier three branch heads were pushed and verified with explicit owner authorization; branding is local.
+
 Claude Code performed a read-only review of the initial coverage task. It read the new files, changed modules and relevant consumers; it did not run commands or modify files. Its review confirmed that the original defect fixes had matching public-boundary regressions, and identified follow-up issues before merge.
 
 | Finding | Resolution on `codex/test-hardening` |

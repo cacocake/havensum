@@ -8,14 +8,28 @@ import { isTextImport, parseImportContent } from './importFiles.js';
 export async function downloadSavedLedgerCopy(encodedLedger, fileName = 'Havensum-saved-ledger-recovery.txt') {
   await shareFile(fileName, encodedLedger, 'text/plain');
 }
-async function shareFile(name,content,mimeType,encoding=FileSystem.EncodingType.UTF8){
- const uri=FileSystem.cacheDirectory+name;
- await FileSystem.writeAsStringAsync(uri,content,{encoding});
- if(!await Sharing.isAvailableAsync())throw Error('Android sharing is unavailable on this device.');
- await Sharing.shareAsync(uri,{mimeType,dialogTitle:'Your Melo data'});
+async function shareFile(name, content, mimeType, encoding = FileSystem.EncodingType.UTF8) {
+  const uri = FileSystem.cacheDirectory + name;
+  await FileSystem.writeAsStringAsync(uri, content, { encoding });
+  if (!await Sharing.isAvailableAsync()) {
+    throw Error('Android sharing is unavailable on this device.');
+  }
+  await Sharing.shareAsync(uri, { mimeType, dialogTitle: 'Your Havensum data' });
 }
-export async function downloadJSON(state){await shareFile(`Melo-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(state,null,2),'application/json');}
-export async function exportExcel(state,month){const wb=createWorkbook(ExcelJS,state,month);const buffer=await wb.xlsx.writeBuffer();await shareFile(`Melo-${month}.xlsx`,Buffer.from(buffer).toString('base64'),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',FileSystem.EncodingType.Base64);}
+export async function downloadJSON(state) {
+  const fileName = `Havensum-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  await shareFile(fileName, JSON.stringify(state, null, 2), 'application/json');
+}
+export async function exportExcel(state, month) {
+  const workbook = createWorkbook(ExcelJS, state, month);
+  const buffer = await workbook.xlsx.writeBuffer();
+  await shareFile(
+    `Havensum-${month}.xlsx`,
+    Buffer.from(buffer).toString('base64'),
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    FileSystem.EncodingType.Base64
+  );
+}
 export async function chooseFile(accept){
  const result=await DocumentPicker.getDocumentAsync({type:accept==='.json'?'application/json':['application/json','text/csv','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.ms-excel'],copyToCacheDirectory:true});
  if(result.canceled)return null;const f=result.assets[0];return {...f,text:()=>FileSystem.readAsStringAsync(f.uri)};

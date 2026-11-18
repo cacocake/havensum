@@ -1,1 +1,3 @@
-export function useMeloFonts(){return [true];}
+export function useHavensumFonts() {
+  return [true];
+}
