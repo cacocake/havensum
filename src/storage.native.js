@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { k_stateStorageKey, k_snapshotStorageKey } from './storageKeys.js';
+import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey } from './storageKeys.js';
 import { parseMergeBaseline } from './storageSerialization.js';
 import { createPersistedStorage } from './persistedState.js';
 
@@ -31,4 +31,12 @@ export async function readInvalidSnapshotCopy() {
 
 export async function writeSnapshot(state) {
   await k_persistedStorage.write(k_snapshotStorageKey, state, { recoverInvalid: true });
+}
+
+export async function writeImportRecovery(state) {
+  await k_persistedStorage.write(k_importRecoveryStorageKey, state, { recoverInvalid: true });
+}
+
+export async function readImportRecovery() {
+  return k_persistedStorage.read(k_importRecoveryStorageKey);
 }

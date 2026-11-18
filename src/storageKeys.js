@@ -2,3 +2,4 @@
 // serialized values under separate per-version recovery keys.
 export const k_stateStorageKey = 'melo-state-v1';
 export const k_snapshotStorageKey = 'melo-sync-base';
+export const k_importRecoveryStorageKey = 'havensum-import-recovery-v1';

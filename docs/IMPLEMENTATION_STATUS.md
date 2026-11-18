@@ -13,7 +13,7 @@
 | Explicit state schema migration and recovery protection | Reviewed and integrated into `develop`. Missing categories can be left uncategorized or corrected in review. See STATE_MIGRATIONS.md. Full restore remains pending. |
 | Independent Expected savings | Integrated with frozen-target independence, historical reserves, confirmed months and individual bill cancellation. The separate planned-cost linking feature is in development. |
 | Havensum rename and vector/logo assets | Integrated across browser and Android. |
-| CSV primary export, template and reviewed import identity | Pending |
+| CSV primary export, template and reviewed import identity | Integrated with editable review, duplicate decisions and a separate recovery copy. |
 | Expected-payback tasks | Pending |
 | Bank-specific adapters | Pending sanitized samples and agreed normalized results when that stage is reached |
 

@@ -5,6 +5,7 @@ import ExcelJS from 'exceljs/dist/exceljs.min.js';
 import {Buffer} from 'buffer';
 import {createWorkbook} from './workbook.js';
 import { isTextImport, parseImportContent } from './importFiles.js';
+import { createTransactionCsv, createQuickEntryTemplate, k_csvQuickGuide } from './csvExchange.js';
 export async function downloadSavedLedgerCopy(encodedLedger, fileName = 'Havensum-saved-ledger-recovery.txt') {
   await shareFile(fileName, encodedLedger, 'text/plain');
 }
@@ -29,6 +30,17 @@ export async function exportExcel(state, month) {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     FileSystem.EncodingType.Base64
   );
+}
+export async function exportTransactionsCsv(state) {
+  await shareFile(`Havensum-transactions-${new Date().toISOString().slice(0, 10)}.csv`, createTransactionCsv(state), 'text/csv');
+}
+
+export async function downloadCsvTemplate() {
+  await shareFile('Havensum-quick-entry.csv', createQuickEntryTemplate(), 'text/csv');
+}
+
+export async function downloadCsvGuide() {
+  await shareFile('Havensum-CSV-guide.txt', k_csvQuickGuide, 'text/plain');
 }
 export async function chooseFile(accept){
  const result=await DocumentPicker.getDocumentAsync({type:accept==='.json'?'application/json':['application/json','text/csv','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.ms-excel'],copyToCacheDirectory:true});

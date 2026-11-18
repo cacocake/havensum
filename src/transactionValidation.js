@@ -16,6 +16,10 @@ const k_errors = {
   receivedPaybacks: 'This expense has linked reimbursements. Adjust those first.'
 };
 
+function hasIdentifier(value) {
+  return value !== undefined && value !== null && value !== '';
+}
+
 export function validateTransaction(state, transaction) {
   if (!k_supportedTransactionTypes.has(transaction?.type)) {
     throw Error(k_errors.type);
@@ -50,13 +54,13 @@ export function validateTransaction(state, transaction) {
   }
 
   const receivedPaybacks = state.transactions
-    .filter(record => transaction.id && record.type === k_transactionTypes.reimbursement && record.linkedId === transaction.id)
+    .filter(record => hasIdentifier(transaction.id) && record.type === k_transactionTypes.reimbursement && record.linkedId === transaction.id)
     .reduce((total, reimbursement) => total + reimbursement.amount, 0);
   if (receivedPaybacks > 0 && (transaction.type !== k_transactionTypes.expense || transaction.amount < receivedPaybacks)) {
     throw Error(k_errors.receivedPaybacks);
   }
 
-  if (transaction.type !== k_transactionTypes.reimbursement || !transaction.linkedId) {
+  if (transaction.type !== k_transactionTypes.reimbursement || !hasIdentifier(transaction.linkedId)) {
     return transaction;
   }
 
