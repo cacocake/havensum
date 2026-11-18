@@ -77,7 +77,7 @@ The adapter opens the shared import review after the user selects a Havensum acc
 
 Repeated or overlapping rows are offered as possible matches within the same profile and target account. The adapter fingerprints the source movement before draft edits. Identical purchases remain separate candidates for the user to evaluate. The one supplied debit example is verified. Credit, refund, overlap and two-sided transfer behavior use synthetic fixtures; other actual export variants and different-date transfer pairs need verification.
 
-Review can flag overlaps between statements in the same batch. For paired transfers, both statements must be included. The transfer uses the shared statement amount and a confirmed source value date. Skipping the debit skips both sides, and the result describes that decision. Both source fingerprints survive canonical CSV export so either side can be reviewed on a later import.
+Review can flag overlaps between statements in the same batch. For paired transfers, both statements must be included. The transfer uses the shared statement amount and a confirmed source value date. Skipping the debit skips both sides, and the result describes that decision. Both source fingerprints survive canonical CSV export so either side can be reviewed on a later import. A trailing booked-balance summary in the confirmed format is excluded. Movement rows retain their original source row numbers.
 
 ## Minimum acceptance suite
 
