@@ -1,3 +1,4 @@
+import { validatePaybackState } from './paybackState.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { k_stateStorageKey, k_snapshotStorageKey } from './storageKeys.js';
 import { parseMergeBaseline } from './storageSerialization.js';
@@ -10,11 +11,11 @@ export function isDemoSession() {
 
 export async function readState() {
   const encodedState = await AsyncStorage.getItem(k_stateStorageKey);
-  return encodedState ? JSON.parse(encodedState) : null;
+  return encodedState ? validatePaybackState(JSON.parse(encodedState)) : null;
 }
 
 export function writeState(state) {
-  const encodedState = JSON.stringify(state);
+  const encodedState = JSON.stringify(validatePaybackState(state));
   // A failed write is still reported to its caller, but must not poison later saves.
   const currentWrite = g_stateWriteQueue.catch(() => {}).then(() => (
     AsyncStorage.setItem(k_stateStorageKey, encodedState)
@@ -25,9 +26,9 @@ export function writeState(state) {
 
 export async function readSnapshot() {
   const encodedSnapshot = await AsyncStorage.getItem(k_snapshotStorageKey);
-  return encodedSnapshot ? parseMergeBaseline(encodedSnapshot) : null;
+  return encodedSnapshot ? validatePaybackState(parseMergeBaseline(encodedSnapshot)) : null;
 }
 
 export async function writeSnapshot(state) {
-  await AsyncStorage.setItem(k_snapshotStorageKey, JSON.stringify(state));
+  await AsyncStorage.setItem(k_snapshotStorageKey, JSON.stringify(validatePaybackState(state)));
 }

@@ -4,6 +4,15 @@ import { readState, writeState, readSnapshot, writeSnapshot } from '../src/stora
 import { installBrowserStorage } from './helpers/browserStorage.js';
 import { createFinancialState } from './helpers/financialFixtures.js';
 
+test('invalid payback metadata in a saved ledger is rejected and preserved', async context => {
+  const storage = installBrowserStorage(context);
+  const invalidState = createFinancialState({ paybackTasksVersion: 1, paybackTasks: [{ id: 'orphan', expenseId: 'missing' }] });
+  const encoded = JSON.stringify(invalidState);
+  storage.setItem('melo-state-v1', encoded);
+  await assert.rejects(readState(), /existing expense/);
+  assert.equal(storage.getItem('melo-state-v1'), encoded);
+});
+
 test('corrupt browser storage is reported instead of being treated as an empty ledger', async context => {
   const storage = installBrowserStorage(context);
   storage.setItem('melo-state-v1', '{broken-private-ledger');
