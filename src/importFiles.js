@@ -1,13 +1,30 @@
 import { migrateState } from './stateSchema.js';
+import { Buffer } from 'buffer';
+import { readRealBankStatement } from './realBankCsv.js';
 
 const k_jsonExtension = '.json';
 const k_csvExtension = '.csv';
 const k_transactionSheet = 'Raw transactions';
 const k_missingTransactionsMessage = 'No transactions array found.';
+const k_windows1252FirstMappedByte = 0x80;
+const k_windows1252ControlRange = /[\x80-\x9f]/g;
+const k_windows1252MappedCharacters = '€\x81‚ƒ„…†‡ˆ‰Š‹Œ\x8dŽ\x8f\x90‘’“”•–—˜™š›œ\x9džŸ';
 
 export function isTextImport(fileName) {
-  const normalizedName = fileName.toLowerCase();
-  return normalizedName.endsWith(k_jsonExtension) || normalizedName.endsWith(k_csvExtension);
+  return fileName.toLowerCase().endsWith(k_jsonExtension);
+}
+
+function decodeCsv(content) {
+  if (typeof content === 'string') {
+    return content;
+  }
+  const bytes = Buffer.from(content);
+  const utf8 = bytes.toString('utf8');
+  if (Buffer.from(utf8, 'utf8').equals(bytes)) {
+    return utf8;
+  }
+  return bytes.toString('latin1').replace(k_windows1252ControlRange, character =>
+    k_windows1252MappedCharacters[character.charCodeAt(0) - k_windows1252FirstMappedByte]);
 }
 
 export async function parseImportContent(fileName, content) {
@@ -32,10 +49,18 @@ export async function parseImportContent(fileName, content) {
   // Decode CSV as text before parsing; byte-mode guesses can corrupt UTF-8 names.
   // Keep CSV fields as text so identifiers and ISO dates survive spreadsheet guessing.
   const isCsv = normalizedName.endsWith(k_csvExtension);
-  const workbook = XLSX.read(content, isCsv
+  const workbook = XLSX.read(isCsv ? decodeCsv(content).replace(/^\uFEFF/, '') : content, isCsv
     ? { type: 'string', raw: true }
     : { type: 'array', cellDates: true });
   const transactionSheet = workbook.Sheets[k_transactionSheet] || workbook.Sheets[workbook.SheetNames[0]];
+  if (isCsv) {
+    const csvRows = XLSX.utils.sheet_to_json(transactionSheet, { header: 1, blankrows: true, defval: '' });
+    const bankStatement = readRealBankStatement(csvRows);
+    if (bankStatement) {
+      return bankStatement;
+    }
+  }
+
   return {
     rows: XLSX.utils.sheet_to_json(transactionSheet, { defval: '' }),
     accounts: workbook.Sheets.Accounts ? XLSX.utils.sheet_to_json(workbook.Sheets.Accounts) : null,

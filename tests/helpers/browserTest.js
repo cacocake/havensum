@@ -2,8 +2,8 @@ import { test as baseTest, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
 const k_fontSources = [
-  ['DM Sans', new URL('../../node_modules/@expo-google-fonts/dm-sans/400Regular/DMSans_400Regular.ttf', import.meta.url)],
-  ['Fredoka', new URL('../../node_modules/@expo-google-fonts/fredoka/400Regular/Fredoka_400Regular.ttf', import.meta.url)]
+  ['DM Sans', new URL(import.meta.resolve('@expo-google-fonts/dm-sans/400Regular/DMSans_400Regular.ttf'))],
+  ['Fredoka', new URL(import.meta.resolve('@expo-google-fonts/fredoka/400Regular/Fredoka_400Regular.ttf'))]
 ];
 const k_fontStyles = await Promise.all(k_fontSources.map(async ([family, path]) => {
   const font = await readFile(path);

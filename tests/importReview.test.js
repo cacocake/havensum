@@ -3,6 +3,17 @@ import assert from 'node:assert/strict';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 import { previewImportFile } from '../src/importFileReview.js';
 import { applyTransactionImport, reviseTransactionImport } from '../src/importReview.js';
+import { createPaybackTask } from '../src/paybackTasks.js';
+
+test('an approved CSV edit cannot shrink an expense below its recorded expected payback', async () => {
+  const original = createTransaction({ amount: 8000 });
+  const base = createFinancialState({ transactions: [original] });
+  const state = createPaybackTask(base, original.id, { id: 'pending-payback', expectedAmount: 6000, at: '2026-11-18T12:00:00.000Z' });
+  const { previewTransactionImport } = await import('../src/importReview.js');
+  const review = previewTransactionImport(state, [{ ...original, amount: 4000 }]);
+  assert.throws(() => applyTransactionImport(state, review, { 0: 'replace' }), /payback.*expected amount/i);
+  assert.equal(state.transactions[0].amount, 8000);
+});
 
 test('editing a valid import row leaves a separate source error visible until explicitly skipped', () => {
   const state = createFinancialState();

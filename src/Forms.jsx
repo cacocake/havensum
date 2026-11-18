@@ -1,4 +1,3 @@
-import { createEntityId } from './identifiers';
 import { saveTransaction, deleteTransaction } from './transactionActions.js';
 import { useDirtyForm } from './useDirtyForm.js';
 import React,{useState,useContext,useRef} from 'react';
@@ -59,6 +58,7 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
        id: item?.id ?? createEntityId(k_entityIdPrefixes.transaction),
        linkedId: undefined,
        toAccount: undefined,
+       counterpartSourceFingerprint: undefined,
        type, title: title.trim(), amount: cents(amount), account, date, note,
        category: isTransfer ? null : category,
        loanId: category === k_systemCategoryIds.loan ? (item?.loanId ?? draft?.loanId) : undefined,
@@ -66,6 +66,9 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
      };
      if (isTransfer) {
        transaction.toAccount = toAccount;
+       if (item?.toAccount === toAccount) {
+         transaction.counterpartSourceFingerprint = item?.counterpartSourceFingerprint;
+       }
      }
      if (type === k_transactionTypes.reimbursement && link && linkedId !== '') {
        transaction.linkedId = linkedId;

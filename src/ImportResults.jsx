@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { View } from 'react-native';
 import { Theme, H, T, Row, Button } from './ui.jsx';
 import { euro } from './money.js';
+import { formatReviewRowLabel } from './importOutcomes.js';
 
 export function AccountBalanceReview({ balances, afterLabel }) {
   const colors = useContext(Theme);
@@ -28,6 +29,7 @@ export function AccountBalanceReview({ balances, afterLabel }) {
 
 export default function ImportResults({ results, fields, displayField, onDownloadRecovery, onDone }) {
   const colors = useContext(Theme);
+  const multipleStatements = results.rows.some(row => row.bank?.statementNumber > 1);
   return (
     <>
       <Row style={{ gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -40,11 +42,11 @@ export default function ImportResults({ results, fields, displayField, onDownloa
         const { transaction } = row;
         return (
           <View key={row.index} style={{ gap: 5, paddingVertical: 12, borderBottomWidth: 1, borderColor: colors.line }}>
-            <T style={{ fontSize: 12, color: colors.sub }}>Row {row.index + 1} · {row.label}</T>
+            <T style={{ fontSize: 12, color: colors.sub }}>{formatReviewRowLabel(row, multipleStatements)} · {row.label}</T>
             <T style={{ fontWeight: '600' }}>{transaction.title}</T>
             {transaction.amount !== undefined && (
               <T style={{ fontSize: 12, color: colors.sub }}>
-                {transaction.date} · {transaction.type} · {displayField('account', transaction.account)}
+                {transaction.date} · {transaction.type || row.bank?.direction} · {displayField('account', transaction.account)}
                 {transaction.toAccount !== undefined && ` → ${displayField('toAccount', transaction.toAccount)}`}
                 {' · '}{euro(transaction.amount)}
               </T>

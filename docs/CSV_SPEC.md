@@ -28,6 +28,7 @@ Use a shared pure parsing/validation/normalization layer, with native/browser fi
 | kind | Optional Fixed / Variable / Occasional override; empty means use category default |
 | note | Optional free text, correctly quoted |
 | external_source / external_id | Optional provenance, namespaced and scoped to source account/profile |
+| source_fingerprint | Optional source-content fingerprint used to suggest duplicate candidates. A fingerprint cannot prove identity or cause an automatic skip. |
 | loan_id | Optional registered-loan relationship; map/review rather than inventing a loan |
 | expect_payback | Optional true/false on expense; absent preserves compatibility with old files |
 | expected_payback_amount | Optional total expected reimbursement in EUR; task metadata only |
@@ -63,6 +64,20 @@ CSV import is transaction exchange. Full JSON restore and three-way shared-file 
 ## Bank profile fixture checklist
 
 Obtain a sanitized sample of each actual bank/export variant and expected outputs. Cover headers/preamble/footer, delimiter, quoting, encoding, date formats, booking versus value date, signed amount versus debit/credit columns, thousands/decimal separators, stable references, currency, account selection and statement overlap. Keep source row references for errors, but minimize retained private raw data. Confirm the date basis and classification rules explicitly per adapter.
+
+### Real Bank v1
+
+The adapter recognizes the owner-confirmed layout with the report preamble and the transaction headers `Data mov.`, `Data valor`, `Descrição`, `Débito`, `Crédito`, `Saldo contabilístico`, `Saldo disponível`, and `Categoria`. The supplied example parses in UTF-8 with a byte order mark and in Windows-1252. Havensum uses `Data valor` as the transaction date. The owner confirmed that this export is always EUR.
+
+Parsing keeps the transaction direction, value date, source row and amount in integer cents for review. The observed layout has separate debit and credit columns and omits a stable transaction reference. The report account label may be masked, so it cannot establish an account mapping or prove that rows in overlapping files are the same movement.
+
+For expense rows, use `Categoria` as a source label in the existing category mapping. Suggest an existing category only for a unique exact match, and ask the user to resolve unknown or ambiguous labels in preview. A match uses the existing category ID and preserves its settings. A transfer does not need a spending category, and a linked reimbursement offsets the category of its original expense.
+
+The adapter opens the shared import review after the user selects a Havensum account for each statement. Debit and credit classifications require a choice. For a reimbursement, select an existing expense, classify a draft in the same batch as an expense and select it, or explicitly choose an unlinked balance adjustment. Classifying a bank draft as an expense reserves an ID for links and keeps the draft out of the ledger before confirmation. The picker distinguishes recorded expenses from those in the import. Skipping a linked draft requires choosing a valid expense or explicitly unlinking the credit before confirming. Transfer review combines an unclassified credit and debit from different accounts with the same source amount after the user selects the pair. If the two value dates differ, the user chooses which to use.
+
+Repeated or overlapping rows are offered as possible matches within the same profile and target account. The adapter fingerprints the source movement before draft edits. Identical purchases remain separate candidates for the user to evaluate. The one supplied debit example is verified. Credit, refund, overlap and two-sided transfer behavior use synthetic fixtures; other actual export variants and different-date transfer pairs need verification.
+
+Review can flag overlaps between statements in the same batch. For paired transfers, both statements must be included. The transfer uses the shared statement amount and a confirmed source value date. Skipping the debit skips both sides, and the result describes that decision. Both source fingerprints survive canonical CSV export so either side can be reviewed on a later import.
 
 ## Minimum acceptance suite
 

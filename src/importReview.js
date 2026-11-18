@@ -1,10 +1,14 @@
 import { validateTransaction } from './transactionValidation.js';
 import { isRecordIdentifier } from './recordIdentity.js';
+import { bankTransferCounterparts, validateBankDraft } from './realBankReview.js';
+import { k_transactionTypes } from './domainConstants.js';
+import { validatePaybackState } from './paybackState.js';
 
 const k_exchangeFields = [
   'type', 'title', 'amount', 'date', 'account', 'category', 'kind', 'note',
-  'linkedId', 'toAccount', 'externalSource', 'externalId', 'loanId'
+  'linkedId', 'toAccount', 'externalSource', 'externalId', 'sourceFingerprint', 'counterpartSourceFingerprint', 'loanId'
 ];
+const k_provenanceFields = new Set(['externalSource', 'externalId', 'sourceFingerprint', 'counterpartSourceFingerprint']);
 
 function comparableTransaction(transaction) {
   return k_exchangeFields.map(field => field === 'externalId' ? String(transaction[field] ?? '') : transaction[field] ?? '');
@@ -19,7 +23,14 @@ function updatedTransaction(existing, incoming) {
   for (const field of k_exchangeFields) {
     delete transaction[field];
   }
-  return { ...transaction, ...incoming, id: existing.id };
+  const updated = { ...transaction, ...incoming, id: existing.id };
+  if (existing.counterpartSourceFingerprint && updated.counterpartSourceFingerprint === undefined
+    && updated.type === k_transactionTypes.transfer
+    && updated.account === existing.account && updated.toAccount === existing.toAccount
+    && updated.externalSource === existing.externalSource && updated.sourceFingerprint === existing.sourceFingerprint) {
+    updated.counterpartSourceFingerprint = existing.counterpartSourceFingerprint;
+  }
+  return updated;
 }
 
 function hasSameExternalIdentity(first, second) {
@@ -33,19 +44,37 @@ function hasExternalIdentity(transaction) {
   return Boolean(transaction.externalSource) && transaction.externalId !== undefined && transaction.externalId !== null && transaction.externalId !== '';
 }
 
+function matchesTransferCredit(transfer, record) {
+  const creditFingerprint = transfer.counterpartSourceFingerprint;
+  if (transfer.type !== k_transactionTypes.transfer || !creditFingerprint) {
+    return false;
+  }
+  const standaloneMatch = transfer.toAccount === record.account && creditFingerprint === record.sourceFingerprint;
+  const pairedMatch = record.type === k_transactionTypes.transfer
+    && transfer.toAccount === record.toAccount && creditFingerprint === record.counterpartSourceFingerprint;
+  return standaloneMatch || pairedMatch;
+}
+
 function possibleDuplicate(first, second) {
   if (hasExternalIdentity(first) && hasExternalIdentity(second)) {
     return false;
   }
-  const fields = k_exchangeFields.filter(field => !['externalSource', 'externalId'].includes(field));
+  if (first.externalSource && first.externalSource === second.externalSource) {
+    const ownMovement = first.account === second.account
+      && Boolean(second.sourceFingerprint) && first.sourceFingerprint === second.sourceFingerprint;
+    if (ownMovement || matchesTransferCredit(first, second) || matchesTransferCredit(second, first)) {
+      return true;
+    }
+  }
+  const fields = k_exchangeFields.filter(field => !k_provenanceFields.has(field));
   return fields.every(field => (first[field] ?? '') === (second[field] ?? ''));
 }
 
-function reviewStatus(existing, transaction, possibleMatches) {
+function reviewStatus(existing, transaction, hasPossibleMatch) {
   if (existing) {
-    return sameTransaction(existing, transaction) ? 'unchanged' : 'edited';
+    return sameTransaction(existing, updatedTransaction(existing, transaction)) ? 'unchanged' : 'edited';
   }
-  return possibleMatches.length ? 'possible' : 'new';
+  return hasPossibleMatch ? 'possible' : 'new';
 }
 
 function markRepeatedIdentities(rows) {
@@ -90,14 +119,43 @@ function markRepeatedIdentities(rows) {
   }
 }
 
-export function previewTransactionImport(state, transactions, originals = transactions) {
+function bankOverlapLookup(originals, bankRows) {
+  const groups = new Map();
+  const identities = new Map();
+  for (const [index, original] of originals.entries()) {
+    if (!bankRows[index] || !original.sourceFingerprint) {
+      continue;
+    }
+    const identity = JSON.stringify([original.externalSource, original.account, original.sourceFingerprint]);
+    const matches = groups.get(identity) ?? [];
+    matches.push(index);
+    groups.set(identity, matches);
+    identities.set(index, identity);
+  }
+  return index => (groups.get(identities.get(index)) ?? [])
+    .filter(match => bankRows[match].statementNumber !== bankRows[index].statementNumber);
+}
+
+export function previewTransactionImport(state, transactions, options = {}) {
+  const { originals = transactions, bankRows = [], bankPairs = {} } = options;
+  const pairedCredits = new Map(Object.entries(bankPairs).map(([debit, pair]) => [pair.counterpartIndex, Number(debit)]));
+  const overlappingBankRows = bankOverlapLookup(originals, bankRows);
   const rows = transactions.map((transaction, index) => {
+    const bank = bankRows[index];
+    const sourceRow = bank?.sourceRow ?? index + 1;
+    const pairedBy = pairedCredits.get(index);
+    if (pairedBy !== undefined) {
+      return { index, sourceRow, bank, transaction, pairedBy, status: 'paired' };
+    }
+    if (bank?.error) {
+      return { index, sourceRow, bank, transaction, status: 'invalid', normalizationError: bank.error, error: bank.error };
+    }
     const hasLedgerId = isRecordIdentifier(transaction.id);
     const matchingRecords = state.transactions.filter(record =>
       (hasLedgerId && record.id === transaction.id) || hasSameExternalIdentity(record, transaction));
     if (matchingRecords.length > 1) {
       return {
-        index, transaction, status: 'invalid',
+        index, sourceRow, bank, transaction, status: 'invalid',
         error: 'The identifiers match different transactions. Correct the ledger ID or source reference before importing.'
       };
     }
@@ -105,13 +163,22 @@ export function previewTransactionImport(state, transactions, originals = transa
     const original = originals[index];
     const possibleMatches = state.transactions.filter(record => possibleDuplicate(record, transaction)
       || (original !== transaction && possibleDuplicate(record, original)));
+    const possibleStatementMatches = overlappingBankRows(index)
+      .filter(match => match < index || pairedCredits.has(match));
+    const pair = bankPairs[index];
+    if (pair) {
+      const matchingPairedCredits = overlappingBankRows(pair.counterpartIndex)
+        .filter(match => pairedCredits.get(match) < index);
+      possibleStatementMatches.push(...matchingPairedCredits);
+    }
     return {
-      index, transaction, existing, possibleMatches,
-      status: reviewStatus(existing, transaction, possibleMatches)
+      index, sourceRow, bank, transaction, existing, possibleMatches, possibleStatementMatches, pair,
+      status: reviewStatus(existing, transaction, possibleMatches.length > 0 || possibleStatementMatches.length > 0)
     };
   });
-  markRepeatedIdentities(rows.filter(row => row.status !== 'invalid'));
-  const candidates = new Map(rows.filter(row => row.status !== 'invalid' && row.duplicateOf === undefined).map(row => [row.index,
+  const candidateRows = rows.filter(row => row.status !== 'invalid' && row.status !== 'paired');
+  markRepeatedIdentities(candidateRows);
+  const candidates = new Map(candidateRows.filter(row => row.status !== 'invalid' && row.duplicateOf === undefined).map(row => [row.index,
     row.existing ? updatedTransaction(row.existing, row.transaction) : { ...row.transaction, id: row.transaction.id ?? Symbol('preview') }
   ]));
   const importedIds = new Set([...candidates.values()].map(transaction => transaction.id));
@@ -123,28 +190,50 @@ export function previewTransactionImport(state, transactions, originals = transa
     ]
   };
   for (const row of rows) {
-    if (row.status === 'invalid') {
+    if (row.status === 'invalid' || row.status === 'paired') {
       continue;
     }
     try {
       const transaction = candidates.get(row.duplicateOf ?? row.index);
+      if (row.bank) {
+        validateBankDraft(row.bank, transaction, row.pair);
+      }
       validateTransaction(combinedState, transaction);
     } catch (error) {
       row.status = 'invalid';
       row.error = error.message;
     }
   }
-  return { rows, originals, baseline: JSON.stringify(state) };
+  return { rows, originals, bankRows, bankPairs, baseline: JSON.stringify(state) };
 }
 
-export function reviseTransactionImport(state, review, rowIndex, changes) {
+export function reviseTransactionImport(state, review, rowIndex, { counterpartIndex, transferDate, ...changes }) {
   if (JSON.stringify(state) !== review.baseline) {
     throw Error('The ledger changed after preview. Preview this file again before editing.');
+  }
+  const bankPairs = { ...review.bankPairs };
+  const editedRow = review.rows[rowIndex];
+  if (editedRow.bank) {
+    delete bankPairs[rowIndex];
+    changes.counterpartSourceFingerprint = undefined;
+    if (changes.type === k_transactionTypes.transfer) {
+      const counterpart = bankTransferCounterparts(review, rowIndex).find(row => row.index === counterpartIndex);
+      changes.toAccount = counterpart?.transaction.account;
+      if (counterpart) {
+        const sourceDates = [editedRow.bank.valueDate, counterpart.bank.valueDate];
+        const sameDate = sourceDates[0] === sourceDates[1];
+        const dateConfirmed = sameDate || sourceDates.includes(transferDate);
+        changes.amount = review.originals[rowIndex].amount;
+        changes.date = !sameDate && dateConfirmed ? transferDate : sourceDates[0];
+        changes.counterpartSourceFingerprint = review.originals[counterpart.index].sourceFingerprint;
+        bankPairs[rowIndex] = { counterpartIndex: counterpart.index, dateConfirmed };
+      }
+    }
   }
   const transactions = review.rows.map(row => row.index === rowIndex
     ? { ...row.transaction, ...changes }
     : row.transaction);
-  const revised = previewTransactionImport(state, transactions, review.originals);
+  const revised = previewTransactionImport(state, transactions, { originals: review.originals, bankRows: review.bankRows, bankPairs });
   for (const row of review.rows) {
     if (row.normalizationError) {
       const revisedRow = revised.rows[row.index];
@@ -167,9 +256,9 @@ export function applyTransactionImport(state, review, choices, createIdentifier)
       if (choice === 'skip') {
         continue;
       }
-      throw Error(`Row ${row.index + 1}: ${row.error}`);
+      throw Error(`Row ${row.sourceRow}: ${row.error}`);
     }
-    if (row.status === 'unchanged') {
+    if (row.status === 'unchanged' || row.status === 'paired') {
       continue;
     }
     if (row.status === 'edited') {
@@ -206,5 +295,5 @@ export function applyTransactionImport(state, review, choices, createIdentifier)
       throw Error(`${origin} ${title} (${transaction.date || 'unknown date'}): ${error.message}`, { cause: error });
     }
   }
-  return result;
+  return validatePaybackState(result);
 }

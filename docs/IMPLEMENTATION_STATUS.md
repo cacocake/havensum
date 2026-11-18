@@ -15,7 +15,7 @@
 | Havensum rename and vector/logo assets | Integrated across browser and Android. |
 | CSV primary export, template and reviewed import identity | Integrated with editable review, duplicate decisions and a separate recovery copy. |
 | Expected-payback tasks | Integrated with manual closure, linked payments and reviewed backup merge. |
-| Bank-specific adapters | Pending sanitized samples and agreed normalized results when that stage is reached |
+| Bank-specific adapters | Real Bank profile available for reviewed import. The supplied debit format was verified. Additional variants and real reconciliation cases need sanitized samples. |
 
 New-record IDs use browser cryptographic random bytes and the Expo SDK 54-compatible native crypto provider. Migration preserves existing IDs, original expense/payback links, deterministic interest IDs, imported identities and both legacy storage keys.
 
