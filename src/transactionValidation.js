@@ -1,6 +1,8 @@
 import { euro, isPositiveCentAmount } from './money.js';
-import { k_transactionTypes } from './domainConstants.js';
+import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
 import { k_calendarDateLength } from './calendar.js';
+import { isPlannedCostLink } from './plannedCosts.js';
+import { categorySettings } from './ledger.js';
 
 const k_supportedTransactionTypes = new Set(Object.values(k_transactionTypes));
 const k_isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -13,7 +15,8 @@ const k_errors = {
   date: 'Choose a valid date.',
   destination: 'Choose a different destination account.',
   missingExpense: 'The linked expense no longer exists.',
-  receivedPaybacks: 'This expense has linked reimbursements. Adjust those first.'
+  receivedPaybacks: 'This expense has linked reimbursements. Adjust those first.',
+  plannedCost: 'Choose a valid planned cost for an expense without a loan obligation.'
 };
 
 function hasIdentifier(value) {
@@ -38,6 +41,13 @@ export function validateTransaction(state, transaction) {
   }
   if (!state.accounts.some(account => account.id === transaction.account)) {
     throw Error(k_errors.account);
+  }
+  if (transaction.plannedCost !== undefined) {
+    const category = categorySettings(state.categories, transaction.category);
+    const isLoan = transaction.loanId != null || category.id === k_systemCategoryIds.loan || category.parentId === k_systemCategoryIds.loan;
+    if (transaction.type !== k_transactionTypes.expense || isLoan || !isPlannedCostLink(transaction.plannedCost)) {
+      throw Error(k_errors.plannedCost);
+    }
   }
 
   const parsedDate = new Date(transaction.date);

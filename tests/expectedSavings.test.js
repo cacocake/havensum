@@ -3,7 +3,31 @@ import assert from 'node:assert/strict';
 import { expectedSavings } from '../src/expectedSavings.js';
 import { billIdentity } from '../src/outlookInputs.js';
 import { planInsights } from '../src/planInsights.js';
+import { accountBalance, reportingMonthStats } from '../src/ledger.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
+
+test('two early payments count once in their specific planned month and keep their cash dates', () => {
+  const plannedCost = { eventId: 'trip', month: '2027-11' };
+  const state = createFinancialState({
+    events: [{ id: 'trip', name: 'Trip', month: 11, amount: 120000 }],
+    outlook: { completeMonths: ['2027-03', '2027-04'] },
+    transactions: [
+      createTransaction({ id: 'tickets', amount: 40000, category: 'shopping', date: '2027-03-12', plannedCost }),
+      createTransaction({ id: 'bookings', amount: 30000, category: 'shopping', date: '2027-04-16', plannedCost })
+    ]
+  });
+  const today = '2027-05-01';
+  assert.equal(accountBalance(state, 'everyday', '2027-03-31'), 60000);
+  assert.equal(accountBalance(state, 'everyday', '2027-04-30'), 30000);
+  assert.equal(reportingMonthStats(state, '2027-03', today).spent, 0);
+  assert.equal(reportingMonthStats(state, '2027-04', today).spent, 0);
+  assert.equal(reportingMonthStats(state, '2027-11', today).spent, 70000);
+  const estimate = expectedSavings(state, '2027-11', today);
+  assert.equal(estimate.events[0].paid, 70000);
+  assert.equal(estimate.events[0].remaining, 50000);
+  assert.equal(estimate.expense, 120000);
+  assert.equal(expectedSavings(state, '2028-11', today).events[0].remaining, 120000);
+});
 
 test('expected savings uses confirmed history without requiring a frozen target', () => {
   const state = createFinancialState({

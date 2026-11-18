@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import { accountBalance, categorySettings, cents, euro, monthStats, validateTransaction } from '../src/engine.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 
+test('only an expense can carry a planned-cost link and it must identify a valid occurrence month', () => {
+  const state = createFinancialState();
+  const transaction = createTransaction({ plannedCost: { eventId: 'event', month: '2026-11' } });
+  assert.equal(validateTransaction(state, transaction), transaction);
+  assert.throws(() => validateTransaction(state, { ...transaction, type: 'income' }), /planned cost/i);
+  assert.throws(() => validateTransaction(state, { ...transaction, plannedCost: { eventId: 'event', month: '2026-13' } }), /planned cost/i);
+});
+
 test('an expense cannot be edited below the reimbursements already received', () => {
   const expense = createTransaction({ amount: 10000 });
   const reimbursement = createTransaction({

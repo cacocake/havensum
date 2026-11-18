@@ -110,6 +110,33 @@ test('an upcoming cost is explicitly matched to its recorded expense', async ({ 
   await expect(page.getByText('Still upcoming €50.00', { exact: true })).toBeVisible();
 });
 
+test('an expense saved from activity can link to a later planned cost and shows the paid amount', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-15T12:00:00') });
+  const state = createFinancialState({
+    events: [{ id: 'trip', name: 'Trip', year: 2026, month: 11, amount: 120000 }],
+    transactions: [createTransaction({ id: 'ticket', title: 'Tickets', category: 'shopping', amount: 40000, date: '2026-03-10' })]
+  });
+  await page.addInitScript(initialState => {
+    if (!localStorage.getItem('melo-state-v1')) {
+      localStorage.setItem('melo-state-v1', JSON.stringify(initialState));
+    }
+  }, state);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Choose month', exact: true }).click();
+  await page.getByRole('button', { name: 'Mar', exact: true }).click();
+  await page.getByLabel('View Tickets', { exact: true }).click();
+  await page.getByRole('button', { name: 'Edit transaction', exact: true }).click();
+  await page.getByLabel('Link to a planned cost', { exact: true }).selectOption({ label: 'Trip · November 2026' });
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
+  await expect(page.getByText('Paid €400.00', { exact: true })).toBeVisible();
+  await expect(page.getByText('Still upcoming €800.00', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByLabel('View net spending transactions').click();
+  await expect(page.getByLabel('View Tickets', { exact: true })).toBeVisible();
+});
+
 test('adopting legacy dated changes retains existing independent assumptions', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-15T12:00:00') });
   const state = createFinancialState({

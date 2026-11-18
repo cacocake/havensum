@@ -87,10 +87,13 @@ export default function ExpectedCosts({ prediction, month }) {
     <T style={{ fontSize: 12, color: colors.sub, marginTop: 8 }}>Historical reserve {euro(prediction.monthlyReserve || 0)}. Known occasional costs use up this reserve; only excess adds to it.</T>
     {(prediction.events || []).map(event => <View key={event.id} style={{ marginTop: 18 }}>
       <T>{event.name} · known cost {euro(event.amount)}</T>
+      {event.paid > 0 && <T>Paid {euro(event.paid)}</T>}
+      {event.scheduled > 0 && <T>Scheduled {euro(event.scheduled)}</T>}
       <T style={{ color: colors.sub, marginTop: 4, marginBottom: 10 }}>Still upcoming {euro(event.remaining)}</T>
       <Select label={`Recorded expense for ${event.name}`} value={event.paymentId === undefined ? '' : String(event.paymentId)} onChange={value => matchEventPayment(event.id, value)} options={[
         { value: '', label: 'Not matched to an expense' },
-        ...occasionalExpenses.filter(expense => !Object.entries(state.outlook?.eventPayments || {}).some(([eventId, paymentId]) => eventIds.has(eventId) && eventId !== String(event.id) && paymentId === expense.id)).map(expense => ({ value: String(expense.id), label: `${expense.date} · ${expense.title} · ${euro(expense.amount)}` }))
+        ...occasionalExpenses.filter(expense => !expense.plannedCost
+          && !Object.entries(state.outlook?.eventPayments || {}).some(([eventId, paymentId]) => eventIds.has(eventId) && eventId !== String(event.id) && paymentId === expense.id)).map(expense => ({ value: String(expense.id), label: `${expense.date} · ${expense.title} · ${euro(expense.amount)}` }))
       ]} />
     </View>)}
     {selectedBill && <Dialog title={selectedBill.name} onClose={() => setSelectedBill(null)}>

@@ -1,5 +1,6 @@
 import { monthOf, k_calendarDateLength } from './calendar.js';
 import { k_spendingBehaviors, k_transactionTypes } from './domainConstants.js';
+import { expenseReportingMonth } from './plannedCosts.js';
 
 const k_allDatesCutoff = '9999-12-31';
 const k_defaultCategory = {
@@ -22,7 +23,7 @@ export function categorySettings(categories, categoryId) {
 
 export function netExpenses(transactions, month) {
   return transactions
-    .filter(transaction => transaction.type === k_transactionTypes.expense && monthOf(transaction.date) === month)
+    .filter(transaction => transaction.type === k_transactionTypes.expense && expenseReportingMonth(transaction) === month)
     .map(expense => {
       const refunded = transactions
         .filter(transaction => transaction.type === k_transactionTypes.reimbursement && transaction.linkedId === expense.id)

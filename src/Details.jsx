@@ -6,6 +6,7 @@ import {euro,accountBalance,categorySettings} from './engine.js';
 import {TransactionRow} from './Dashboard.jsx';
 import Icon from './Icon';
 import {Squish} from './Playful.jsx';
+import { expenseReportingMonth, isPlannedCostLink } from './plannedCosts.js';
 
 export function AccountDetail(){
  const {state,accountId,setScreen,setModal}=useApp(),c=useContext(Theme),account=state.accounts.find(a=>a.id===accountId);
@@ -32,7 +33,10 @@ export function TransactionDetail({transactionId,onClose}){
   <H size={37} style={{marginBottom:20,color:['income','reimbursement'].includes(tx.type)?c.positive:c.text}}>{euro(tx.amount)}</H>
   {[['Date',tx.date],['Account',account?.name||'Unknown account'],...(tx.type==='transfer'?[['To account',state.accounts.find(a=>a.id===tx.toAccount)?.name]]:[['Category',cat.name],['Behaviour',tx.kind||cat.kind]])].map(([label,value])=><Row key={label} style={{justifyContent:'space-between',alignItems:'flex-start',gap:16,marginBottom:13}}><T style={{color:c.sub}}>{label}</T><T style={{flex:1,textAlign:'right'}}>{value}</T></Row>)}
   {!!tx.note&&<View style={{backgroundColor:c.soft,padding:15,borderRadius:15,marginVertical:10}}><T style={{color:c.sub,fontSize:12}}>Note</T><T style={{marginTop:6}}>{tx.note}</T></View>}
-  {tx.type==='expense'&&refunded>0&&<View style={{backgroundColor:c.soft,padding:15,borderRadius:15,marginVertical:12}}><Row style={{justifyContent:'space-between',gap:12}}><T>Paid back</T><T>{euro(refunded)}</T></Row><Row style={{justifyContent:'space-between',gap:12,marginTop:9}}><T>Net expense</T><T style={{fontWeight:'700'}}>{euro(tx.amount-refunded)}</T></Row><T style={{fontSize:12,color:c.sub,marginTop:9}}>Attributed to {tx.date.slice(0,7)}, even when the payback arrives later.</T></View>}
+  {isPlannedCostLink(tx.plannedCost) && <T style={{ color: c.sub, marginBottom: 12 }}>
+    Planned cost · {state.events.find(event => event.id === tx.plannedCost.eventId)?.name ?? 'Former planned cost'} · {tx.plannedCost.month}
+  </T>}
+  {tx.type==='expense'&&refunded>0&&<View style={{backgroundColor:c.soft,padding:15,borderRadius:15,marginVertical:12}}><Row style={{justifyContent:'space-between',gap:12}}><T>Paid back</T><T>{euro(refunded)}</T></Row><Row style={{justifyContent:'space-between',gap:12,marginTop:9}}><T>Net expense</T><T style={{fontWeight:'700'}}>{euro(tx.amount-refunded)}</T></Row><T style={{fontSize:12,color:c.sub,marginTop:9}}>Attributed to {expenseReportingMonth(tx)}, even when the payback arrives later.</T></View>}
   {original&&linkRow(original,'Original expense')}{refunds.map(t=>linkRow(t,'Payback received'))}
   {tx.type==='reimbursement'&&!original&&<T style={{fontSize:12,color:c.sub}}>Balance adjustment · excluded from income and net spending.</T>}
  </Dialog>;
