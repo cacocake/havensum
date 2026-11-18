@@ -169,3 +169,37 @@ test('unverified Cashew beta metadata stays visible as a row error', async () =>
   assert.match(review.rows[1].error, /extra/i);
   assert.deepEqual(applyTransactionImport(state, review, { 0: 'skip', 1: 'skip' }).transactions, []);
 });
+
+test('a Cashew-shaped export with a missing optional header cannot enter generic import', async () => {
+  const header = k_header.replace(',objective', '');
+  await assert.rejects(parseImportContent('synthetic.csv', [header, k_credit.slice(0, -1)].join('\n')),
+    /unsupported Cashew.*header/i);
+});
+
+test('a Cashew layout upgrade still finds the original transaction after it was renamed', async () => {
+  const state = createFinancialState();
+  const options = { accounts: { Wallet: 'everyday' } };
+  const original = await parseImportContent('original.csv', [k_header, k_expense].join('\n'));
+  const draft = previewImportFile(state, original, options);
+  const reviewed = reviseTransactionImport(state, draft, 0, { type: 'expense', category: 'groceries', title: 'Edited purchase' });
+  const saved = applyTransactionImport(state, reviewed, {}, () => 'recorded-purchase');
+  const betaHeader = k_header.replace('amount,currency', 'amount,amount unpaid,currency') + ',extra';
+  const betaRow = k_expense.replace(',EUR,', ',,EUR,').replace(',false,null,', ',false,default,') + ',';
+  const upgraded = await parseImportContent('upgraded.csv', [betaHeader, betaRow].join('\n'));
+  const repeated = previewImportFile(saved, upgraded, options);
+  assert.deepEqual(repeated.rows[0].possibleMatches.map(match => match.id), ['recorded-purchase']);
+});
+
+test('Cashew scheduled entries with no verified payment status cannot add cash movements', async () => {
+  const rows = ['upcoming', 'subscription', 'repetitive'].map(type =>
+    k_expense.replace(',false,null,', ',false,TransactionSpecialType.' + type + ','));
+  const file = await parseImportContent('synthetic.csv', [k_header, ...rows].join('\n'));
+  const state = createFinancialState();
+  let review = previewImportFile(state, file, { accounts: { Wallet: 'everyday' } });
+  for (const index of rows.keys()) {
+    review = reviseTransactionImport(state, review, index, { type: 'expense', category: 'groceries' });
+    assert.equal(review.rows[index].status, 'invalid');
+    assert.match(review.rows[index].error, /payment status/i);
+  }
+  assert.deepEqual(applyTransactionImport(state, review, { 0: 'skip', 1: 'skip', 2: 'skip' }).transactions, []);
+});

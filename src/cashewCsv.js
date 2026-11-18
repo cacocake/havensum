@@ -17,7 +17,7 @@ const k_betaAmount = /^[+-]?(\d+)(?:[.,](\d{1,20}))?$/;
 const k_centsPerEuro = 100n;
 const k_floatingPointNoiseDenominator = 10_000_000_000n;
 const k_datePattern = /^\d{4}-\d{2}-\d{2}$/;
-const k_cashewMarkers = ['account', 'income', 'category name', 'subcategory name', 'emoji', 'objective'];
+const k_cashewMarkers = ['account', 'income', 'category name', 'subcategory name'];
 
 function readAmount(amountText, profile) {
   if (k_signedAmount.test(amountText)) {
