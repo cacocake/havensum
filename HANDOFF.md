@@ -1,5 +1,9 @@
 # Havensum — developer handoff
 
+## Independent Expected savings — 18 November 2026
+
+Implementation is on `codex/independent-expected-savings`, created from `develop` while the two foundation branches remain open and unmerged. The owner clarified that Claude availability blocks merging, not implementation, and that fixed-cost cancellation always applies to an individual bill. See [docs/EXPECTED_SAVINGS_STATUS.md](docs/EXPECTED_SAVINGS_STATUS.md) for the new model, persistence and integration notes. The historical plan-derived statements below describe the imported baseline, not this task branch. Do not merge this or either foundation branch before completed Claude review.
+
 ## Local test hardening — 17 November 2026
 
 The imported baseline now has additional financial, file, storage/native-adapter and browser regression coverage. Tests exposed and fixed validation, history/receipt-date, persistence, CSV decoding, monetary conversion and account-edit defects. See [docs/TESTING.md](docs/TESTING.md) for the test boundaries, commands and limits. Financial code touched by these fixes has been separated into readable modules; `src/engine.js` retains its public compatibility exports. The new Havensum handoff features remain pending. The historical package/source verification statements below describe the imported baseline.

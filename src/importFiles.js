@@ -1,3 +1,5 @@
+import { validateOutlookState } from './outlookInputs.js';
+
 const k_jsonExtension = '.json';
 const k_csvExtension = '.csv';
 const k_transactionSheet = 'Raw transactions';
@@ -16,6 +18,7 @@ export async function parseImportContent(fileName, content) {
       return { rows: data };
     }
     if (Array.isArray(data?.transactions)) {
+      validateOutlookState(data);
       return { rows: data.transactions, backup: data.version ? data : null };
     }
     throw Error(k_missingTransactionsMessage);

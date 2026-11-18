@@ -1,3 +1,4 @@
+import { validateOutlookState } from './outlookInputs.js';
 import React,{useContext,useState,useEffect,useRef} from 'react';
 import {View,Pressable,ScrollView,Platform} from 'react-native';
 import {selectTransactions} from './activity.js';
@@ -73,7 +74,7 @@ export function Settings(){
      if (!file) {
        return;
      }
-     const remoteState = JSON.parse(await file.text());
+     const remoteState = validateOutlookState(JSON.parse(await file.text()));
      if (!k_requiredBackupCollections.every(collection => Array.isArray(remoteState[collection]))) {
        throw Error(k_backupMessages.invalidBackup);
      }
@@ -93,13 +94,48 @@ export function Settings(){
      notify(error.message);
    }
  }
- async function applyMerge(){const result=JSON.parse(JSON.stringify(merge.result));for(const cf of merge.conflicts){const key=cf.collection+'|'+cf.id+'|'+cf.field,selected=merge.choices[key]==='remote'?cf.remote:cf.local;if(cf.field==='$plan'){result.plan=selected;continue;}if(cf.field==='$record'){result[cf.collection]=result[cf.collection].filter(x=>x.id!==cf.id);if(selected)result[cf.collection].push(selected);}else{const rec=result[cf.collection].find(x=>x.id===cf.id);if(rec)rec[cf.field]=selected;}}
- try{for(const t of result.transactions)validateTransaction(result,t);for(const t of result.transactions){if(t.category&&!result.categories.some(c=>c.id===t.category))throw Error('The merged data contains a deleted category still used by a transaction. Resolve that record before merging.');}setState(result);await writeSnapshot(result);setMerge(null);notify('Reviewed changes merged');}catch(e){notify(e.message);}}
+ async function applyMerge() {
+   const result = JSON.parse(JSON.stringify(merge.result));
+   for (const conflict of merge.conflicts) {
+     const choiceKey = `${conflict.collection}|${conflict.id}|${conflict.field}`;
+     const selected = merge.choices[choiceKey] === 'remote' ? conflict.remote : conflict.local;
+     if (conflict.field === '$plan' || conflict.field === '$outlook') {
+       result[conflict.collection] = selected;
+       continue;
+     }
+     if (conflict.field === '$record') {
+       result[conflict.collection] = result[conflict.collection].filter(record => record.id !== conflict.id);
+       if (selected) {
+         result[conflict.collection].push(selected);
+       }
+       continue;
+     }
+     const record = result[conflict.collection].find(record => record.id === conflict.id);
+     if (record) {
+       record[conflict.field] = selected;
+     }
+   }
+   try {
+     validateOutlookState(result);
+     for (const transaction of result.transactions) {
+       validateTransaction(result, transaction);
+       if (transaction.category && !result.categories.some(category => category.id === transaction.category)) {
+         throw Error('The merged data contains a deleted category still used by a transaction. Resolve that record before merging.');
+       }
+     }
+     setState(result);
+     await writeSnapshot(result);
+     setMerge(null);
+     notify('Reviewed changes merged');
+   } catch (error) {
+     notify(error.message);
+   }
+ }
  return <View style={{gap:22}}><Card><H size={22}>A little more you</H><Toggle value={state.theme==='dark'} onChange={v=>setState(s=>({...s,theme:v?'dark':'light'}))} label="Dark theme" description="A softer glow when the day winds down."/><Divider/><Row style={{justifyContent:'space-between',gap:12}}><View style={{flex:1}}><T style={{fontSize:13}}>Currency</T><T style={{fontSize:11,color:c.muted,marginTop:3}}>All balances, amounts, and exports use euros.</T></View><Badge>EUR · €</Badge></Row></Card>
  <Card><Row style={{gap:12,marginBottom:20}}><TileIcon name="ArrowDownToLine" color="#91A4CE"/><View><H size={22}>Your data travels with you</H><T style={{fontSize:11,color:c.sub,marginTop:4}}>Portable files. No bank connection. No lock-in.</T></View></Row><Row style={{gap:10,flexWrap:'wrap'}}><Button small onPress={excel} disabled={busy} icon="Sheet">{busy?'Preparing Excel…':'Export Excel'}</Button><Button small kind="outline" onPress={selectImport} icon="Upload">Import transactions</Button><Button small kind="outline" onPress={exportBackup} icon="Download">Full JSON backup</Button></Row><T style={{fontSize:11,color:c.muted,marginTop:16}}>Excel includes a styled monthly summary, plain transaction rows, and account/category tables. JSON preserves the complete plan and all settings.</T><Divider/><T style={{fontSize:12,fontWeight:'500'}}>Coming from Cashew?</T><T style={{fontSize:11,color:c.sub,marginTop:6}}>Import CSV, Excel, or a transaction-array JSON with column and account/category mapping. Preview every row before importing. Exact compatibility with your Cashew export is unverified until a real file is tested.</T></Card>
  <Card><Row style={{gap:12,marginBottom:18}}><TileIcon name="UsersRound" color="#91B6A9"/><View><H size={22}>A shared rhythm</H><T style={{fontSize:11,color:c.sub,marginTop:4}}>For you and Marina, without the guesswork.</T></View></Row><Row style={{justifyContent:'space-between'}}><T style={{fontSize:13}}>Google Drive</T><Badge>Not connected</Badge></Row><T style={{fontSize:12,color:c.sub,marginTop:12}}>Automatic Drive sync needs Google OAuth configuration. Until then, exchange full JSON backups manually using a common exported baseline.</T><Row style={{gap:10,marginTop:17,flexWrap:'wrap'}}><Button small kind="outline" icon="GitMerge" disabled={isPreview} onPress={mergeFile}>Review backup merge</Button><Button small kind="soft" icon="Download" onPress={exportBackup}>{isPreview ? 'Export example backup' : 'Export shared baseline'}</Button></Row>{isPreview&&<T style={{fontSize:11,color:c.muted,marginTop:15}}>{k_backupMessages.previewUnavailable}</T>}<T style={{fontSize:11,color:c.muted,marginTop:15}}>Different-field edits merge silently. Same-field edits and edit-versus-delete always require your choice. A saved local baseline is used for the three-way comparison.</T><Divider/><Row style={{gap:10}}><Icon name="Eye" size={16} color={c.sub}/><T style={{flex:1,fontSize:11,color:c.sub}}>Both people's accounts are included in an exchanged backup. Account tags are labels, not privacy controls.</T></Row></Card>
  <Card><Row style={{gap:12}}><TileIcon name="ChartNoAxesCombined" color="#B3A0CA"/><View style={{flex:1}}><H size={20}>Investment prices</H><T style={{fontSize:11,color:c.sub,marginTop:6}}>Twelve Data is not connected. Your investments use manual balances. ETF coverage, end-of-day access, and licensing still need verification.</T></View><Badge>Manual</Badge></Row></Card>
- {state.demo&&<Card style={{borderColor:c.dark?'#5b4637':'#f0d6c1'}}><H size={20}>A fresh start</H><T style={{fontSize:12,color:c.sub,marginTop:8,marginBottom:16}}>You are exploring example data. Clear it to begin with your own accounts and transactions. Export a backup first if you want to keep any changes.</T>{clear?<Row style={{gap:10,flexWrap:'wrap'}}><Button small kind="outline" onPress={()=>setClear(false)}>Keep my data</Button><Button small onPress={()=>{setState(s=>({...s,demo:false,accounts:[],transactions:[],loans:[],events:[],plan:null}));setClear(false);notify('Example data cleared');}}>Clear example data permanently</Button></Row>:<Button small kind="outline" onPress={()=>setClear(true)} icon="Eraser">Clear example data</Button>}</Card>}
+ {state.demo&&<Card style={{borderColor:c.dark?'#5b4637':'#f0d6c1'}}><H size={20}>A fresh start</H><T style={{fontSize:12,color:c.sub,marginTop:8,marginBottom:16}}>You are exploring example data. Clear it to begin with your own accounts and transactions. Export a backup first if you want to keep any changes.</T>{clear?<Row style={{gap:10,flexWrap:'wrap'}}><Button small kind="outline" onPress={()=>setClear(false)}>Keep my data</Button><Button small onPress={()=>{setState(s=>({...s,demo:false,accounts:[],transactions:[],loans:[],events:[],plan:null,outlook:{}}));setClear(false);notify('Example data cleared');}}>Clear example data permanently</Button></Row>:<Button small kind="outline" onPress={()=>setClear(true)} icon="Eraser">Clear example data</Button>}</Card>}
  <T style={{fontSize:11,color:c.muted,textAlign:'center'}}>Melo 0.1 · Android-first React Native · Browser preview</T>
  {importData&&<ImportDialog data={importData} onClose={()=>setImportData(null)}/>}
  {merge&&<Dialog title="Two sides. Your choice." subtitle={`${merge.conflicts.length} conflicts need review. Nothing is applied until you finish.`} onClose={()=>setMerge(null)} width={650}>

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { k_stateStorageKey, k_snapshotStorageKey } from './storageKeys.js';
 import { parseMergeBaseline } from './storageSerialization.js';
+import { validateOutlookState } from './outlookInputs.js';
 
 let g_stateWriteQueue = Promise.resolve();
 
@@ -10,11 +11,11 @@ export function isDemoSession() {
 
 export async function readState() {
   const encodedState = await AsyncStorage.getItem(k_stateStorageKey);
-  return encodedState ? JSON.parse(encodedState) : null;
+  return encodedState ? validateOutlookState(JSON.parse(encodedState)) : null;
 }
 
 export function writeState(state) {
-  const encodedState = JSON.stringify(state);
+  const encodedState = JSON.stringify(validateOutlookState(state));
   // A failed write is still reported to its caller, but must not poison later saves.
   const currentWrite = g_stateWriteQueue.catch(() => {}).then(() => (
     AsyncStorage.setItem(k_stateStorageKey, encodedState)
@@ -29,5 +30,5 @@ export async function readSnapshot() {
 }
 
 export async function writeSnapshot(state) {
-  await AsyncStorage.setItem(k_snapshotStorageKey, JSON.stringify(state));
+  await AsyncStorage.setItem(k_snapshotStorageKey, JSON.stringify(validateOutlookState(state)));
 }

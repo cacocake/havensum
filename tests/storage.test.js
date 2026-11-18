@@ -4,6 +4,15 @@ import { readState, writeState, readSnapshot, writeSnapshot } from '../src/stora
 import { installBrowserStorage } from './helpers/browserStorage.js';
 import { createFinancialState } from './helpers/financialFixtures.js';
 
+test('invalid outlook cents cannot replace a saved ledger', async context => {
+  const storage = installBrowserStorage(context);
+  const state = createFinancialState();
+  await writeState(state);
+  const invalidState = { ...state, outlook: { incomeChanges: [{ since: '2026-11', amount: 1.5 }] } };
+  await assert.rejects(writeState(invalidState), /outlook/i);
+  assert.equal(storage.getItem('melo-state-v1'), JSON.stringify(state));
+});
+
 test('corrupt browser storage is reported instead of being treated as an empty ledger', async context => {
   const storage = installBrowserStorage(context);
   storage.setItem('melo-state-v1', '{broken-private-ledger');

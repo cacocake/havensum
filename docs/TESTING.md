@@ -65,6 +65,8 @@ Corrupt saved data and unavailable device storage have distinct startup messages
 
 ## Pending requirements stay pending
 
+On `codex/independent-expected-savings`, the independent forecast implementation has public-boundary regressions for target independence, confirmed zero-activity months, partial/absent history, per-bill cancellation, receipt-date reimbursement netting, variable category allocation, calendar boundaries, per-loan coverage, known occasional cost matching, additive backup metadata and reviewed outlook conflicts. The shared UI includes narrow-width full-amount/bounds checks. See EXPECTED_SAVINGS_STATUS.md for its unmerged status and foundation integration requirements. Coverage gates measure exercised code, not exhaustive financial correctness or device certification.
+
 Do not treat old plan-derived forecast tests as the final product specification. Replace the superseded expectations when implementing independent Expected savings, and add the required target-independence regression then. Payback tasks, CSV template/export and reconciliation, migrations/restore, historical plan archives, bank adapters, Drive and investment quotes require their own test-first slices when implemented. No self-learning prediction model is implemented or verified by these tests.
 
 The successful Hermes export checks Android compilation only. Native module substitutes and browser runs cannot establish Android installability or physical-device behavior.

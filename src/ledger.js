@@ -6,12 +6,16 @@ const k_defaultCategory = {
   name: 'Uncategorized', color: '#aa9ca5', icon: 'Shapes', kind: k_spendingBehaviors.variable
 };
 
+export function hasCategoryParent(category) {
+  return category.parentId !== undefined && category.parentId !== null && category.parentId !== '';
+}
+
 export function categorySettings(categories, categoryId) {
   const category = categories.find(category => category.id === categoryId);
   if (!category) {
     return { ...k_defaultCategory };
   }
-  const parentSettings = category.parentId ? categorySettings(categories, category.parentId) : {};
+  const parentSettings = hasCategoryParent(category) ? categorySettings(categories, category.parentId) : {};
   const explicitSettings = Object.entries(category).filter(([, value]) => value !== null && value !== undefined && value !== '');
   return { ...parentSettings, ...Object.fromEntries(explicitSettings) };
 }

@@ -105,3 +105,17 @@ As of 17 November 2026. Latest requirements in docs/HAVENSUM_REQUIREMENTS.md sup
 | H04 | Owner preference, pending | CSV as the primary transaction export; JSON remains the full-state backup | Supersedes I03's XLSX-first requirement; CSV cannot preserve workbook styling or the entire state graph |
 | H05 | Owner requirement, pending | Expense toggle “Expect a payback”; list “Awaiting paybacks” | Task can record a linked payback or close without one; task closure never invents money |
 | H06 | Owner clarification, pending | Expected savings predicts the outcome independently of Planned savings | Supersedes F10 as the desired algorithm; target-only edits must not change prediction |
+
+## Owner-confirmed implementation policies — 17–18 November 2026
+
+These are approved requirements. Implementations on open task branches are not yet integrated or Claude-reviewed.
+
+| ID | Status | Decision | Consequence |
+| --- | --- | --- | --- |
+| H07 | Owner approved | Occasional reserve uses historical monthly average; known upcoming occasional costs use up the reserve | Do not add the entire reserve and all known costs as independent expenses |
+| H08 | Owner approved | A missing fixed cost stays in Expected savings until explicitly marked cancelled | Missing transactions alone do not silently cancel an obligation |
+| H09 | Owner approved | Owner marks historical months complete after entering/importing all income and expenses | Incomplete history supports a clearly labelled partial estimate; do not infer completeness from the presence of a transaction |
+| H10 | Owner approved | Keep original ledger and merge-baseline recovery copies for each migrated version until explicitly removed | Migration must not overwrite or automatically prune those original recovery copies |
+| H11 | Owner confirmed, 18 November | Cancellation always applies to an individual bill, never a category total | Rent and Internet in the same category remain separate obligations; use account/category/title identity and an explicit effective month |
+| W01 | Owner approved workflow | Integrate task branches into develop; master is release-only | New task/bug branches start from develop; no release merge without owner instruction |
+| W02 | Owner required review gate | Claude availability blocks merging, not implementation | Keep task branches open and unmerged until completed Claude review and resolution of actionable findings; no push |

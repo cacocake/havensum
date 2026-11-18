@@ -20,6 +20,16 @@ beforeEach(() => {
   g_values.clear();
 });
 
+test('native storage retains outlook inputs and rejects invalid replacements', async () => {
+  const state = createFinancialState({ outlook: { completeMonths: ['2026-10'], incomeChanges: [{ since: '2026-11', amount: 200000 }] } });
+  await writeState(state);
+  await writeSnapshot(state);
+  assert.deepEqual(await readState(), state);
+  assert.deepEqual(await readSnapshot(), state);
+  assert.throws(() => writeState({ ...state, outlook: { window: 0 } }), /outlook/i);
+  assert.deepEqual(await readState(), state);
+});
+
 test('native storage retains legacy state and baseline independently', async () => {
   const state = createFinancialState();
   const snapshot = createFinancialState({ theme: 'dark' });

@@ -22,10 +22,19 @@ export function mergeThreeWay(base,local,remote){
    }merged.push(item);
   }result[collection]=merged;
  }
- // The frozen plan is versioned as a record. Never silently replace a concurrent plan revision.
- if(JSON.stringify(local.plan)!==JSON.stringify(remote.plan)&&JSON.stringify(base.plan)!==JSON.stringify(remote.plan)){
-  if(JSON.stringify(base.plan)===JSON.stringify(local.plan))result.plan=remote.plan;
-  else conflicts.push({collection:'plan',id:'plan',field:'$plan',base:base.plan,local:local.plan,remote:remote.plan});
+ // Review concurrent snapshot edits, including completion/cancellation metadata.
+ for (const field of ['plan', 'outlook']) {
+  const baseValue = JSON.stringify(base[field]);
+  const localValue = JSON.stringify(local[field]);
+  const remoteValue = JSON.stringify(remote[field]);
+  if (localValue === remoteValue || baseValue === remoteValue) {
+   continue;
+  }
+  if (baseValue === localValue) {
+   result[field] = remote[field];
+   continue;
+  }
+  conflicts.push({collection:field,id:field,field:`$${field}`,base:base[field],local:local[field],remote:remote[field]});
  }
  return {result,conflicts};
 }
