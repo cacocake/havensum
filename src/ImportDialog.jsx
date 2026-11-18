@@ -63,6 +63,22 @@ function displayField(state, field, value) {
   return String(value);
 }
 
+function expensesForReview(state, review, choices) {
+  const transactions = new Map(state.transactions.map(transaction => [transaction.id, transaction]));
+  for (const row of review.rows) {
+    const choice = choices[row.index];
+    if (row.status === 'invalid' || choice === 'skip' || choice === 'keep') {
+      continue;
+    }
+    const id = row.existing?.id ?? row.transaction.id;
+    if (id !== undefined) {
+      transactions.set(id, { ...row.transaction, id });
+    }
+  }
+  return [...transactions.values()]
+    .filter(transaction => transaction.id !== undefined && transaction.type === k_transactionTypes.expense);
+}
+
 export default function ImportDialog({ data, onClose }) {
   const { state, setState } = useApp();
   const colors = useContext(Theme);
@@ -197,12 +213,7 @@ export default function ImportDialog({ data, onClose }) {
     }
   }, [state, review, choices, unresolved, results]);
   const balances = review && !results ? getImportBalances(state, review, projection.result) : [];
-  const expenses = editingRow === null ? [] : [...new Map([
-    ...state.transactions,
-    ...review.rows.filter(row => row.status !== 'invalid' && choices[row.index] !== 'skip' && choices[row.index] !== 'keep')
-      .map(row => row.transaction)
-  ].filter(transaction => transaction.type === 'expense' && transaction.id !== undefined)
-    .map(transaction => [transaction.id, transaction])).values()];
+  const expenses = editingRow === null ? [] : expensesForReview(state, review, choices);
   const counterparts = editingRow !== null && review.rows[editingRow].bank?.direction === 'debit'
     ? bankTransferCounterparts(review, editingRow) : [];
 

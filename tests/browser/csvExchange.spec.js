@@ -144,6 +144,32 @@ test('editing a refund leaves its unresolved expense link in place until explici
   expect(saved[1]).toMatchObject({ type: 'reimbursement', title: 'Renamed refund', linkedId: 'weekly-shopping' });
 });
 
+test('a payback links to the ledger ID when a source reference matches an edited expense with a different file ID', async ({ page }) => {
+  await page.evaluate(() => {
+    const ledger = JSON.parse(localStorage.getItem('melo-state-v1'));
+    Object.assign(ledger.transactions[0], { externalSource: 'synthetic-source', externalId: 'purchase-01' });
+    localStorage.setItem('melo-state-v1', JSON.stringify(ledger));
+  });
+  await page.reload();
+  await openMoreSection(page, 'Settings');
+  const dialog = await previewFile(page, [
+    'id,date,title,amount,type,account,category,externalSource,externalId',
+    'file-expense,2026-11-10,Renamed purchase,12.34,expense,everyday,groceries,synthetic-source,purchase-01',
+    ',2026-11-12,Refund,2.00,reimbursement,everyday,groceries,,'
+  ].join('\n'));
+  await dialog.getByLabel('Row 1 decision', { exact: true }).selectOption('replace');
+  await dialog.getByRole('button', { name: 'Edit row 2', exact: true }).click();
+  const link = dialog.getByLabel('Original expense', { exact: true });
+  await link.selectOption({ label: 'Renamed purchase · €12.34 · 2026-11-10' });
+  await expect(link).toHaveValue('weekly-shopping', { timeout: 2500 });
+  await dialog.getByRole('button', { name: 'Update draft' }).click();
+  await dialog.getByRole('button', { name: 'Import transactions', exact: true }).click();
+  await expect(dialog.getByText('Import results', { exact: true })).toBeVisible();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')));
+  expect(saved.transactions[0]).toMatchObject({ id: 'weekly-shopping', title: 'Renamed purchase' });
+  expect(saved.transactions[1]).toMatchObject({ type: 'reimbursement', linkedId: 'weekly-shopping' });
+});
+
 test('review shows the before and projected balances for both sides of a transfer', async ({ page }) => {
   const dialog = await previewFile(page,
     'date,title,amount,type,account,toAccount\n2026-11-14,Move to shared,17.29,transfer,everyday,shared\n');
