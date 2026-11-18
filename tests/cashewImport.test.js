@@ -130,3 +130,42 @@ test('a leading blank line preserves the Cashew format and physical source row',
   assert.equal(file.cashew?.profile, 'cashew-csv-v1');
   assert.equal(file.rows[0].sourceRow, 3);
 });
+
+test('the Cashew beta export preserves UTF-8 accents and recognizes its ordinary transaction rows', async () => {
+  const header = k_header.replace('amount,currency', 'amount,amount unpaid,currency') + ',extra';
+  const source = [header,
+    'Poupança,-12.50,,EUR,Café,Pequeno-almoço,2026-11-12 23:40:00.123,false,default,Refeições,,,,,,,'
+  ].join('\r\n');
+  const file = await parseImportContent('synthetic-beta.csv', Buffer.from(source, 'utf8'));
+  const review = previewImportFile(createFinancialState(), file, { accounts: { Poupança: 'everyday' } });
+  assert.equal(file.cashew.profile, 'cashew-csv-v2');
+  assert.deepEqual(file.rows.map(({ account, title, note, category, movement }) =>
+    [account, title, note, category, movement?.amount]),
+  [['Poupança', 'Café', 'Pequeno-almoço', 'Refeições', 1250]]);
+  assert.match(review.rows[0].error, /classification/i);
+  assert.equal(review.rows[0].bank.specialType, 'null');
+});
+
+test('Cashew beta normalizes representation noise on either side of a cent and flags sub-cent amounts', async () => {
+  const header = k_header.replace('amount,currency', 'amount,amount unpaid,currency') + ',extra';
+  const rows = ['12.340000000000002', '-7.499999999999999', '1.235'].map(amount =>
+    ['Wallet', amount, '', 'EUR', 'Example', '', '2026-11-12 12:00:00.000',
+      String(!amount.startsWith('-')), 'default', 'Food', '', '', '', '', '', '', ''].join(','));
+  const file = await parseImportContent('synthetic-beta.csv', [header, ...rows].join('\n'));
+  assert.deepEqual(file.rows.slice(0, 2).map(row => row.movement?.amount), [1234, 750]);
+  assert.match(file.rows[2].error, /fraction of a cent/i);
+});
+
+test('unverified Cashew beta metadata stays visible as a row error', async () => {
+  const header = k_header.replace('amount,currency', 'amount,amount unpaid,currency') + ',extra';
+  const betaRow = ['Wallet', '-12.34', '', 'EUR', 'Example', '', '2026-11-12 12:00:00.000',
+    'false', 'default', 'Food', '', '', '', '', '', '', ''];
+  const withUnpaid = betaRow.with(2, '4.21');
+  const withExtra = betaRow.with(16, 'unknown metadata');
+  const file = await parseImportContent('synthetic-beta.csv', [header, withUnpaid.join(','), withExtra.join(',')].join('\n'));
+  const state = createFinancialState();
+  const review = previewImportFile(state, file, { accounts: { Wallet: 'everyday' } });
+  assert.match(review.rows[0].error, /amount unpaid/i);
+  assert.match(review.rows[1].error, /extra/i);
+  assert.deepEqual(applyTransactionImport(state, review, { 0: 'skip', 1: 'skip' }).transactions, []);
+});
