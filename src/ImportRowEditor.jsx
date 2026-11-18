@@ -5,6 +5,7 @@ import { parseImportAmount } from './importNormalization.js';
 import { k_spendingBehaviors, k_transactionTypes } from './domainConstants.js';
 import { euro } from './money.js';
 import { bankClassificationAllows } from './realBankReview.js';
+import { k_cashewCsvProfile } from './cashewCsv.js';
 
 const k_transactionOptions = [
   { value: k_transactionTypes.expense, label: 'Expense' },
@@ -31,6 +32,8 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
   const { accounts, categories } = state;
   const isTransfer = draft.type === k_transactionTypes.transfer;
   const isReimbursement = draft.type === k_transactionTypes.reimbursement;
+  const isCashewExpense = bank?.profile === k_cashewCsvProfile && draft.type === k_transactionTypes.expense;
+  const categoryChoice = isCashewExpense && draft.category === null ? k_cashewUncategorizedChoice : draft.category ?? '';
   const selectedCredit = counterparts.find(row => String(row.index) === draft.counterpart);
   const needsTransferDate = isTransfer && bank && selectedCredit && bank.valueDate !== selectedCredit.bank.valueDate;
   const scopedSource = Boolean(transaction.externalSource) && String(transaction.externalId ?? '') !== '';
@@ -121,10 +124,9 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
         ]} />
       ) : (
         <>
-          <Select label="Category" value={bank?.profile === 'cashew-csv-v1' && draft.category === null
-            ? k_cashewUncategorizedChoice : draft.category ?? ''} onChange={value => change('category', value)} options={[
+          <Select label="Category" value={categoryChoice} onChange={value => change('category', value)} options={[
           { value: '', label: bank && draft.type === k_transactionTypes.expense ? 'Choose a category' : 'Uncategorized' },
-            ...(bank?.profile === 'cashew-csv-v1' && draft.type === k_transactionTypes.expense
+            ...(isCashewExpense
               ? [{ value: k_cashewUncategorizedChoice, label: 'Keep uncategorized' }] : []),
             ...categories.map(record => ({ value: record.id, label: categoryPath(categories, record.id) }))
           ]} />

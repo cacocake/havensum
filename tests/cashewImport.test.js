@@ -8,10 +8,11 @@ import { accountBalance, monthStats } from '../src/ledger.js';
 
 const k_header = 'account,amount,currency,title,note,date,income,type,category name,subcategory name,color,icon,emoji,budget,objective';
 const k_expense = 'Wallet,-12.34,EUR,Café,"A note, with punctuation",2026-11-12 23:40:00.123,false,null,Food,Snacks,,,,,';
-const k_credit = 'Wallet,5.01,EUR,Incoming,,2026-11-13 00:10:00.000,true,TransactionSpecialType.debt,Other,,,,,,';
+const k_credit = 'Wallet,5.01,EUR,Incoming,,2026-11-13 00:10:00.000,true,null,Other,,,,,,';
+const k_borrowing = k_credit.replace(',true,null,', ',true,TransactionSpecialType.debt,');
 
 test('the published Cashew header selects its profile and reads exact cents and the written calendar date', async () => {
-  const file = await parseImportContent('renamed.csv', [k_header, k_expense, k_credit].join('\r\n'));
+  const file = await parseImportContent('renamed.csv', [k_header, k_expense, k_borrowing].join('\r\n'));
   assert.equal(file.cashew.profile, 'cashew-csv-v1');
   assert.deepEqual(file.rows.map(row => row.movement), [
     { amount: 1234, date: '2026-11-12', direction: 'debit' },
@@ -100,4 +101,32 @@ test('Cashew rejects unsupported currencies, invalid dates and ambiguous amounts
 test('a recognizable but unsupported Cashew layout does not fall back to generic expense defaults', async () => {
   const otherLayout = [`${k_header},extra`, `${k_credit},value`].join('\n');
   await assert.rejects(parseImportContent('changed.csv', otherLayout), /unsupported Cashew.*header/i);
+});
+
+test('a Cashew borrowing or lending entry cannot be applied as ordinary income or spending', async () => {
+  const lending = k_expense.replace(',false,null,', ',false,TransactionSpecialType.credit,');
+  const file = await parseImportContent('synthetic.csv', [k_header, k_borrowing, lending].join('\n'));
+  const state = createFinancialState();
+  const review = previewImportFile(state, file, { accounts: { Wallet: 'everyday' } });
+  for (const [index, type] of [[0, 'income'], [1, 'expense']]) {
+    const changed = reviseTransactionImport(state, review, index, { type, category: 'groceries' });
+    assert.equal(changed.rows[index].status, 'invalid');
+    assert.match(changed.rows[index].error, /borrowing and lending/i);
+  }
+  assert.deepEqual(applyTransactionImport(state, review, { 0: 'skip', 1: 'skip' }).transactions, []);
+});
+
+test('Cashew duplicate hints keep the original account and timestamp distinct when mapped to one account', async () => {
+  const later = k_expense.replace('23:40:00.123', '23:41:00.123');
+  const otherAccount = k_expense.replace(/^Wallet,/, 'Other wallet,');
+  const file = await parseImportContent('synthetic.csv', [k_header, k_expense, later, otherAccount].join('\n'));
+  const ledger = createFinancialState();
+  const review = previewImportFile(ledger, file, { accounts: { Wallet: 'everyday', 'Other wallet': 'everyday' } });
+  assert.equal(new Set(review.rows.map(row => row.transaction.sourceFingerprint)).size, 3);
+});
+
+test('a leading blank line preserves the Cashew format and physical source row', async () => {
+  const file = await parseImportContent('synthetic.csv', ['', k_header, k_credit].join('\r\n'));
+  assert.equal(file.cashew?.profile, 'cashew-csv-v1');
+  assert.equal(file.rows[0].sourceRow, 3);
 });

@@ -9,6 +9,7 @@ import { previewImportFile } from './importFileReview.js';
 import { applyTransactionImport, reviseTransactionImport } from './importReview.js';
 import ImportRowEditor from './ImportRowEditor.jsx';
 import CashewAccountMapping, { k_createCashewAccount } from './CashewAccountMapping.jsx';
+import { k_cashewOrdinaryType } from './cashewCsv.js';
 import ImportResults, { AccountBalanceReview } from './ImportResults.jsx';
 import { formatReviewRowLabel, getImportBalances, getImportResults } from './importOutcomes.js';
 import { bankTransferCounterparts } from './realBankReview.js';
@@ -312,7 +313,7 @@ export default function ImportDialog({ data, onClose }) {
               <T style={{ fontSize: 12, color: colors.sub }}>{rowLabel}</T>
               <T style={{ fontWeight: '600' }}>{row.transaction.title}</T>
               {row.bank?.category && <T style={{ fontSize: 12, color: colors.sub }}>{data.cashew ? 'Cashew category' : 'Bank category'} · {row.bank.category}</T>}
-              {data.cashew && row.bank?.specialType && row.bank.specialType !== 'null' && (
+              {data.cashew && row.bank?.specialType && row.bank.specialType !== k_cashewOrdinaryType && (
                 <T style={{ fontSize: 12, color: colors.sub }}>Cashew type · {row.bank.specialType}</T>
               )}
               {row.bank?.sourceWarning && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.sourceWarning}</T>}
