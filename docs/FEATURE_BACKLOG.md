@@ -40,12 +40,27 @@ Use integer EUR cents. Cash follows its transaction date, including for early pa
 
 ### PLAN-3 · Review assumptions carried forward
 
-**Status:** Done, reviewed and merged into `develop` from `codex/plan-carry-forward` (implementation `4923875`, review fixes `5117fec`, `42609b9`). The new recurring-cost option is deferred pending an owner decision. See the PLAN-3 handoff note below. **Depends on:** PLAN-2.
+**Status:** Done, reviewed and merged into `develop` from `codex/plan-carry-forward` (implementation `4923875`, review fixes `5117fec`, `42609b9`). The new recurring-cost option was deferred; the owner answered on 19 November 2026 (P04–P06) and it is tracked as **PLAN-3 follow-up** below. See the PLAN-3 handoff note below. **Depends on:** PLAN-2.
 
 - Reuse the three-step interview. Prefill recurring income, applicable income and loan changes, history window, and review thresholds from the latest earlier plan. Use amounts effective at the start of the period and show later changes in their applicable months. Preserve deliberately entered zeros.
 - Show earlier manual overrides beside fresh suggestions. Apply the ones the owner chooses to keep. For a same-year revision, prefill that year's current overrides. Surface assumptions for removed categories or closed loans without applying them.
 - Carry recurring events into applicable years and leave one-off events in their original year. Preview draft targets and available forecasts month by month before **Freeze my plan**. Adding a named cost supplies new evidence to the forecast. Editing only a draft target leaves the forecast unchanged.
 - Cover no prior plan, zero amounts, applicable changes carried once, keep/drop override, stale category and loan references, a one-off trip, a recurring event, history-window edits, and abandoning a draft. Verify older snapshots and same-year past months remain intact on save.
+
+### PLAN-3 follow-up · "Repeats every year" for new planned costs, from the plan's year onwards
+
+**Depends on:** PLAN-3, FORECAST-2 follow-ups (F16 year amounts and moves). **Status:** In progress on `codex/recurring-planned-cost-from-year`.
+
+**Owner answers (19 November 2026, in chat; P04–P06 in DECISIONS.md):**
+1. **Repeat start (P04):** a new planned cost marked as repeating every year in the Year Plan interview counts from the year of the plan being drafted onwards. Earlier years, their forecasts/Expected savings and frozen plans are untouched. Stored as an optional `fromYear` on the recurring planned cost; recurring planned costs without it keep applying to every year.
+2. **Loan payment for a new draft (P05):** when a carried loan change differs from a newer payment entered on the loan itself, a new draft starts from the newer loan payment. Loans keep no record of when their payment was edited, so this needs a stored edit date (schema, merge and backup work). Queued below as its own ticket.
+3. **"Copy existing scheduled changes" after a same-year revision (P06):** current behaviour is acceptable; no change.
+
+Cover: a repeating cost added to next year's draft does not appear in this year and appears in later years; editing an older-year plan does not pull it back; frozen snapshots unchanged; legacy recurring costs unaffected; validation, backup restore and merge of `fromYear`; comparable-cost evidence, the planned-cost picker, moves and year amounts respect the start year; a target-only edit leaves Expected savings unchanged; narrow layouts with long names.
+
+#### PLAN-3 follow-up b · Draft loan payment from a newer loan edit (P05)
+
+**Status:** Queued, not started. **Depends on:** PLAN-3 follow-up. Record when a loan's monthly payment is edited (new optional field, validated, kept by restore, merged three-way), and when a carried loan change in effect at the draft start predates a later edit of the loan's payment, start the draft from the loan's payment instead. Cover legacy loans without the field (keep today's carried change), a later plan change after the edit, merge conflicts, and the step-2 placeholder.
 
 ### PLAN-4 · Offer the interview and verify rollover
 

@@ -9,6 +9,9 @@ As of 17 November 2026. Latest requirements in docs/HAVENSUM_REQUIREMENTS.md sup
 | P01 | Requirement | React Native, Android first | Browser/PC display adapts the same application; no native PC product |
 | P02 | Requirement | EUR only; no bank link | Manual data entry and import are sufficient |
 | P03 | Requirement | No savings objectives or bill splitting | Keep the scope on tracking, cash accuracy and planning |
+| P04 | Owner decision (19 November 2026, PLAN-3 follow-up) | A new planned cost marked "Repeats every year" in the Year Plan interview counts from the year of the plan being drafted onwards | Stored as `fromYear` on the recurring planned cost; earlier years, their forecasts/Expected savings and frozen plans are untouched. Recurring planned costs without `fromYear` keep applying to every year |
+| P05 | Owner decision (19 November 2026), queued | When a carried loan change differs from a newer payment entered on the loan itself, a new draft starts from the newer loan payment | Loans store no edit date, so "newer" cannot be told apart yet; queued as its own backlog ticket (PLAN-3 follow-up b) rather than guessed |
+| P06 | Owner confirmed, current behaviour | After a same-year revision, Outlook settings' "Copy existing scheduled changes" sees only the later income/loan changes and the restated loan payment that revision stores | No change |
 | M01 | Requirement | Four transaction types: expense, income, reimbursement, transfer | Inflows with different economic meanings remain distinguishable |
 | M02 | Requirement | Link reimbursements by default, allow skipping | Entry must remain possible without finding an original expense |
 | M03 | Requirement | Offset linked paybacks in the expense's original month | Net spending remains accurate across late repayments; account cash follows receipt date |
