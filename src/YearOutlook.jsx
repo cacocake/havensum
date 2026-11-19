@@ -47,8 +47,8 @@ function monthRangeName(months) {
 // Recorded, Expected and Planned side by side for one year. Read-only:
 // estimates never enter the ledger and a target never moves the forecast.
 export default function YearOutlook({ year, selectedMonth, planRevisionId, ink, onSelectMonth }) {
-  const { state } = useApp();
-  const outlook = useMemo(() => yearOutlook(state, year, undefined, { planRevisionId }), [state, year, planRevisionId]);
+  const { state, today } = useApp();
+  const outlook = useMemo(() => yearOutlook(state, year, today, { planRevisionId }), [state, year, today, planRevisionId]);
   return <View style={{ gap: 18 }}>
     <YearSummary outlook={outlook} ink={ink}/>
     <OutlookDrivers drivers={outlook.drivers}/>

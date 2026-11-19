@@ -50,6 +50,29 @@ test('a future-dated expense leaves today\'s balance and report alone, shows as 
   expect(await page.evaluate(key => localStorage.getItem(key), k_ledgerKey)).toBe(ledgerBefore);
 });
 
+async function sendAppToBackgroundAndBack(page) {
+  await page.evaluate(() => {
+    for (const visibility of ['hidden', 'visible']) {
+      Object.defineProperty(document, 'visibilityState', { value: visibility, configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }
+  });
+}
+
+test('an app left open counts an entry once it returns on the entry\'s date', async ({ page }) => {
+  await openWithLedger(page, ledgerWithConcert(), '2026-11-17T12:00:00');
+  await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Plan Year ahead', exact: true }).click();
+  await expect(page.getByTestId('year-month-2026-11-scheduled')).toHaveText('−€40.00');
+
+  await page.clock.setSystemTime(new Date('2026-11-20T09:00:00'));
+  await sendAppToBackgroundAndBack(page);
+  await expect(page.getByTestId('year-month-2026-11-scheduled')).toHaveCount(0);
+  await expect(page.getByTestId('year-month-2026-11-recorded')).toHaveText('−€50.00');
+  await returnHome(page);
+  await expect(page.getByLabel('View Everyday account').first()).toContainText('€950.00');
+});
+
 test('a future month reports nothing until its entries post and lists them as scheduled', async ({ page }) => {
   const ledger = createFinancialState({ transactions: [
     createTransaction({ id: 'rent', title: 'December rent', amount: 80000, date: '2026-12-02', category: 'rent' })
