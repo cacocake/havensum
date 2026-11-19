@@ -87,9 +87,9 @@ Reuse the Real Bank adapter if the second layout matches. Otherwise create a dis
 **Owner answers (19 November 2026, in chat; recorded as K01–K08 in DECISIONS.md):**
 1. **Borrowing/lending:** a `debt` row is importable only after picking an existing Havensum loan in review; positive = loan proceeds (unlinked balance adjustment tagged with the loan), negative = loan repayment expense tagged with the loan. `credit` (lent) rows stay blocked.
 2. **Scheduled entries:** treated as paid when `amount unpaid` is blank or 0 (v1 exports only paid rows); still need a classification; review shows they came from a scheduled entry.
-3. **Transfers:** a unique opposite `Balance Correction` row with the same amount and timestamp in another account is preselected as a suggested pair; the owner confirms or changes it.
+3. **Transfers:** a unique opposite `Balance Correction` row with the same amount and timestamp in another account is preselected as a suggested pair; the owner confirms or changes it. (Category rule superseded by K11: legs are recognised by their `Transferred Balance` note.)
 4. **Paybacks:** manual link only, as today.
-5. **Metadata:** ignore color/icon/emoji; show budget/objective read-only in review, never create records; non-zero `amount unpaid` or any `extra` stays a row error.
+5. **Metadata:** ignore color/icon/emoji; show budget/objective read-only in review, never create records; non-zero `amount unpaid` or any `extra` stays a row error. (`extra` superseded by K10: shown read-only.)
 6. **Classification:** ordinary rows still need an explicit choice; nothing prefilled from the sign.
 
 Ordinary EUR rows from v6.7.5+524 are already verified. Check real transfer and payback rows where available. Agree how to handle borrowing, lending, scheduled entries, and populated metadata before widening support. Test both layouts, accents, integer-cent handling, matches after renames and layout changes, account creation only on confirmation, and original-expense links. Unverified entries retain their review status.
@@ -142,6 +142,10 @@ Let the owner move a recurring planned cost's month from a chosen year onward. E
 3. **Expenses already linked to the old month in a moved year:** their links stay as recorded and are flagged for review (the existing "This planned cost moved" list). The move dialog says how many. They are not evidence until relinked by hand.
 4. **A move from this year** (asked after review): both the old and the new month must be this month or later; otherwise the move starts next year.
 
+### IMPORT-2 follow-up · Match the owner's real Cashew test export
+
+**Status (19 November 2026):** Done, reviewed and merged into `develop` from `codex/cashew-real-export` (started from `f5e71d5`); see its handoff note at the end. The owner supplied a small test export (v2 layout with `amount unpaid` and `extra`; kept out of Git as private runtime data). It showed recurrence text in `extra`, a localized transfer category with a `Transferred Balance` note, and loans as objectives on ordinary rows. Owner answers K10–K12 in DECISIONS.md. Synthetic fixtures mirror its structure.
+
 ### FORECAST-2 follow-up · Readable year-amount merge conflicts (F20)
 
 **Depends on:** FORECAST-2 (year amounts). **Status:** done; reviewed and merged into `develop` from `codex/readable-year-amount-conflicts` (see the F20 handoff at the end).
@@ -152,11 +156,12 @@ When two devices set different amounts for the same year of a recurring planned 
 
 ### ANDROID-1 · Installable package
 
-**Needs:** App ID, target runtime and device support, and owner-controlled signing setup. **Status:** Configured, reviewed and merged into `develop` from `codex/android-installable-package` (owner answers A01–A08 in DECISIONS.md, steps in [docs/ANDROID_BUILD.md](ANDROID_BUILD.md)). **Still open:** no package has been built yet. The first `assembleRelease` runs on the owner's PC with the owner's upload keystore, then gets recorded below. See the ANDROID-1 handoff note.
+**Needs:** App ID, target runtime and device support, and owner-controlled signing setup. **Status:** Configured, reviewed and merged into `develop` from `codex/android-installable-package` (owner answers A01–A08 in DECISIONS.md, steps in [docs/ANDROID_BUILD.md](ANDROID_BUILD.md)). **Built and installed:** the owner built a release APK on their PC with their upload keystore from `fd55ca2`; it installed and starts on the owner's phone (recorded below). Full device QA is ANDROID-2. See the ANDROID-1 handoff note and the startup-crash bug fix.
 
 | Source commit | Version name / code | Type | Build date | Signing certificate SHA-256 | Installed on |
 | --- | --- | --- | --- | --- | --- |
-| *(none built yet)* | | | | | |
+| develop (owner's PC; exact commit not recorded) | 0.1.0 / 1 | Release APK | 19 November 2026 | not recorded | Owner's phone: installed, **crashed at startup** (Reanimated rejected the native timing curve; fixed in `fd55ca2`) |
+| `fd55ca2` | 0.1.0 / 2 | Release APK | reported 19 November 2026 | `29591ff335e46c13c4556dd419e8c2812bd8efa40e2ede17d0c94f024d2e7d37` | Owner's phone: installed as an update and starts (owner report; full QA is ANDROID-2) |
 
 Produce an installable Android build. Record source commit, build profile, and signing ownership. Keep credentials and compiled artifacts out of Git. A Hermes bundle is only a compilation check.
 
@@ -174,7 +179,7 @@ Document who can find, read, and update the file and how access changes.
 
 ### DRIVE-2 · Shared Drive sync
 
-**Depends on:** DRIVE-1 (decided). **Blocked on:** the owner's Google Cloud setup: a project with the Drive and Picker APIs, an External consent screen with only `drive.file` and both owners as test users, OAuth client IDs for Android (final package + SHA-1 of each signing key, so it also needs ANDROID-1) and web (authorized JavaScript origins), a Picker API key and the project number. Both owners' accounts are needed for the two-person checks. The full list is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md#drive-2-blocker-setup-the-owner-must-provide).
+**Depends on:** DRIVE-1 (decided). **Blocked on:** the owner's Google Cloud setup: a project with the Drive and Picker APIs, an External consent screen with only `drive.file` and both owners as test users, OAuth client IDs for Android (final package `com.havensum.app` + SHA-1 of each signing key; the upload key's SHA-1 is `5d0ec4c8ed9b8b93b3b6136aa0063e7b775ab7c6`, a public certificate fingerprint) and web (authorized JavaScript origins), a Picker API key and the project number. Both owners' accounts are needed for the two-person checks. The full list is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md#drive-2-blocker-setup-the-owner-must-provide).
 
 Use the reviewed merge engine with revision-aware writes, offline retry and recovery, and visible conflict review. Verify two devices with independent edits, same-field edits, deletion, concurrent plan revisions, interrupted writes, and stale writes. Confirm the agreed account visibility.
 
@@ -383,7 +388,7 @@ The implementation note below records how these were built; it stores only per-y
   - The owner builds on their own PC with local Gradle and keeps the upload keystore. There is no EAS, Expo account or cloud-held key.
   - Android Auto Backup is off.
 - **Configuration:**
-  - `app.json` sets the package, `versionCode 1`, `allowBackup: false` and three removed permissions (legacy storage read/write, overlay).
+  - `app.json` sets the package, `versionCode 1` (now 2, see the startup-crash bug fix below), `allowBackup: false` and three removed permissions (legacy storage read/write, overlay).
   - `plugins/withHavensumReleaseSigning.cjs` signs release builds from four `HAVENSUM_UPLOAD_*` properties in the owner's user Gradle properties. A release build fails without them; there is no debug-key fallback.
   - `eas.json` reads the version from `app.json` (`appVersionSource: local`); it is unused.
   - `.gitignore` covers `/android/`, APK/AAB and keystore files.
@@ -392,7 +397,7 @@ The implementation note below records how these were built; it stores only per-y
   - Release APK via `assembleRelease` (AAB via `bundleRelease` later).
   - Signed with the owner's upload keystore, held only by the owner.
   - The first package ships as version code 1. Each later package that reaches a phone gets a version code raised by 1 in a `develop` commit first.
-- **Not built here:** the container has no Android SDK, and its network blocks `dl.google.com` (Android SDK and Google Maven) and `api.expo.dev`. No APK, installation or device test exists yet. The first `assembleRelease` and the missing-key guard are unverified until the owner's PC build. Record that build in the ANDROID-1 table above.
+- **Not built here:** the container has no Android SDK, and its network blocks `dl.google.com` (Android SDK and Google Maven) and `api.expo.dev`. No APK, installation or device test existed at that point (since built from `fd55ca2`, see the ANDROID-1 table). The first `assembleRelease` and the missing-key guard are unverified until the owner's PC build. Record that build in the ANDROID-1 table above.
 - **Checks** (merged with develop at 75a8108):
   - `npm run test:coverage` 434/434, thresholds met.
   - `npm run test:browser`.
@@ -442,10 +447,29 @@ The implementation note below records how these were built; it stores only per-y
 ## Session handoff — IMPORT-2 · Extend Cashew verification (19 November 2026)
 
 - **Scope:** synthetic rows mirroring the published Cashew export (owner choice K01). Owner answers K01–K09 are in DECISIONS.md; behaviour and known limits are in the IMPORT-2 section of docs/CASHEW_IMPORT_RESEARCH.md. Nothing beyond the ordinary EUR rows from v6.7.5+524 is verified against a real export; no exact Cashew compatibility is claimed.
-- **Implemented:** both layouts read Dart double amounts to integer cents (v1 previously rejected float tails; comma and zero-padded amounts are now row errors in both layouts — a deliberate tightening); paid scheduled entries import after classification (K04); budget/objective shown read-only (K07); a unique opposite Balance Correction pair is preselected as a transfer and import confirms it (K05/K09); `debt` rows import only against a chosen Havensum loan, as proceeds or a repayment in the loan category (K02/K03), and are never transfer legs; lending stays blocked; editing imported proceeds keeps the loan tag. Coverage added for accents, renames on both sides, same-file payback links and malformed cells.
+- **Implemented:** both layouts read Dart double amounts to integer cents (v1 previously rejected float tails; comma and zero-padded amounts are now row errors in both layouts — a deliberate tightening); paid scheduled entries import after classification (K04); budget/objective shown read-only (K07); a unique opposite Balance Correction pair is preselected as a transfer and import confirms it (K05/K09) (recognised by the transfer note since K11); `debt` rows import only against a chosen Havensum loan, as proceeds or a repayment in the loan category (K02/K03), and are never transfer legs; lending stays blocked; editing imported proceeds keeps the loan tag. Coverage added for accents, renames on both sides, same-file payback links and malformed cells.
 - **Checks:** `npm run test:coverage` (449 pass on the tree merged with develop `5b2164d`; all files 96.65% lines), `npm run test:browser` (417 pass), `npm run build`, `npm run check:android` (Hermes export = compilation only).
 - **Review:** separate read-only Claude review found 1 blocking (debt credit usable as a transfer leg) and 4 should-fix items; all fixed test-first, the owner answered the pair-confirmation question (K09), and the re-review found nothing actionable.
 - **Still needs the owner:** a small sanitized Cashew export of their version with a transfer pair, a payback, a scheduled entry, a borrowing row and populated budget/objective, plus the expected Havensum result, to move these cases from synthetic to verified.
+
+## Bug fix — Android release crashes at startup (19 November 2026, Claude cloud session)
+
+- **Found by:** the owner's first release APK (version code 1), built on their PC from `develop` and installed on their phone. It closed immediately. Logcat: `ReanimatedError: [Reanimated] Invalid predefined timing function "cubic-bezier(0.23, 1, 0.32, 1)"` in `MotionPressable`.
+- **Cause:** `src/Motion.native.jsx` passed the curve to Reanimated 4's CSS-style transitions as a `cubic-bezier(...)` string. On native, Reanimated's `transitionTimingFunction` longhand accepts only named curves or its easing builders (such as `cubicBezier()`). The web accepts the string, and Hermes compilation (`check:android`) can't detect it, so no earlier check caught it.
+- **Fix:** `src/motionTransitions.native.js` builds the press and meter transition settings (property, duration, reduced motion) with the same curve made by `cubicBezier(0.23, 1, 0.32, 1)`. `MotionPressable` and `Meter` use these builders. Web motion is unchanged.
+- **Regression test:** `tests/native/motionTiming.test.js` runs both components' transition settings, with normal and reduced motion, through Reanimated's own `normalizeCSSTransitionProperties`, the startup path that threw. Reanimated is loaded in Node by `tests/helpers/reanimatedInNode.js`, with only `react-native` and `react-native-worklets` stubbed. With the old string curve the test failed with the device's exact error.
+- **Review:** a separate read-only Claude review found nothing blocking. Its should-fix item (test the components' real transition settings, not just the curve) and its nits (the current module-mock option, doc wording, a note on Reanimated's internal paths) were fixed before merging, and a focused re-review of those fixes found nothing blocking.
+- **Version:** `versionCode` raised to 2, because version code 1 is already on the owner's phone.
+- **Verified by the owner:** the rebuild from `fd55ca2` (version code 2) installs over version 1 and starts on the owner's phone. Other screens and flows are not device-checked yet (ANDROID-2).
+
+## Session handoff — IMPORT-2 follow-up: the owner's real Cashew test export (19 November 2026)
+
+- **Input:** a small test export from the owner's Cashew app (newer layout; version not stated). Kept out of Git and review inputs as private runtime data; `tests/cashewExportShape.test.js` uses synthetic rows with the same structure.
+- **Owner answers:** K10 (`extra` shown read-only, never blocks), K11 (transfer legs recognised by the `Transferred Balance` / `from → to` note, category ignored), K12 (a row with an objective may be recorded against a chosen Havensum loan by its sign, otherwise classified normally).
+- **Result on the real file:** the transfer pair is suggested; paid scheduled rows await a classification; unpaid ones stay row errors; objective rows offer an optional loan; ordinary and payback rows await a classification.
+- **Checks:** `npm run test:coverage`, `npm run test:browser`, `npm run build`, `npm run check:android` on the tree merged with develop: 499 unit tests (thresholds met) and 435 browser tests pass. Hermes export is compilation only.
+- **Review:** separate read-only Claude review: nothing blocking; two should-fix test gaps and doc/style nits fixed; re-review found one stale doc passage, now corrected.
+- **Still unverified:** older `debt`/`credit` type rows (K02), the published v1 layout beyond ordinary rows, and which sign means what for a lending objective in Cashew. No exact Cashew compatibility is claimed.
 
 ## Session handoff — FORECAST-2 follow-up · Readable year-amount merge conflicts (F20) (19 November 2026, Claude cloud session)
 

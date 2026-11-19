@@ -6,7 +6,7 @@ The owner builds and signs Havensum on their own PC (decision A04 in DECISIONS.m
 | --- | --- | --- |
 | Application ID | `com.havensum.app` | `app.json` → `expo.android.package` |
 | Version name | `0.1.0` | `app.json` → `expo.version` |
-| Version code | `1` | `app.json` → `expo.android.versionCode` |
+| Version code | `2` | `app.json` → `expo.android.versionCode` |
 | Minimum Android | 7.0 (API 24), portrait phones | Expo SDK 54 default (`minSdk 24`) |
 | Target / compile SDK | API 36 | Expo SDK 54 default |
 | First delivery | Release APK for sideloading (`assembleRelease`) | Play AAB (`bundleRelease`) kept for later |

@@ -20,6 +20,13 @@ function selectedId(records, selectedValue) {
     || String(record.id) === selectedValue)?.id;
 }
 
+function loanPlaceholder(bank, hasLoans) {
+  if (bank.loanOptional) {
+    return 'Not a loan · classify normally';
+  }
+  return hasLoans ? 'Choose the loan for this borrowing entry' : 'Add the loan first to import this entry';
+}
+
 export default function ImportRowEditor({ transaction, state, expenses, lockAccount, bank, counterparts, pair, onUpdate, onCancel }) {
   const colors = useContext(Theme);
   const [draft, setDraft] = useState(() => ({
@@ -72,6 +79,9 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
   function reviewedLoanId() {
     if (bank?.loanRequired) {
       return selectedId(state.loans, draft.loanId);
+    }
+    if (bank?.loanOptional) {
+      return isTransfer ? undefined : selectedId(state.loans, draft.loanId);
     }
     if (draft.type !== transaction.type) {
       return undefined;
@@ -157,9 +167,9 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
         <Select label="Original expense" value={bank ? (JSON.stringify(draft.linkedId) ?? '') : (draft.linkedId ?? '')}
           onChange={changeLinkedExpense} options={linkedExpenseOptions} />
       )}
-      {bank?.loanRequired && (
+      {(bank?.loanRequired || (bank?.loanOptional && !isTransfer)) && (
         <Select label="Havensum loan" value={draft.loanId ?? ''} onChange={value => change('loanId', value)} options={[
-          { value: '', label: state.loans.length ? 'Choose the loan for this borrowing entry' : 'Add the loan first to import this entry' },
+          { value: '', label: loanPlaceholder(bank, state.loans.length > 0) },
           ...state.loans.map(loan => ({ value: loan.id, label: loan.name }))
         ]} />
       )}
