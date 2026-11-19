@@ -48,6 +48,15 @@ export function parseImportAmount(value, unit) {
   return Number(amount);
 }
 
+// LEDGER-2: a canonical interest correction keeps its sign; every other
+// imported amount stays positive.
+function parseCorrectionAmount(value, unit) {
+  const text = String(value ?? '').trim();
+  const isNegative = text.startsWith('-');
+  const amount = parseImportAmount(isNegative ? text.slice(1) : text, unit);
+  return isNegative ? -amount : amount;
+}
+
 function resolveRecordId(records, identifier, name, label, mappings = {}, displayName = record => record.name) {
   const source = String(identifier || name || '');
   if (Object.hasOwn(mappings, source)) {
@@ -117,12 +126,17 @@ export function normalizeImportRows(state, data, options = {}) {
       if (!k_supportedTypes.has(type)) {
         throw Error('Choose an explicit expense, income, reimbursement or transfer type.');
       }
+      // Canonical CSV, backup and workbook rows can carry an interest correction.
+      const correctsInterestMonth = canonical ? text('corrects_interest_month') : String(row.correctsInterestMonth ?? '');
+      const amountUnit = canonical ? 'euros' : options.unit || (data.backup ? 'cents' : 'euros');
       const transaction = {
         id: row.id ?? undefined,
         type,
         date: normalizeImportDate(row[mapping.date], canonical),
         title: text(mapping.title),
-        amount: parseImportAmount(row[mapping.amount], canonical ? 'euros' : options.unit || (data.backup ? 'cents' : 'euros')),
+        amount: correctsInterestMonth
+          ? parseCorrectionAmount(row[mapping.amount], amountUnit)
+          : parseImportAmount(row[mapping.amount], amountUnit),
         account: options.targetAccount === undefined
           ? resolveRecordId(state.accounts, text(mapping.account), text(canonical ? 'account_name' : 'Account'), 'account', options.accounts)
           : resolveRecordId(state.accounts, '', '', 'account', { '': options.targetAccount })
@@ -163,6 +177,9 @@ export function normalizeImportRows(state, data, options = {}) {
       }
       if (transaction.linkedId !== undefined) {
         transaction.linkedId = preserveTransactionIdentifier(state, transaction.linkedId);
+      }
+      if (correctsInterestMonth) {
+        transaction.correctsInterestMonth = correctsInterestMonth;
       }
       if (canonical && Object.hasOwn(row, 'planned_cost')) {
         const plannedCost = text('planned_cost');

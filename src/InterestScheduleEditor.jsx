@@ -29,6 +29,6 @@ export default function InterestScheduleEditor({ schedule, unscheduledRate, curr
       <Field label="Rate starts · YYYY-MM" value={since} onChangeText={onSinceChange} placeholder="e.g. 2026-03" style={{ flex: 1, minWidth: 140 }} />
     </Row>
     <Button small kind="outline" icon="Plus" onPress={onAdd}>Add rate period</Button>
-    <T style={{ fontSize: 12, color: colors.sub }}>Interest compounds once per completed month. A rate runs until the next one starts; a 0% period ends a promotional rate. Recorded interest is never changed or duplicated.</T>
+    <T style={{ fontSize: 12, color: colors.sub }}>Interest compounds once per completed month. A rate runs until the next one starts; a 0% period ends a promotional rate. Recorded interest is never changed or duplicated. To correct a past rate, use Correct past interest on the account.</T>
   </View>;
 }

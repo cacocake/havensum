@@ -6,12 +6,12 @@ const k_csvColumns = [
   'schema_version', 'text_encoding', 'id', 'type', 'date', 'title', 'amount', 'currency',
   'account_id', 'account_name', 'category_id', 'category_path', 'to_account_id',
   'to_account_name', 'linked_id', 'kind', 'note', 'external_source', 'external_id', 'loan_id',
-  'source_fingerprint', 'counterpart_source_fingerprint', 'planned_cost'
+  'source_fingerprint', 'counterpart_source_fingerprint', 'planned_cost', 'corrects_interest_month'
 ];
 const k_textColumns = new Set([
   'id', 'title', 'account_id', 'account_name', 'category_id', 'category_path',
   'to_account_id', 'to_account_name', 'linked_id', 'note', 'external_source', 'external_id', 'loan_id',
-  'source_fingerprint', 'counterpart_source_fingerprint', 'planned_cost'
+  'source_fingerprint', 'counterpart_source_fingerprint', 'planned_cost', 'corrects_interest_month'
 ]);
 const k_centsPerEuro = 100n;
 
@@ -47,9 +47,12 @@ function quoteCell(value) {
   return `"${String(value).replaceAll('"', '""')}"`;
 }
 
+// Only an interest correction (LEDGER-2) can be negative.
 export function formatEuroAmount(amount) {
   const integerAmount = BigInt(amount);
-  return `${integerAmount / k_centsPerEuro}.${String(integerAmount % k_centsPerEuro).padStart(2, '0')}`;
+  const sign = integerAmount < 0n ? '-' : '';
+  const absoluteAmount = integerAmount < 0n ? -integerAmount : integerAmount;
+  return `${sign}${absoluteAmount / k_centsPerEuro}.${String(absoluteAmount % k_centsPerEuro).padStart(2, '0')}`;
 }
 
 export function categoryPath(categories, categoryId) {
@@ -89,7 +92,8 @@ export function createTransactionCsv(state) {
       external_source: transaction.externalSource, external_id: transaction.externalId, loan_id: transaction.loanId,
       source_fingerprint: transaction.sourceFingerprint,
       counterpart_source_fingerprint: transaction.counterpartSourceFingerprint,
-      planned_cost: transaction.plannedCost === undefined ? undefined : JSON.stringify(transaction.plannedCost)
+      planned_cost: transaction.plannedCost === undefined ? undefined : JSON.stringify(transaction.plannedCost),
+      corrects_interest_month: transaction.correctsInterestMonth
     };
     return k_csvColumns.map(column => {
       const value = record[column] ?? '';
