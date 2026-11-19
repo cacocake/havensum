@@ -80,8 +80,8 @@ test('failed recovery writes leave legacy ledger and baseline bytes untouched an
   assert.equal(storage.getItem('melo-sync-base'), originalBytes);
 
   failedWrite.mock.restore();
-  assert.equal((await readState()).version, 3);
-  assert.equal((await readSnapshot()).version, 3);
+  assert.equal((await readState()).version, 4);
+  assert.equal((await readSnapshot()).version, 4);
   assert.equal(storage.getItem('melo-state-v1:recovery:v1'), originalBytes);
   assert.equal(storage.getItem('melo-sync-base:recovery:v1'), originalBytes);
 });
@@ -102,13 +102,13 @@ test('migration interrupted after recovery creation retries without overwriting 
   assert.equal(storage.getItem('melo-state-v1'), originalBytes);
   assert.equal(storage.getItem('melo-state-v1:recovery:v1'), originalBytes);
   interruptedWrite.mock.restore();
-  assert.equal((await readState()).version, 3);
+  assert.equal((await readState()).version, 4);
   assert.equal(storage.getItem('melo-state-v1:recovery:v1'), originalBytes);
 
   context.mock.method(storage, 'setItem', () => {
     throw Error('Read must not need another write');
   });
-  assert.equal((await readState()).version, 3);
+  assert.equal((await readState()).version, 4);
 });
 
 test('invalid saves and unsupported saved versions cannot replace an existing ledger or baseline', async context => {

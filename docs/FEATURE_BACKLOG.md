@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**Next implementation ticket: SAVINGS-1.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**Next implementation ticket: BACKUP-1.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -57,7 +57,7 @@ Use integer EUR cents. Cash follows its transaction date, including for early pa
 
 ### SAVINGS-1 · Schedule savings interest by period
 
-**Status:** Queued after annual planning. **Depends on:** PLAN-4 for sequencing.
+**Status:** Done, reviewed and merged into `develop` from `codex/savings-rate-schedule` (implementation `7c4133d`, review fixes `2dbb290`, `32eecc6`, test updates in the merge-prep commit). See the SAVINGS-1 handoff note below. **Depends on:** PLAN-4 for sequencing.
 
 - Allow effective annual percentage rates per savings account, each with a unique start month. Display the period through the month before the next rate starts. Display the final rate as ongoing. A promotional rate ends when the successor starts, including a successor of 0%.
 - Preserve legacy single rates and start behavior. Use the existing monthly compounding convention, round to integer cents, and generate at most one interest entry per account and completed month. Allow scheduling current and future months. Keep recorded interest intact. Historical corrections belong to LEDGER-2.
@@ -180,3 +180,11 @@ Start with units and a manually entered EUR price if requested. For automatic pr
 - **Owner questions (non-blocking):** (1) A real first launch loads example data that already has a 2026 plan, so a new user is not invited in 2026 until clearing it, and a Later tapped on example data stays after clearing. Should example data invite or defer at all? (2) In the web preview (`?demo=1`) Later is not saved and the card returns on revisiting Year Plan. (3) Start switches the app's selected month to the current month, and it stays there after Cancel. (4) Pre-existing: the app's starting month uses the UTC date while the invitation uses the local date, so just after local midnight on 1 January east of UTC the header can still show December.
 - **Checks (`46d5a5e`; the merge commit only moves a comment):** `npm run test:coverage` 299/299 with thresholds met, `npm run test:browser` 270/270, `npm run build`, `npm run check:android` (Hermes compilation only; no device test).
 - **Review:** separate read-only Claude review and a focused re-review; all actionable findings fixed; no blocking defects remained.
+
+## Session handoff — SAVINGS-1 (19 November 2026, Claude cloud session)
+
+- **Implementation:** schema v4 `interestSchedule` per account (`src/interestSchedule.js`), compounding by period in `src/savingsInterest.js` (re-exported from `engine.js`), migration and validation in `src/stateSchema.js`, older-backup protection in `src/interestMerge.js`, and the account editor's rate periods in `src/InterestScheduleEditor.jsx`. See [STATE_MIGRATIONS.md](STATE_MIGRATIONS.md). BACKUP-1 has not landed, so restoring rates through a full restore is not yet verified.
+- **Review fixes:** removing the only period now saves; a past start is allowed only when setting up an unscheduled legacy rate; renaming an unscheduled account leaves it unscheduled until a start month is entered; an older backup's 0% default on accounts without a schedule is ignored and a positive rate merges normally; conflict titles distinguish older backups; migrated ledgers are re-validated and an account cannot hold both a schedule and an unscheduled rate; the editor and account label use the same UTC month as interest posting; shared calendar helpers replace duplicates.
+- **Owner questions (non-blocking):** (1) Choosing an older backup's differing rate during review now inserts it as one period, replacing only the period with the same start month and leaving future periods. That start month is usually in the past, so months already holding recorded interest then show a different rate from the one posted (recorded entries never change). Please confirm a reviewed merge may override the "new periods start in the current month or later" rule, or whether the backup side should only be shown for information. (2) Pre-existing: rates reject comma decimals ("3,5") while balances accept them. (3) The start month is a typed `YYYY-MM` field rather than a month picker, and `account.bank` keeps the rate label written at save time.
+- **Checks (`32eecc6`):** `npm run test:coverage` 315/315 with thresholds met, `npm run build`, `npm run check:android` (Hermes only). `npm run test:browser`: 294 passed and 9 failed — three existing tests across three viewports that asserted the old schema version, the old balance error text and the old single rate field. Those tests were updated to the new behaviour and both affected spec files were rerun (99/99).
+- **Review:** separate read-only Claude review, two focused re-reviews; all actionable findings fixed test-first; the final re-review found no new defects.

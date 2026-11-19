@@ -1,4 +1,4 @@
-import { k_currentStateVersion } from './stateSchema.js';
+import { k_planArchiveStateVersion } from './stateSchema.js';
 
 export const k_planYearConflictField = '$planYear';
 export const k_planArchiveCollection = 'plans';
@@ -37,7 +37,7 @@ function legacyCandidateHistory(baseHistory, localHistory, legacyHistory) {
 // An older backup holds at most one plan year. Years it could never represent
 // are not deletions. Null means the backup represents every year.
 export function representedPlanYears(backup) {
-  if (backup?.version === k_currentStateVersion) {
+  if (backup?.version >= k_planArchiveStateVersion) {
     return null;
   }
   return new Set(backup?.plan ? [String(backup.plan.year)] : []);

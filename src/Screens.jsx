@@ -15,6 +15,7 @@ import {AccountCard,TransactionRow} from './Dashboard.jsx';
 import {exportExcel,downloadJSON,downloadSavedLedgerCopy,chooseFile,readImport} from './files';
 import {readInvalidSnapshotCopy,readSnapshot,writeSnapshot,writeMergeRecovery,isDemoSession} from './storage';
 import { k_planYearConflictField, representedPlanYears, takeReviewedPlanYear } from './planMerge.js';
+import { k_interestScheduleField, representsInterestSchedules } from './interestMerge.js';
 import { clearMissingTransactionCategories, migrateState, validateState } from './stateSchema.js';
 import MissingCategoryReview from './MissingCategoryReview.jsx';
 import { applyCategoryReviewEdits, categoryReviewRows } from './categoryReview.js';
@@ -63,6 +64,12 @@ function mergeConflictTitle(conflict) {
   if (conflict.field === k_planYearConflictField) {
     return `${conflict.id} plan · revision history (the chosen side replaces this year's whole history)`;
   }
+  if (conflict.field === k_interestScheduleField && conflict.legacyRate) {
+    return `Savings interest rates · ${conflict.id} (an older backup holds one rate; choosing it adds that rate as one period)`;
+  }
+  if (conflict.field === k_interestScheduleField) {
+    return `Savings interest rates · ${conflict.id}`;
+  }
   return `${conflict.collection} · ${conflict.id} · ${conflict.field === '$record' ? 'Edit vs. delete' : conflict.field}`;
 }
 
@@ -79,6 +86,9 @@ function mergeConflictLines(conflict, side) {
   }
   if (conflict.field === k_planYearConflictField) {
     return planHistoryLines(value);
+  }
+  if (conflict.field === k_interestScheduleField) {
+    return value?.length ? value.map(period => `${period.rate}% from ${period.since}`) : ['No scheduled rate'];
   }
   return [value === undefined ? 'Deleted' : typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)];
 }
@@ -156,7 +166,7 @@ export function Settings(){
      if (!baseline) {
        throw Error(k_backupMessages.missingBaseline);
      }
-     const mergedState = mergeThreeWay(baseline, state, remoteState, { remotePlanYears: representedPlanYears(backup) });
+     const mergedState = mergeThreeWay(baseline, state, remoteState, { remotePlanYears: representedPlanYears(backup), remoteHasInterestSchedules: representsInterestSchedules(backup) });
      setMerge({ ...mergedState, choices: {}, categoryEdits: {} });
    } catch (error) {
      notify(error.message);
