@@ -151,7 +151,7 @@ function OutlookDrivers({ drivers }) {
       {drivers.bills.map(bill => <DriverDetail key={bill.key}>{bill.name} · {euro(bill.expected)}{bill.cancelledSince ? ` · cancelled from ${monthYearName(bill.cancelledSince)}` : ''}</DriverDetail>)}
     </DriverLine>
     <DriverLine label="Loans" amount={drivers.loans}>
-      {drivers.activeLoans.map(loan => <DriverDetail key={loan.id}>{loan.name} · {euro(loan.payment)}/month from {monthYearName(loan.since)} until {monthYearName(loan.end)}</DriverDetail>)}
+      {drivers.activeLoans.map(loan => <DriverDetail key={loan.id}>{loan.name} · {euro(loan.payment)}/month through {monthYearName(loan.end)}</DriverDetail>)}
       {drivers.loanChanges.map(change => <DriverDetail key={`${change.loanId}-${change.since}`}>{change.name} · {euro(change.amount)}/month from {monthYearName(change.since)}</DriverDetail>)}
     </DriverLine>
     <DriverLine label="Everyday spending" amount={drivers.variable}/>
@@ -179,7 +179,7 @@ function recordedCell(month, color) {
     return { key: 'recorded', label: 'Scheduled', color, text: signedEuro(month.scheduled.balance) };
   }
   if (month.period === k_reportingPeriods.future) {
-    return { key: 'recorded', label: 'Recorded', color, text: '—' };
+    return { key: 'recorded', label: 'Recorded', color, text: '—', spokenText: 'nothing yet' };
   }
   if (!month.hasRecords && !month.isConfirmedComplete) {
     return { key: 'recorded', label: 'Recorded', color, text: 'No records' };
@@ -197,8 +197,8 @@ function monthCells(month, ink) {
 
 // The row's label replaces its children for screen readers, so it carries every value.
 function monthAccessibilityLabel(month, cells) {
-  const values = cells.map(cell => `${cell.label} ${cell.text}`).join('. ');
-  return `${monthYearName(month.month)}. ${values}. Opens this month's plan`;
+  const values = cells.map(cell => `${cell.label} ${cell.spokenText ?? cell.text}`).join('. ');
+  return `${monthYearName(month.month)}. ${values}. Opens the month's plan`;
 }
 
 function OutlookMonths({ outlook, selectedMonth, ink, onSelectMonth }) {

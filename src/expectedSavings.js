@@ -54,8 +54,9 @@ export function expectedSavings(state, month, today = new Date().toISOString().s
   const bills = expectedBills(state, month, today);
   const fixed = bills.reduce((total, bill) => total + bill.expected, 0);
   const expense = variable + occasional + loan + fixed;
-  // Estimated interest alone is not evidence for a month.
-  if (!totals.length && !baseIncome && !expense) {
+  // Estimated interest alone is not evidence for a month; recorded interest is.
+  const hasRecordedInterest = interest.some(line => line.recorded > 0);
+  if (!totals.length && !baseIncome && !expense && !hasRecordedInterest) {
     return null;
   }
   return { income, expense, balance: income - expense, occasional, loan, fixed, bills, variableLines, events, interest, monthlyReserve, partial, historyMonths: history };

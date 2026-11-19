@@ -74,7 +74,7 @@ test('the year outlook shows recorded, expected and planned totals with what sha
   await expect(page.getByTestId('year-month-2027-08-expected')).toHaveText('+€200.00');
   expect(await savedLedger(page)).toBe(ledgerBefore);
 
-  await page.getByRole('button', { name: /^August 2027\. Plan \+€1,100\.00\. Recorded —\. Expected \+€200\.00\. Opens this month's plan$/ }).click();
+  await page.getByRole('button', { name: /^August 2027\. Plan \+€1,100\.00\. Recorded nothing yet\. Expected \+€200\.00\. Opens the month's plan$/ }).click();
   await expect(page.getByTestId('expected-savings-amount')).toHaveText('+€200.00');
 });
 
@@ -104,7 +104,7 @@ test('the year outlook stays within narrow screens with long names and large amo
     plans: frozenPlan(plannedMonthsFrom(1, { income: 99999999, expense: 98765432, balance: 1234567 }))
   });
   await openYearAhead(page, ledger);
-  await expect(page.getByTestId('year-outlook-drivers').getByText('A very long mortgage name for the family home in the countryside · €98,765.43/month from April 2027 until December 2040', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('year-outlook-drivers').getByText('A very long mortgage name for the family home in the countryside · €98,765.43/month through December 2040', { exact: true })).toBeVisible();
   const viewport = page.viewportSize();
   for (const testId of ['year-outlook-summary', 'year-outlook-drivers', 'year-month-2027-09']) {
     const box = await page.getByTestId(testId).boundingBox();

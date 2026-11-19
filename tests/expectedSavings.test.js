@@ -406,3 +406,11 @@ test('historical interest stays in expected income until the account has a sched
   const state = scheduledSavingsState({ interestSchedule: [{ since: '2027-09', rate: 12 }] });
   assert.equal(expectedSavings(state, '2027-04', '2027-04-10').income, 202000);
 });
+
+test('recorded interest is evidence even when a month has no other history or activity', () => {
+  const state = createFinancialState({
+    accounts: [{ id: 'savings', name: 'Rainy day', tag: 'Savings', openingBalance: 100000, interestSchedule: [{ since: '2027-01', rate: 12 }] }],
+    transactions: [createTransaction({ id: 'bank-interest', type: 'income', title: 'Interest', amount: 1500, date: '2027-04-05', account: 'savings', category: 'interest' })]
+  });
+  assert.equal(expectedSavings(state, '2027-04', '2027-04-10').income, 1500);
+});
