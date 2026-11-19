@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { useApp } from './context.js';
 import { Button, Card, H, Row, T, Theme } from './ui.jsx';
@@ -26,6 +26,12 @@ export default function PlannedCostList({ year }) {
   const costs = plannedCostsInYear(state.events ?? [], year);
   // Only a recurring cost can move; a merge or restore may change it while the dialog is open.
   const movingEvent = (state.events ?? []).find(event => event.id === movingEventId && !event.year);
+  // Forget a cost that can no longer move, so the dialog never reopens by itself later.
+  useEffect(() => {
+    if (movingEventId !== null && !movingEvent) {
+      setMovingEventId(null);
+    }
+  }, [movingEventId, movingEvent]);
   if (!costs.length) {
     return null;
   }

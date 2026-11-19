@@ -1,5 +1,6 @@
 import { monthKeyOf, monthOf } from './calendar.js';
 import { longMonthLabel } from './monthLabels.js';
+import { k_monthsPerYear } from './domainConstants.js';
 
 const k_occurrenceMonth = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -59,10 +60,9 @@ export function plannedCostOccurrenceMonth(event, year) {
 }
 
 const k_firstMonth = 1;
-const k_lastMonth = 12;
 
 export function isMonthNumber(value) {
-  return Number.isInteger(value) && value >= k_firstMonth && value <= k_lastMonth;
+  return Number.isInteger(value) && value >= k_firstMonth && value <= k_monthsPerYear;
 }
 
 export function isValidMonthFromYear(event) {
