@@ -6,7 +6,7 @@ import { prepareFullRestore } from '../src/fullRestore.js';
 import { expectedOccasionalEvents } from '../src/expectedOccasionalSpending.js';
 import { monthStats } from '../src/ledger.js';
 import { plannedCostOccurrences } from '../src/comparableCosts.js';
-import { plannedCostOptions } from '../src/plannedCosts.js';
+import { plannedCostOptions, plannedCostsInYear } from '../src/plannedCosts.js';
 import { yearOutlook } from '../src/yearOutlook.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 
@@ -141,4 +141,17 @@ test('a full restore keeps month moves', () => {
   const { restoredState } = prepareFullRestore(JSON.stringify(backup));
 
   assert.deepEqual(restoredState.events[0].monthFromYear, { 2027: 11 });
+});
+
+test("a year's planned costs are listed in month order with the month in effect that year", () => {
+  const spring = { id: 'spring-fair', name: 'Spring fair', month: 3, amount: 10000, year: 2027 };
+  const trip = { id: 'trip', name: 'Autumn trip', month: 10, amount: 90000, year: 2026 };
+  const events = [k_movedFrom2027, trip, spring];
+
+  const listed = year => plannedCostsInYear(events, year).map(cost => [cost.event.id, cost.month]);
+
+  assert.deepEqual([listed(2026), listed(2027)], [
+    [['trip', 10], ['celebrations', 12]],
+    [['spring-fair', 3], ['celebrations', 11]]
+  ]);
 });

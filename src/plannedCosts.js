@@ -1,4 +1,4 @@
-import { monthOf } from './calendar.js';
+import { monthKeyOf, monthOf } from './calendar.js';
 
 const k_occurrenceMonth = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -51,13 +51,13 @@ export function plannedCostMonth(event, year) {
 
 // The cost's occurrence in a year as a month key, such as "2027-11".
 export function plannedCostOccurrenceMonth(event, year) {
-  return `${year}-${String(plannedCostMonth(event, year)).padStart(2, '0')}`;
+  return monthKeyOf(year, plannedCostMonth(event, year));
 }
 
 const k_firstMonth = 1;
 const k_lastMonth = 12;
 
-function isMonthNumber(value) {
+export function isMonthNumber(value) {
   return Number.isInteger(value) && value >= k_firstMonth && value <= k_lastMonth;
 }
 
@@ -71,6 +71,14 @@ export function isValidMonthFromYear(event) {
   }
   return Object.entries(event.monthFromYear)
     .every(([year, month]) => k_yearKeyPattern.test(year) && isMonthNumber(month));
+}
+
+// The planned costs that occur in a year, in month order, each with its month
+// for that year.
+export function plannedCostsInYear(events, year) {
+  return events.filter(event => !event.year || event.year === year)
+    .map(event => ({ event, month: plannedCostMonth(event, year) }))
+    .sort((left, right) => left.month - right.month || left.event.name.localeCompare(right.event.name));
 }
 
 export function eventsInMonth(events, month) {
