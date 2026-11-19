@@ -497,3 +497,17 @@ The implementation note below records how these were built; it stores only per-y
   - A short hint that the usual amount shown is each side's own.
   - Moving the merge card into its own file. This was left alone to keep churn small in the shared Screens.jsx.
 - **Not done / owner:** separate merge choices per year would be a new owner question; nothing was asked.
+
+## Session handoff — LEDGER-2a · Earliest correctable month (19 November 2026, Claude cloud session)
+
+- **Implemented (L07):** `earliestCorrectableMonth` (`src/interestCorrection.js`) is the earliest of:
+  - the account's first entry month. Any entry on the account counts; a transfer counts by its target only when it is a transfer. App interest and corrections count by the month they belong to, even if re-dated.
+  - its first stored rate period.
+  - the current month.
+
+  The review refuses a draft rate before that month (`InterestScheduleError`) before it loops, so a mistyped year never reviews centuries of months. Apply re-reviews, so it refuses it too.
+- **Dialog:** `correctedSchedule` takes the bound, and `src/InterestCorrection.jsx` shows the earliest month as a hint. The hint and the refusal share `correctableStartText`; when the bound is only the current month, it says the account has no earlier entries or rate periods. A draft that falls behind the bound at month rollover shows the message and disables Apply instead of crashing the dialog.
+- **Changed tests:** two LEDGER-2 tests that started a correction before any recorded entry now record the money on its date (a transfer in, a first deposit). Their expected amounts are unchanged.
+- **Owner answers (L08):** no extra lookback floor; a mistyped entry date is fixed by editing or deleting that entry. An account with only an opening balance is correctable from the current month only. The account form's legacy past start gets the same limit, queued as **BUG-2**.
+- **Checks (tree merged with develop `278466c`):** `npm run test:coverage` 514/514 with thresholds met (96.9% lines, 94.8% branches); `npm run build`; `npm run check:android` (Hermes compilation only, no device test). `npm run test:browser`: 450/453. The three failures are the known BUG-1 flake (`fullRestore.spec.js` "makes the preview stale", all viewports in one run); the same test passed 9/9 when rerun alone. The pre-merge run of this branch had 440/441 with the same flake.
+- **Review:** a separate read-only Claude review found nothing blocking. It raised two should-fix items: the hint named the current month as the account's first entry, and a mistyped entry year reopens the slow path (an owner question, answered in L08). It also raised nits: `toAccount` on non-transfers, style, and hand-written bounds in tests. All were fixed test-first in `90460b2`. A re-review found nothing blocking or should-fix; it left two optional nits (argument shape of `correctableStartText`, a default wording when no current month is passed), not changed.
