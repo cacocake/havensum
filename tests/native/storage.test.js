@@ -105,6 +105,17 @@ test('native plan invitation deferral is kept apart from the ledger', async () =
   assert.deepEqual(await readState(), state);
 });
 
+test('native restore recovery keeps every distinct pre-restore copy apart from the ledger', async () => {
+  const { writeRestoreRecovery, readRestoreRecovery } = await import('../../src/storage.native.js');
+  const first = createFinancialState();
+  const second = createFinancialState({ theme: 'dark' });
+  await writeRestoreRecovery(first);
+  await writeRestoreRecovery(second);
+  assert.deepEqual(await readRestoreRecovery(), second);
+  assert.deepEqual(JSON.parse(g_values.get('havensum-restore-recovery-v1')), first);
+  assert.equal(g_values.get('melo-state-v1'), undefined);
+});
+
 test('native storage retains legacy state and baseline independently', async () => {
   const state = createFinancialState();
   const snapshot = createFinancialState({ theme: 'dark' });

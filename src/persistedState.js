@@ -6,6 +6,14 @@ function invalidCopyKey(key, index) {
   return index === 0 ? prefix : `${prefix}:${index}`;
 }
 
+function keptCopyKey(key, index) {
+  return index === 0 ? key : `${key}:${index}`;
+}
+
+function latestKeptCopyIndexKey(key) {
+  return `${key}:latest-index`;
+}
+
 function latestInvalidCopyIndexKey(key) {
   return `${key}:recovery:invalid:latest-index`;
 }
@@ -96,6 +104,47 @@ export function createPersistedStorage(getStorage) {
           latest = copy;
         }
       });
+    },
+    // Keeps every distinct copy under `key`, `key:1`, `key:2`… and never
+    // overwrites an earlier one. The index of the copy written or matched last
+    // is recorded so the newest replaced ledger can be found again.
+    writeKeptCopy(key, state) {
+      const encodedState = JSON.stringify(migrateState(state));
+      return enqueue(async () => {
+        const storage = getStorage();
+        const index = await retainRecoveryCopy(storage, copyIndex => keptCopyKey(key, copyIndex), encodedState);
+        await storage.setItem(latestKeptCopyIndexKey(key), String(index));
+      });
+    },
+    // The newest readable copy: the recorded latest first, then earlier ones.
+    readLatestKeptCopy(key) {
+      return enqueue(async () => {
+        const storage = getStorage();
+        const copies = [];
+        for (let index = 0; ; index += 1) {
+          const copy = await storage.getItem(keptCopyKey(key, index));
+          if (copy === null) {
+            break;
+          }
+          copies.push(copy);
+        }
+        const recordedIndex = await storage.getItem(latestKeptCopyIndexKey(key));
+        const hasRecordedIndex = recordedIndex !== null && /^\d+$/.test(recordedIndex) && Number(recordedIndex) < copies.length;
+        const latestIndex = hasRecordedIndex ? Number(recordedIndex) : copies.length - 1;
+        const candidates = [copies[latestIndex], ...copies.slice(0, latestIndex).reverse(), ...copies.slice(latestIndex + 1).reverse()];
+        for (const candidate of candidates.filter(copy => copy !== undefined)) {
+          try {
+            return migrateState(JSON.parse(candidate));
+          } catch {
+            // An unreadable copy is skipped so an earlier one can still be recovered.
+          }
+        }
+        return null;
+      });
+    },
+    // Raw saved bytes, read after any queued save so a pending write is included.
+    readRaw(key) {
+      return enqueue(() => getStorage().getItem(key));
     },
     async write(key, state, { recoverInvalid = false } = {}) {
       // Capture before queuing so later edits cannot change this save.

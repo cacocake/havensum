@@ -4,6 +4,7 @@ import { Theme, Card, H, T, Row, Button, TileIcon, Divider } from './ui.jsx';
 import { useApp } from './context.js';
 import { exportTransactionsCsv, downloadCsvTemplate, downloadCsvGuide, downloadJSON } from './files';
 import { readImportRecovery } from './storage';
+import RestoreBackup from './RestoreBackup.jsx';
 
 export default function DataTools({ onImport, onBackup, onExcel, busy }) {
   const { state, notify } = useApp();
@@ -49,6 +50,8 @@ export default function DataTools({ onImport, onBackup, onExcel, busy }) {
         <Button small kind="soft" onPress={() => downloadFile(downloadRecovery)}>Download pre-import backup</Button>
       </Row>
       <T style={{ fontSize: 12, color: colors.sub, marginTop: 16 }}>CSV exchanges transactions. JSON preserves settings, links and frozen plans. Excel remains available as a legacy summary and import format. Exact Cashew and bank compatibility need verified samples.</T>
+      <Divider />
+      <RestoreBackup />
     </Card>
   );
 }

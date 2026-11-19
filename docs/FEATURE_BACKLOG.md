@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**Next implementation ticket: BACKUP-1.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**Next implementation ticket: none unblocked.** PLAN-1–4, SAVINGS-1 and BACKUP-1 are done and merged into `develop`. The remaining tickets need owner input, samples, credentials or a device; see the 19 November session summary at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -68,7 +68,7 @@ Use integer EUR cents. Cash follows its transaction date, including for early pa
 
 ### BACKUP-1 · Full JSON restore
 
-**Depends on:** PLAN-1.
+**Status:** Done, reviewed and merged into `develop` from `codex/full-restore` (implementation `948ec32`, review fixes `dea89a8`, `0196dfd` and a final index fix). See the BACKUP-1 handoff note below. **Depends on:** PLAN-1.
 
 Provide a distinct full-ledger restore with file validation, preview, explicit replacement confirmation, and a separate recovery copy written before replacement. Summarize affected accounts, records, and archived plans. Preserve the distinction from reviewed merge and transaction import. Verify legacy and current backups, including scheduled rates if SAVINGS-1 has landed, missing-category review, invalid versions, corrupt files, cancelled and stale previews, quota failure, interrupted writes, and reload. A failed recovery copy blocks replacement.
 
@@ -188,3 +188,27 @@ Start with units and a manually entered EUR price if requested. For automatic pr
 - **Owner questions (non-blocking):** (1) Choosing an older backup's differing rate during review now inserts it as one period, replacing only the period with the same start month and leaving future periods. That start month is usually in the past, so months already holding recorded interest then show a different rate from the one posted (recorded entries never change). Please confirm a reviewed merge may override the "new periods start in the current month or later" rule, or whether the backup side should only be shown for information. (2) Pre-existing: rates reject comma decimals ("3,5") while balances accept them. (3) The start month is a typed `YYYY-MM` field rather than a month picker, and `account.bank` keeps the rate label written at save time.
 - **Checks (`32eecc6`):** `npm run test:coverage` 315/315 with thresholds met, `npm run build`, `npm run check:android` (Hermes only). `npm run test:browser`: 294 passed and 9 failed — three existing tests across three viewports that asserted the old schema version, the old balance error text and the old single rate field. Those tests were updated to the new behaviour and both affected spec files were rerun (99/99).
 - **Review:** separate read-only Claude review, two focused re-reviews; all actionable findings fixed test-first; the final re-review found no new defects.
+
+## Session handoff — BACKUP-1 (19 November 2026, Claude cloud session)
+
+- **Implementation:** `src/fullRestore.js` validates and previews a full backup; `src/RestoreBackup.jsx` shows the summary, missing-category review and explicit confirmation, writes `havensum-restore-recovery-v1` first, then saves the backup. Scheduled rates (SAVINGS-1) and archived plans (PLAN-1) restore with the rest of the ledger, including from legacy backups in migrated form. See [STATE_MIGRATIONS.md](STATE_MIGRATIONS.md).
+- **Review fixes:** a restored ledger now gets the same startup preparation as a loaded one (interest catch-up, category visuals) before it is saved; every distinct pre-restore copy is kept (`havensum-restore-recovery-v1`, `:1`, …); the download returns the ledger replaced most recently and skips an unreadable copy; the dialog cannot be dismissed while writing and asks before discarding choices; a ledger saved by another tab after the preview makes it stale (the saved bytes are read after any queued save); the preview lists accounts and archived plans on both sides with labelled summary rows; category warnings carried in a backup join the restore review.
+- **Owner questions (non-blocking):** (1) Should restoring a backup marked as example data be allowed? It currently restores as-is. (2) Pre-restore copies accumulate with no removal control. On web each copy is a full ledger in browser storage (about 5 MB in total), so after several restores of a large ledger the copy can fail for lack of space, which blocks further restores until space is freed. What retention limit or clear-up action do you want? (3) Are account names and counts enough for "affected accounts"? (4) Pre-existing on Android: the JSON picker filter may hide files the system labels `octet-stream`; this also affects backup merge and needs a device check (ANDROID-2).
+- **Checks:** full gate on `0196dfd` — `npm run test:coverage` 327/327, `npm run test:browser` 324/324, `npm run build`, `npm run check:android` (Hermes only). The final commit only changes how a missing latest-copy index is read; rechecked with `npm run test:coverage` 328/328, build, Hermes and the restore and migration browser specs (48/48).
+- **Review:** separate read-only Claude review and three focused re-reviews; all actionable findings fixed test-first; the last re-review found no blocking defects.
+
+## Session summary — 19 November 2026 (Claude cloud session)
+
+**Merged into local `develop` (not pushed):** PLAN-1, PLAN-2, PLAN-3, PLAN-4, SAVINGS-1, BACKUP-1, and a test-only fix for an intermittent backup-review browser test. Each went through a dedicated `codex/` branch, test-first slices, the full gate and a separate read-only Claude review with fixes on the same branch. `master` was not touched.
+
+**Push status:** the push of this work to the session branch was refused by the cloud session's permission check, so everything exists only in the local repository of that session unless the owner pushes it or allows a push.
+
+**Environment note:** Playwright 1.65.1's browser download was blocked by the network policy; browser tests ran against the preinstalled Chromium build linked to the expected path (not committed).
+
+**Still blocked:**
+- Owner decisions: LEDGER-1 (posting rule), LEDGER-2 (historical interest corrections), DRIVE-1 (shared-file access model), and a start-year rule for new recurring named costs (deferred from PLAN-3).
+- Samples: IMPORT-1 (the other owner's sanitized bank export with expected rows), IMPORT-2 (representative Cashew rows and agreed classifications).
+- Credentials or device: ANDROID-1 (app ID, signing ownership), ANDROID-2 (physical phone).
+- Dependencies: FORECAST-1 can start once LEDGER-1 is decided (or explicitly scoped without posting changes); FORECAST-2 follows FORECAST-1; DRIVE-2 follows DRIVE-1. ETF work stays parked.
+
+**Non-blocking owner questions** are listed in each ticket's handoff note above (PLAN-2: 4, PLAN-3: 3, PLAN-4: 4, SAVINGS-1: 3, BACKUP-1: 4).

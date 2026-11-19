@@ -1,13 +1,13 @@
 import { validatePaybackState } from './paybackState.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey, k_mergeRecoveryStorageKey, k_planInvitationDeferralKey } from './storageKeys.js';
+import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey, k_mergeRecoveryStorageKey, k_planInvitationDeferralKey, k_restoreRecoveryStorageKey } from './storageKeys.js';
 import { parseMergeBaseline, parseStoredYear } from './storageSerialization.js';
 import { createPersistedStorage } from './persistedState.js';
 
 const k_persistedStorage = createPersistedStorage(() => AsyncStorage);
 
 export async function readSavedLedgerCopy() {
-  return AsyncStorage.getItem(k_stateStorageKey);
+  return k_persistedStorage.readRaw(k_stateStorageKey);
 }
 
 export function isDemoSession() {
@@ -58,4 +58,13 @@ export async function readPlanInvitationDeferral() {
 
 export async function writePlanInvitationDeferral(year) {
   await AsyncStorage.setItem(k_planInvitationDeferralKey, String(year));
+}
+
+// The device ledger as it was before each full restore. Every distinct copy is kept.
+export async function writeRestoreRecovery(state) {
+  await k_persistedStorage.writeKeptCopy(k_restoreRecoveryStorageKey, state);
+}
+
+export async function readRestoreRecovery() {
+  return k_persistedStorage.readLatestKeptCopy(k_restoreRecoveryStorageKey);
 }
