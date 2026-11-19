@@ -6,7 +6,7 @@ import { expectedSavings } from '../src/expectedSavings.js';
 import { yearOutlook } from '../src/yearOutlook.js';
 import { prepareFullRestore } from '../src/fullRestore.js';
 import { validateState } from '../src/stateSchema.js';
-import { plannedCostAmount, plannedCostOptions, plannedCostsInYear } from '../src/plannedCosts.js';
+import { plannedCostAmount, plannedCostOptions, plannedCostRepeatText, plannedCostsInYear } from '../src/plannedCosts.js';
 import { plannedCostOccurrences } from '../src/comparableCosts.js';
 import { k_moveErrors, movePlannedCost, plannedCostMoveYears } from '../src/plannedCostMoves.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
@@ -188,4 +188,10 @@ test('a start year added on one device merges cleanly and two different start ye
 
   assert.deepEqual([clean.conflicts, clean.result.events[0].fromYear], [[], 2027]);
   assert.deepEqual(conflicting.conflicts.map(conflict => [conflict.collection, conflict.field]), [['events', 'fromYear']]);
+});
+
+test('a recurring cost says the year it repeats from only when it has a start year', () => {
+  const legacyGifts = { id: 'gifts', name: 'Gifts', month: 12, amount: 30000 };
+
+  assert.deepEqual([plannedCostRepeatText(legacyGifts), plannedCostRepeatText(k_ski)], ['every year', 'every year from 2027']);
 });
