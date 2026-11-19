@@ -21,7 +21,7 @@ export default function InterestScheduleEditor({ schedule, unscheduledRate, lega
   return <View testID="interest-schedule" style={{ gap: 8, marginBottom: 12 }}>
     <H size={16}>Interest rates</H>
     {!periods.length && unscheduledRate !== undefined && <T style={{ fontSize: 12, color: colors.sub }}>Saved rate {unscheduledRate}% has no start month yet, so no interest has been recorded. Choose when it started.</T>}
-    {!periods.length && legacyStartText && <T testID="interest-schedule-earliest" style={{ fontSize: 12, color: colors.sub }}>{legacyStartText}</T>}
+    {!periods.length && unscheduledRate !== undefined && legacyStartText && <T testID="interest-schedule-earliest" style={{ fontSize: 12, color: colors.sub }}>{legacyStartText}</T>}
     {periods.map(period => <Row key={period.since} style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
       <T style={{ flex: 1, minWidth: 180, fontSize: 12 }}>{periodLabel(period)}</T>
       {period.since >= currentMonth && <Button small kind="soft" accessibilityLabel={`Remove the rate from ${monthYearName(period.since)}`} onPress={() => onRemove(period.since)}>Remove</Button>}

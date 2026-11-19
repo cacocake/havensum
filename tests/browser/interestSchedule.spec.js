@@ -65,21 +65,25 @@ test('a rate for a past month is refused once a schedule exists', async ({ page 
 });
 
 function legacyRateLedger({ openingBalance = 100000, transactions = [] } = {}) {
-  return createFinancialState({ version: 3, accounts: [{ id: 'imported', name: 'Imported savings', tag: 'Savings', openingBalance, interest: 12 }], transactions });
+  const accounts = [
+    { id: 'imported', name: 'Imported savings', tag: 'Savings', openingBalance, interest: 12 },
+    { id: 'everyday', name: 'Everyday', tag: 'Personal', openingBalance: 200000 }
+  ];
+  return createFinancialState({ version: 3, accounts, transactions });
 }
 
 function storedTransactions(page) {
   return page.evaluate(key => JSON.parse(localStorage.getItem(key)).transactions, k_ledgerKey);
 }
 
-function octoberDeposit() {
-  return createTransaction({ id: 'october-deposit', type: 'income', title: 'First deposit', category: 'salary', account: 'imported', date: '2026-10-01', amount: 100000 });
+function octoberTransferIn() {
+  return createTransaction({ id: 'october-transfer', type: 'transfer', title: 'To savings', category: null, account: 'everyday', toAccount: 'imported', date: '2026-10-01', amount: 100000 });
 }
 
 test('an unscheduled legacy rate earns nothing until its start month is chosen, from the first entry at the earliest', async ({ page }) => {
-  await openLedger(page, legacyRateLedger({ openingBalance: 0, transactions: [octoberDeposit()] }));
+  await openLedger(page, legacyRateLedger({ openingBalance: 0, transactions: [octoberTransferIn()] }));
   await expect.poll(async () => (await page.evaluate(key => JSON.parse(localStorage.getItem(key)), k_ledgerKey)).version).toBe(4);
-  expect((await storedTransactions(page)).map(transaction => transaction.id)).toEqual(['october-deposit']);
+  expect((await storedTransactions(page)).map(transaction => transaction.id)).toEqual(['october-transfer']);
 
   const dialog = await editAccount(page, 'Imported savings');
   await expect(dialog.getByText('Saved rate 12% has no start month yet, so no interest has been recorded. Choose when it started.', { exact: true })).toBeVisible();
