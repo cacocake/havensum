@@ -108,7 +108,7 @@ Design a reviewed, explicit correction flow after agreement. Show the affected c
 
 ### LEDGER-2a · Earliest correctable month
 
-**Owner decision (19 November 2026, L07):** a correction cannot start before the account's first recorded entry or its first rate period. **Status:** Queued, unblocked. **Depends on:** LEDGER-2 (merged).
+**Owner decision (19 November 2026, L07):** a correction cannot start before the account's first recorded entry or its first rate period. **Status:** In progress on `codex/ledger-2a-earliest-correctable-month` (started 19 November 2026 from `f5e71d5`). **Depends on:** LEDGER-2 (merged).
 
 In the *Correct past interest* review (`src/interestCorrection.js`, `src/interestSchedule.js` `correctedSchedule`, `src/InterestCorrection.jsx`), refuse a draft rate period whose start month is earlier than the account's first transaction month (including a transfer into the account) or its first stored rate period (whichever is earlier; an account with neither may start from the current month), with a clear message, and never loop over months before that bound. Cover a mistyped far-past year, an account with no entries, a legacy unscheduled rate, and the existing earlier-start case that must still work.
 
