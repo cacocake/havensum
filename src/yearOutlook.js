@@ -1,10 +1,11 @@
 import { monthStats } from './ledger.js';
-import { monthKeyOf, monthOf, k_calendarDateLength } from './calendar.js';
+import { localCalendarDate, monthKeyOf, monthOf } from './calendar.js';
 import { k_monthsPerYear, k_reportingPeriods } from './domainConstants.js';
 import { expectedSavings } from './expectedSavings.js';
 import { interestProjection } from './expectedInterest.js';
 import { sumCents } from './money.js';
 import { plannedMonth } from './planArchive.js';
+import { postedLedger } from './posting.js';
 import { hasRecordedFinancialActivity, reportingPeriod } from './reportingHistory.js';
 import { yearOutlookDrivers } from './yearOutlookDrivers.js';
 
@@ -68,11 +69,8 @@ function monthKeys(months) {
 // A read-only full-year outlook: recorded months, expected months (the
 // current month's estimate already includes its recorded activity) and the
 // frozen target side by side. Never writes a plan or a transaction.
-export function yearOutlook(state, year, today = new Date().toISOString().slice(0, k_calendarDateLength), { planRevisionId = null } = {}) {
-  const recordedState = {
-    ...state,
-    transactions: state.transactions.filter(transaction => transaction.date <= today)
-  };
+export function yearOutlook(state, year, today = localCalendarDate(), { planRevisionId = null } = {}) {
+  const recordedState = postedLedger(state, today);
   const projectedInterest = interestProjection(state, monthKeyOf(year, k_monthsPerYear));
   const monthOptions = { today, planRevisionId, projectedInterest };
   const months = Array.from({ length: k_monthsPerYear }, (_, index) =>

@@ -4,6 +4,7 @@ import { isFixedBill, isLoanExpense } from './expectedBills.js';
 import { billIdentity } from './outlookInputs.js';
 import { expenseReportingMonth, isPlannedCostLink } from './plannedCosts.js';
 import { k_spendingBehaviors, k_transactionTypes } from './domainConstants.js';
+import { postedLedger } from './posting.js';
 import { monthKeyOf, nextMonth } from './calendar.js';
 
 function rootCategoryId(state, categoryId) {
@@ -75,8 +76,8 @@ function averageOver(monthCount, total) {
 // Evidence for an annual draft. A preview reads the ledger and never writes it.
 export function planDraftEstimates(state, { year, fromMonth, window, today }) {
   const firstPlannedMonth = monthKeyOf(year, fromMonth);
-  const recordedTransactions = state.transactions.filter(transaction => transaction.date <= today);
-  const recordedState = { ...state, transactions: recordedTransactions };
+  const recordedState = postedLedger(state, today);
+  const recordedTransactions = recordedState.transactions;
   const history = completedHistory(recordedState, firstPlannedMonth, today, window);
   const historyAnchor = history.window.length ? nextMonth(history.window.at(-1)) : firstPlannedMonth;
   const selectedExpenses = history.selected.flatMap(month => netExpenses(recordedTransactions, month));

@@ -4,6 +4,9 @@ import { accountBalance, reportingMonthStats } from '../src/engine.js';
 import { scheduledMonthStats } from '../src/ledger.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 import { atLocalTime } from './helpers/localClock.js';
+import { planInsights } from '../src/planInsights.js';
+import { yearOutlook } from '../src/yearOutlook.js';
+import { expectedSavings } from '../src/expectedSavings.js';
 
 // L01: an entry counts from its date, by the device's local date.
 function ledgerAroundTheTenth() {
@@ -118,4 +121,22 @@ test('reports decide what has posted by the local date when no date is given', (
   assert.equal(auckland.spent, 3000);
   assert.equal(losAngeles[0].spent, 0);
   assert.equal(losAngeles[1].spent, 3000);
+});
+
+test('forecasts treat the local date as today when no date is given', () => {
+  const state = createFinancialState({ transactions: [
+    createTransaction({ id: 'groceries', amount: 3000, date: '2026-11-20' })
+  ] });
+
+  // 21:00 on 30 November in Los Angeles is already 1 December in UTC.
+  const [insights, outlook, estimate] = atLocalTime('America/Los_Angeles', '2026-12-01T05:00:00Z', () => [
+    planInsights(state, '2026-11'),
+    yearOutlook(state, 2026),
+    expectedSavings(state, '2026-12')
+  ]);
+
+  assert.equal(insights.period, 'current');
+  assert.equal(insights.elapsed, 30);
+  assert.equal(outlook.months[10].period, 'current');
+  assert.equal(estimate, null, 'November is not complete yet, so December has no history to estimate from');
 });

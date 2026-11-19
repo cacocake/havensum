@@ -1,9 +1,10 @@
 import { monthStats, reportingMonthStats, categorySettings, hasCategoryParent } from './ledger.js';
-import { monthOf, daysInMonth, k_calendarDateLength } from './calendar.js';
+import { localCalendarDate, monthOf, daysInMonth } from './calendar.js';
 import { expectedSavings } from './expectedSavings.js';
 import { outlookHistory } from './outlookHistory.js';
 import { k_reportingPeriods, k_systemCategoryIds } from './domainConstants.js';
 import { plannedMonth } from './planArchive.js';
+import { postedLedger } from './posting.js';
 import { reportingPeriod } from './reportingHistory.js';
 
 const k_incomeCategoryIds = new Set([k_systemCategoryIds.salary, k_systemCategoryIds.interest]);
@@ -19,11 +20,8 @@ function elapsedDays(period, days, today) {
 }
 
 // A read-only outlook. Never writes a plan, transaction or past month.
-export function planInsights(state, month, today = new Date().toISOString().slice(0, k_calendarDateLength), { planRevisionId = null } = {}) {
-  const recordedState = {
-    ...state,
-    transactions: state.transactions.filter(transaction => transaction.date <= today)
-  };
+export function planInsights(state, month, today = localCalendarDate(), { planRevisionId = null } = {}) {
+  const recordedState = postedLedger(state, today);
   const { window: history, selected: recorded, partial } = outlookHistory(recordedState, month, today);
   const count = recorded.length;
   const average = field => {
