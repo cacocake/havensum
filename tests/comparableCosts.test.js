@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { comparableCostEstimate, comparableOccurrences, plannedCostOccurrences } from '../src/comparableCosts.js';
+import { comparableCostEstimate, comparableLikeChoices, comparableOccurrences, plannedCostOccurrences } from '../src/comparableCosts.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 
 const k_today = '2026-11-19';
@@ -429,4 +429,19 @@ test('equal category shares choose the category whose ID sorts first', () => {
 
   // Azores is now €400 of groceries and €400 of travel; "groceries" sorts before "travel".
   assert.deepEqual(comparableOccurrences(state, nextTrip, k_today, { categoryId: 'groceries' }).map(occurrence => occurrence.eventId), ['azores']);
+});
+
+test('like choices list past planned costs with completed evidence and top-level spending categories', () => {
+  const { state } = pastTripsState();
+
+  const choices = comparableLikeChoices(state, k_today);
+
+  assert.deepEqual(choices.plannedCosts, [
+    { like: { eventId: 'azores' }, label: 'Trip azores · Mar 2025' },
+    { like: { eventId: 'lisbon' }, label: 'Trip lisbon · May 2024' },
+    { like: { eventId: 'porto' }, label: 'Trip porto · Sep 2025' }
+  ]);
+  assert.deepEqual(choices.categories.map(choice => choice.like.categoryId),
+    ['groceries', 'rent', 'shopping', 'travel']);
+  assert.equal(choices.categories.find(choice => choice.like.categoryId === 'travel').label, 'Travel');
 });

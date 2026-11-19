@@ -1,7 +1,7 @@
 // FORECAST-2 discovery: what a named cost actually came to in its completed
 // occurrences. Nothing here is shown in the app or written to the ledger.
 import { k_calendarDateLength, monthOf, yearOfMonth } from './calendar.js';
-import { k_transactionTypes } from './domainConstants.js';
+import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
 import { hasCategoryParent, netExpenses } from './ledger.js';
 import { paybackTaskSummary } from './paybackTasks.js';
 import { needsPlannedCostReview } from './plannedCosts.js';
@@ -199,4 +199,29 @@ export function comparableCostEstimate(allComparable) {
     high: sortedAmounts[sortedAmounts.length - 1],
     comparable
   };
+}
+
+const k_likeMonthLabelOptions = { month: 'short', year: 'numeric' };
+const k_systemCategories = new Set(Object.values(k_systemCategoryIds));
+
+function likeMonthLabel(month) {
+  return new Date(`${month}-01T12:00:00`).toLocaleString('en', k_likeMonthLabelOptions);
+}
+
+// What a new planned cost can be "like": a past planned cost with completed
+// evidence (its latest occurrence) or a top-level spending category.
+export function comparableLikeChoices(state, evaluationDate) {
+  const plannedCosts = state.events.flatMap(event => {
+    const occurrences = completedOccurrences(state, event, evaluationDate);
+    if (!occurrences.length) {
+      return [];
+    }
+    const latest = occurrences[occurrences.length - 1];
+    return [{ like: { eventId: event.id }, label: `${event.name} · ${likeMonthLabel(latest.month)}` }];
+  }).sort((left, right) => left.label.localeCompare(right.label));
+  const categories = state.categories
+    .filter(category => !hasCategoryParent(category) && !k_systemCategories.has(category.id))
+    .map(category => ({ like: { categoryId: category.id }, label: category.name }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+  return { plannedCosts, categories };
 }
