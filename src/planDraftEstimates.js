@@ -3,11 +3,8 @@ import { completedHistory } from './outlookHistory.js';
 import { isFixedBill, isLoanExpense } from './expectedBills.js';
 import { billIdentity } from './outlookInputs.js';
 import { expenseReportingMonth, isPlannedCostLink } from './plannedCosts.js';
-import { k_monthsPerYear, k_spendingBehaviors, k_transactionTypes } from './domainConstants.js';
-
-function monthKey(year, monthNumber) {
-  return `${year}-${String(monthNumber).padStart(2, '0')}`;
-}
+import { k_spendingBehaviors, k_transactionTypes } from './domainConstants.js';
+import { monthKeyOf, nextMonth } from './calendar.js';
 
 function rootCategoryId(state, categoryId) {
   const category = categorySettings(state.categories, categoryId);
@@ -23,10 +20,29 @@ function isEstimatedSpending(state, expense) {
   return !isPlannedCostLink(expense.plannedCost) && !isLoanExpense(state, expense);
 }
 
+// Recurring events and events in the planned year get their own plan lines.
+function plannedEventIds(state, year) {
+  return new Set((state.events ?? []).filter(event => !event.year || event.year === year).map(event => event.id));
+}
+
+// A payment for an event with no line in this plan is past occasional
+// spending, counted in the event's occurrence month.
+function isPastEventPayment(state, expense, eventIdsWithLines) {
+  return isPlannedCostLink(expense.plannedCost) && !isLoanExpense(state, expense) && !eventIdsWithLines.has(expense.plannedCost.eventId);
+}
+
 // Each observed bill keeps its latest observed monthly amount, even when it is
 // older than the averaging window, until the owner cancels that bill.
+// Amounts are net of received linked paybacks, matching how plans measured
+// fixed spending before per-bill estimates and how drift is checked.
 function observedBills(state, recordedTransactions, historyAnchor) {
   const bills = new Map();
+  const refunds = new Map();
+  for (const payback of recordedTransactions) {
+    if (payback.type === k_transactionTypes.reimbursement && payback.linkedId !== undefined) {
+      refunds.set(payback.linkedId, (refunds.get(payback.linkedId) || 0) + payback.amount);
+    }
+  }
   for (const expense of recordedTransactions) {
     const observedMonth = expenseReportingMonth(expense);
     if (expense.type !== k_transactionTypes.expense || observedMonth >= historyAnchor || !isFixedBill(state, expense)) {
@@ -37,7 +53,8 @@ function observedBills(state, recordedTransactions, historyAnchor) {
       bills.set(key, { key, name: expense.title || '', category: rootCategoryId(state, expense.category), months: new Map() });
     }
     const bill = bills.get(key);
-    bill.months.set(observedMonth, (bill.months.get(observedMonth) || 0) + expense.amount);
+    const netAmount = Math.max(0, expense.amount - (refunds.get(expense.id) || 0));
+    bill.months.set(observedMonth, (bill.months.get(observedMonth) || 0) + netAmount);
   }
   return [...bills.values()].map(bill => {
     const latestMonth = [...bill.months.keys()].sort().at(-1);
@@ -57,16 +74,19 @@ function averageOver(monthCount, total) {
 
 // Evidence for an annual draft. A preview reads the ledger and never writes it.
 export function planDraftEstimates(state, { year, fromMonth, window, today }) {
-  const firstPlannedMonth = monthKey(year, fromMonth);
+  const firstPlannedMonth = monthKeyOf(year, fromMonth);
   const recordedTransactions = state.transactions.filter(transaction => transaction.date <= today);
   const recordedState = { ...state, transactions: recordedTransactions };
   const history = completedHistory(recordedState, firstPlannedMonth, today, window);
-  const historyAnchor = history.window.at(-1) ? monthKey(...nextMonthParts(history.window.at(-1))) : firstPlannedMonth;
-  const historyExpenses = history.selected.flatMap(month => netExpenses(recordedTransactions, month))
-    .filter(expense => isEstimatedSpending(state, expense));
+  const historyAnchor = history.window.length ? nextMonth(history.window.at(-1)) : firstPlannedMonth;
+  const selectedExpenses = history.selected.flatMap(month => netExpenses(recordedTransactions, month));
+  const eventIdsWithLines = plannedEventIds(state, year);
+  const historyExpenses = selectedExpenses.filter(expense => isEstimatedSpending(state, expense));
 
   const averageSpending = new Map();
-  let occasionalTotal = 0;
+  let occasionalTotal = selectedExpenses
+    .filter(expense => isPastEventPayment(state, expense, eventIdsWithLines))
+    .reduce((total, expense) => total + expense.net, 0);
   for (const expense of historyExpenses) {
     const behavior = spendingBehavior(state, expense);
     if (behavior === k_spendingBehaviors.occasional) {
@@ -100,11 +120,26 @@ export function planDraftEstimates(state, { year, fromMonth, window, today }) {
   };
 }
 
-function nextMonthParts(month) {
-  const [year, monthNumber] = month.split('-').map(Number);
-  return monthNumber === k_monthsPerYear ? [year + 1, 1] : [year, monthNumber + 1];
-}
-
 export function billsDueInMonth(bills, categoryId, month) {
   return bills.filter(bill => bill.category === categoryId && !(bill.cancelledSince && bill.cancelledSince <= month));
+}
+
+// Recorded spending measured on the same basis as a plan line, so a drift
+// check compares like with like: no loan or named-event payments, and for a
+// fixed line only bills still due in the planned month.
+export function lineSpending(state, completedMonth, line, plannedMonth) {
+  const cancellations = state.outlook?.billCancellations ?? {};
+  return netExpenses(state.transactions, completedMonth)
+    .filter(expense => isEstimatedSpending(state, expense)
+      && rootCategoryId(state, expense.category) === line.category
+      && spendingBehavior(state, expense) === line.kind)
+    .reduce((total, expense) => {
+      if (line.kind !== k_spendingBehaviors.fixed) {
+        return total + expense.net;
+      }
+      // Fixed lines also leave out bills cancelled by the planned month.
+      const cancelledSince = cancellations[billIdentity(expense)];
+      const isCancelled = Boolean(cancelledSince && cancelledSince <= plannedMonth);
+      return isCancelled ? total : total + expense.net;
+    }, 0);
 }

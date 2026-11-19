@@ -32,3 +32,11 @@ export function daysInMonth(month) {
   const [year, monthNumber] = month.split('-').map(Number);
   return new Date(year, monthNumber, 0).getDate();
 }
+
+export function monthKeyOf(year, monthNumber) {
+  return `${year}-${String(monthNumber).padStart(2, '0')}`;
+}
+
+export function nextMonth(month) {
+  return formatMonth(new Date(yearOfMonth(month), monthNumberOf(month), 1));
+}

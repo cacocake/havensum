@@ -3,6 +3,7 @@ import { k_currentStateVersion } from './stateSchema.js';
 const k_examplePlanYear = 2026;
 const k_exampleObservedMonth = 11;
 const k_examplePlanId = 'plan-example-2026';
+const k_exampleToday = '2026-11-17';
 export const palette=['#E88A5B','#D99941','#C8A448','#45A2B2','#5B91C4','#8A88CC','#A084D0','#C47DA3','#C68C95','#A78669','#78989F','#8B819D'];
 export function seed(){
  const categories=[
@@ -62,7 +63,7 @@ export function seed(){
 
 // Example plan made at the beginning of the year, preserved as a frozen snapshot.
 function createExamplePlan(state) {
-  const examplePlan = buildPlan(state, { year: k_examplePlanYear, fromMonth: k_exampleObservedMonth, income: 245000, cushion: 12000 });
+  const examplePlan = buildPlan(state, { year: k_examplePlanYear, fromMonth: k_exampleObservedMonth, income: 245000, cushion: 12000, today: k_exampleToday });
   const observedMonth = examplePlan.months[`${k_examplePlanYear}-${String(k_exampleObservedMonth).padStart(2, '0')}`];
   for (let monthNumber = 1; monthNumber < k_exampleObservedMonth; monthNumber += 1) {
     examplePlan.months[`${k_examplePlanYear}-${String(monthNumber).padStart(2, '0')}`] = JSON.parse(JSON.stringify(observedMonth));

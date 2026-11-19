@@ -1,11 +1,11 @@
 import { categorySettings, netExpenses, hasCategoryParent } from './ledger.js';
 import { localCalendarDate, previousMonths, yearOfMonth } from './calendar.js';
 import { latestPlan } from './planArchive.js';
-import { billsDueInMonth, planDraftEstimates } from './planDraftEstimates.js';
+import { billsDueInMonth, lineSpending, planDraftEstimates } from './planDraftEstimates.js';
 import { k_defaultHistoryWindow, k_monthsPerYear, k_spendingBehaviors, k_systemCategoryIds } from './domainConstants.js';
 
 const k_defaultPlanIncome = 245000;
-const k_defaultPlanCushion = 12000;
+export const k_defaultPlanCushion = 12000;
 const k_defaultFixedTolerance = 200;
 const k_defaultVariableDrift = 0.3;
 const k_completedMonthsForDrift = 2;
@@ -22,11 +22,11 @@ export function buildPlan(state, {
   window = k_defaultHistoryWindow,
   overrides = {},
   today = localCalendarDate(),
+  estimates = planDraftEstimates(state, { year, fromMonth, window, today }),
   incomeChanges = latestPlan(state, year)?.incomeChanges || [],
   loanChanges = latestPlan(state, year)?.loanChanges || []
 }) {
   const approvedPlan = latestPlan(state, year);
-  const estimates = planDraftEstimates(state, { year, fromMonth, window, today });
   const rootCategories = state.categories.filter(category => !hasCategoryParent(category) && category.id !== k_systemCategoryIds.loan);
   const lineTemplates = rootCategories.flatMap(category => {
     const settings = categorySettings(state.categories, category.id);
@@ -85,16 +85,6 @@ export function buildPlan(state, {
     months, revision: (approvedPlan?.revision || 0) + 1
   };
 }
-function spendingForLine(state, month, line) {
-  return netExpenses(state.transactions, month)
-    .filter(expense => {
-      const category = categorySettings(state.categories, expense.category);
-      const belongsToCategory = category.id === line.category || category.parentId === line.category;
-      return belongsToCategory && (expense.kind || category.kind) === line.kind;
-    })
-    .reduce((total, expense) => total + expense.net, 0);
-}
-
 export function driftAlerts(state, month) {
   const approvedPlan = latestPlan(state, yearOfMonth(month));
   const plannedMonth = approvedPlan?.months[month];
@@ -109,7 +99,7 @@ export function driftAlerts(state, month) {
   const variableDrift = approvedPlan.drift ?? k_defaultVariableDrift;
 
   for (const line of plannedMonth.lines) {
-    const latestSpending = spendingForLine(state, completedMonths[0], line);
+    const latestSpending = lineSpending(state, completedMonths[0], line, month);
     if (line.kind === k_spendingBehaviors.fixed) {
       if (isConfirmed(completedMonths[0]) && latestSpending > 0 && Math.abs(latestSpending - line.amount) > fixedTolerance) {
         alerts.push({ category: line.name, reason: k_driftReasons.fixed });
@@ -121,7 +111,7 @@ export function driftAlerts(state, month) {
       continue;
     }
     const outsideBandForBothMonths = completedMonths.every(completedMonth => (
-      Math.abs(spendingForLine(state, completedMonth, line) - line.amount) / line.amount > variableDrift
+      Math.abs(lineSpending(state, completedMonth, line, month) - line.amount) / line.amount > variableDrift
     ));
     if (outsideBandForBothMonths) {
       alerts.push({ category: line.name, reason: k_driftReasons.variable });
