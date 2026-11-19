@@ -58,6 +58,7 @@ function pastOccurrenceMonths(recordedTransactions, event, evaluationDate) {
 }
 
 // Only tasks that existed by the evaluation date can hold an occurrence back.
+// createdAt is a UTC timestamp, so its date can differ from the local date by one day.
 function hasOpenPayback(state, expenseId, evaluationDate) {
   return (state.paybackTasks ?? [])
     .filter(task => task.expenseId === expenseId && task.createdAt.slice(0, k_calendarDateLength) <= evaluationDate)
