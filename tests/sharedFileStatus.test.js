@@ -128,19 +128,30 @@ test('a person-requested trigger queued during a sync outranks a queued edit, an
   assert.deepEqual(runs, [k_syncTriggers.start, k_syncTriggers.reconnect, k_syncTriggers.syncNow]);
 });
 
-test('sync progress saves the ledger and the link together and refuses to overwrite an edit made meanwhile', async context => {
+test('sync progress saves the ledger and the link together, installs the saved ledger in the app, and refuses an outdated one', async context => {
   installBrowserStorage(context);
   const snapshot = createFinancialState();
   await webStorage.writeState(snapshot);
-  let current = snapshot;
-  const saveProgress = createSyncProgressSaver({ storage: webStorage, snapshotState: snapshot, readCurrentState: async () => current });
-  const synced = { ...snapshot, transactions: [createTransaction()] };
+  let appLedger = snapshot;
+  const saveProgress = createSyncProgressSaver({
+    storage: webStorage,
+    snapshotState: snapshot,
+    readCurrentState: () => appLedger,
+    adoptSavedState: savedState => {
+      appLedger = savedState;
+    }
+  });
+  const synced = { ...snapshot, transactions: [createTransaction({ id: 'from-partner' })] };
   await saveProgress({ state: synced, binding: createBinding('file-1', { revision: 'rev-2', snapshots: [] }) });
-  assert.deepEqual((await webStorage.readState()).transactions, [createTransaction()]);
+  assert.deepEqual((await webStorage.readState()).transactions, synced.transactions);
   assert.equal((await webStorage.readSharedFileBinding()).lastSeenRevision, 'rev-2');
-  current = { ...synced, transactions: [...synced.transactions, createTransaction({ id: 'typed-meanwhile' })] };
+  assert.equal(appLedger, synced);
+
+  // An app still holding its pre-sync ledger cannot save over the synced one.
+  appLedger = { ...snapshot, transactions: [createTransaction({ id: 'typed-on-old-ledger' })] };
   await assert.rejects(saveProgress({ state: synced, binding: createBinding('file-1', { revision: 'rev-3', snapshots: [] }) }), StaleLedgerError);
   assert.equal((await webStorage.readSharedFileBinding()).lastSeenRevision, 'rev-2');
+  assert.deepEqual((await webStorage.readState()).transactions, synced.transactions);
 });
 
 test('if the link cannot be saved, the ledger is put back so neither is saved alone', async context => {

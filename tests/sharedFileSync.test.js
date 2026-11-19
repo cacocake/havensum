@@ -472,3 +472,16 @@ test('creating a file while offline reports it and stores no link', async () => 
   assert.equal(outcome.status, 'offline');
   assert.equal(outcome.binding, undefined);
 });
+
+test('a review prepared before another sync finished is refused as stale', async () => {
+  const { creator, partner } = await connectTwoDevices({ creatorState: createFinancialState({ transactions: [createTransaction()] }) });
+  await partner.sync();
+  creator.state = { ...creator.state, transactions: [createTransaction({ amount: 1500 })] };
+  partner.state = { ...partner.state, transactions: [createTransaction({ amount: 1700 })] };
+  await creator.sync();
+  const outcome = await partner.sync();
+  const [conflict] = outcome.review.merge.conflicts;
+  const newerLink = { ...partner.binding, lastSeenRevision: 'rev-newer' };
+  const applied = applySyncReview({ review: outcome.review, choices: { [mergeConflictKey(conflict)]: 'remote' }, currentState: partner.state, binding: newerLink });
+  assert.equal(applied.status, 'stale');
+});

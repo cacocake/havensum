@@ -68,6 +68,11 @@ function validatedMergeResult(mergedLedger) {
   }
 }
 
+// What a review was prepared against. A sync that finished meanwhile changes it.
+function linkFingerprint(binding) {
+  return JSON.stringify([binding.fileId, binding.lastSeenRevision, binding.knownSnapshots.map(snapshot => snapshot.writeId)]);
+}
+
 async function saveOrStop(saveProgress, progress) {
   try {
     await saveProgress(progress);
@@ -99,7 +104,8 @@ export async function syncSharedFile({ transport, binding, localState, createWri
     const merge = mergeSharedLedgers(baseline.ledger, localLedger, remoteDocument.ledger, remoteDocument.representation);
     if (merge.conflicts.length) {
       const bindingOnApply = recordIncorporatedSnapshots(workingBinding, [remoteDocument], revision, pinned);
-      return { status: k_syncStatuses.needsReview, review: { fileId, merge, localLedger, bindingOnApply } };
+      const linkAtReview = linkFingerprint(workingBinding);
+      return { status: k_syncStatuses.needsReview, review: { fileId, merge, localLedger, bindingOnApply, linkAtReview } };
     }
     const validated = validatedMergeResult(merge.result);
     if (validated.outcome) {
@@ -128,16 +134,17 @@ export async function syncSharedFile({ transport, binding, localState, createWri
   }
 }
 
-// Applies the person's choices. The review is refused if it was prepared for
-// another file or if this device's ledger changed since, so an edit made
+// Applies the person's choices. The review is refused if the link changed
+// since it was prepared (another file, or a sync that finished meanwhile) or
+// if this device's ledger changed since, so an edit made
 // meanwhile is never dropped. A choice that leaves a broken reference (for
 // example removing an account an entry still uses) is refused with its reason.
 export function applySyncReview({ review, choices, currentState, binding }) {
   if (!hasChosenEveryConflict(review.merge.conflicts, choices)) {
     return { status: k_reviewOutcomes.incomplete };
   }
-  const isSameFile = binding?.fileId === review.fileId;
-  if (!isSameFile || !isSameLedger(sharedLedgerOf(currentState), review.localLedger)) {
+  const isSameLink = Boolean(binding) && linkFingerprint(binding) === review.linkAtReview;
+  if (!isSameLink || !isSameLedger(sharedLedgerOf(currentState), review.localLedger)) {
     return { status: k_reviewOutcomes.stale };
   }
   const resolvedLedger = applyMergeChoices(review.merge.result, review.merge.conflicts, choices);

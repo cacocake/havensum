@@ -76,8 +76,10 @@ export function createJoinReview(localLedger, remoteLedger) {
 
 // The categories a fresh installation starts with. Keeping them unchanged
 // after clearing the example data is not data of the person's own.
+const k_defaultCategories = seed().categories;
+
 function isDefaultCategory(category) {
-  return seed().categories.some(defaultCategory => isSameValue(defaultCategory, category));
+  return k_defaultCategories.some(defaultCategory => isSameValue(defaultCategory, category));
 }
 
 function isOwnLocalEntry(item) {

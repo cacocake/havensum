@@ -120,17 +120,20 @@ export class StaleLedgerError extends Error {
   }
 }
 
-// The saveProgress a sync uses: it refuses to save when the device ledger
-// changed since the sync started (or since its last save), so an edit is
-// never overwritten, and it saves the ledger and the link together.
-export function createSyncProgressSaver({ storage, snapshotState, readCurrentState }) {
+// The saveProgress a sync uses. In one step it checks that the app's ledger
+// is still the one the sync started from (or last saved), saves the ledger and
+// the link together, and installs the saved ledger in the app through
+// adoptSavedState before any edit can run. Without that last step the app
+// could later save its older in-memory ledger under a link that claims the
+// partner's changes, and the next sync would delete them.
+export function createSyncProgressSaver({ storage, snapshotState, readCurrentState, adoptSavedState }) {
   let expectedState = snapshotState;
   return async function saveProgress({ state, binding }) {
-    const currentState = await readCurrentState();
-    if (!isSameLedger(currentState, expectedState)) {
+    if (!isSameLedger(readCurrentState(), expectedState)) {
       throw new StaleLedgerError();
     }
     await storage.writeStateWithSharedFileBinding(state, binding);
+    adoptSavedState(state);
     expectedState = state;
   };
 }
