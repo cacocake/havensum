@@ -1,4 +1,5 @@
 import { isMonthKey, previousMonths } from './calendar.js';
+import { shortMonthLabel } from './monthLabels.js';
 
 // Effective annual percentage rates per savings account, each starting in a
 // month and running until the next period starts. The final period is ongoing.
@@ -44,15 +45,37 @@ export function scheduleWithPeriod(schedule, period, currentMonth, { allowPastSt
 }
 
 // LEDGER-2 (L03): inside the reviewed correction flow a period may start in
-// any month, including completed ones. Nothing is saved until it is applied.
-export function correctedSchedule(schedule, { since, rate }) {
+// any completed month from the account's earliest correctable month (L07).
+// Nothing is saved until it is applied.
+export function correctedSchedule(schedule, { since, rate }, correctableBound = {}) {
   if (!isMonthKey(since)) {
     throw new InterestScheduleError('Choose a start month as YYYY-MM.');
   }
+  requireCorrectableStart(since, correctableBound);
   if (!isInterestRate(rate)) {
     throw new InterestScheduleError('Enter a non-negative effective annual rate.');
   }
   return sortedInterestPeriods({ interestSchedule: [...schedule.filter(period => period.since !== since), { since, rate }] });
+}
+
+// LEDGER-2a (L07): where corrected rates can start, said the same way in the
+// dialog's hint and in the refusal. When the bound is the current month the
+// account has no earlier entry or rate period to name.
+export function correctableStartText(earliestMonth, currentMonth) {
+  const earliestLabel = shortMonthLabel(earliestMonth);
+  if (earliestMonth === currentMonth) {
+    return `This account has no earlier entries or rate periods, so rates can start from ${earliestLabel}.`;
+  }
+  return `Rates can start from ${earliestLabel}, the account's first entry or rate period.`;
+}
+
+// A corrected rate never starts before the account's earliest correctable
+// month, so a mistyped year cannot reach back for centuries.
+export function requireCorrectableStart(since, { earliestMonth = null, currentMonth = null } = {}) {
+  if (!earliestMonth || since >= earliestMonth) {
+    return;
+  }
+  throw new InterestScheduleError(correctableStartText(earliestMonth, currentMonth));
 }
 
 export function correctedScheduleWithout(schedule, since) {

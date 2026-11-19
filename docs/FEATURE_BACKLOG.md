@@ -108,9 +108,15 @@ Design a reviewed, explicit correction flow after agreement. Show the affected c
 
 ### LEDGER-2a · Earliest correctable month
 
-**Owner decision (19 November 2026, L07):** a correction cannot start before the account's first recorded entry or its first rate period. **Status:** Queued, unblocked. **Depends on:** LEDGER-2 (merged).
+**Owner decision (19 November 2026, L07):** a correction cannot start before the account's first recorded entry or its first rate period. **Status:** Done, reviewed and merged into `develop` from `codex/ledger-2a-earliest-correctable-month` (implementation `288dae9`; review fixes `90460b2`). Review answers recorded as L08. See the LEDGER-2a handoff note at the end. **Depends on:** LEDGER-2 (merged).
 
 In the *Correct past interest* review (`src/interestCorrection.js`, `src/interestSchedule.js` `correctedSchedule`, `src/InterestCorrection.jsx`), refuse a draft rate period whose start month is earlier than the account's first transaction month (including a transfer into the account) or its first stored rate period (whichever is earlier; an account with neither may start from the current month), with a clear message, and never loop over months before that bound. Cover a mistyped far-past year, an account with no entries, a legacy unscheduled rate, and the existing earlier-start case that must still work.
+
+### BUG-2 · Account-form past start for a legacy rate
+
+**Owner decision (19 November 2026, L08):** the account form's past start month for an unscheduled legacy rate gets the same earliest-month limit as corrections. **Status:** Queued, unblocked (bug ticket: its own `codex/` branch from `develop`). **Depends on:** LEDGER-2a (merged).
+
+`AccountForm.jsx` lets an unscheduled legacy rate take any past start month (`scheduleWithPeriod(..., { allowPastStart: true })`), and startup then posts app interest for every completed month since then. A mistyped year (for example `1026-01`) would post thousands of entries. Add a failing regression first, then refuse a start before `earliestCorrectableMonth` (`src/interestCorrection.js`) with the shared `correctableStartText` message (`src/interestSchedule.js`). Cover a mistyped year, an account with only an opening balance (current month only), and a legacy rate whose valid past start still works.
 
 ## Queued forecast improvements
 
@@ -148,7 +154,7 @@ Let the owner move a recurring planned cost's month from a chosen year onward. E
 
 ### FORECAST-2 follow-up · Readable year-amount merge conflicts (F20)
 
-**Depends on:** FORECAST-2 (year amounts). **Status:** queued and unblocked (owner answer, 19 November 2026).
+**Depends on:** FORECAST-2 (year amounts). **Status:** done; reviewed and merged into `develop` from `codex/readable-year-amount-conflicts` (see the F20 handoff at the end).
 
 When two devices set different amounts for the same year of a recurring planned cost, the backup-merge conflict review should name the planned cost and the year and show euro amounts, for example "December celebrations · amount for 2027: €410.00 here, €450.00 on the other device", instead of the raw `yearAmounts` field and cents. Keep the merge decision itself unchanged: `yearAmounts` is one field, so differing year amounts form one conflict per planned cost, and choosing a side takes that side's whole set of year amounts. The card should list each differing year on its own line. Match the final wording to the review's side labels (*This device* / *Backup file*). Cover a conflict on one year; several differing years on one planned cost (one card, one line per year); years set on different sides from the same starting point (still one conflict, shown year by year); long names at narrow widths; and screen-reader text. An edit-versus-delete conflict on a planned cost is a different conflict type, not part of this ticket; it only must not regress. Separate merge choices per year would be a new owner question, not part of this ticket.
 
@@ -470,6 +476,41 @@ The implementation note below records how these were built; it stores only per-y
 - **Checks:** `npm run test:coverage`, `npm run test:browser`, `npm run build`, `npm run check:android` on the tree merged with develop: 499 unit tests (thresholds met) and 435 browser tests pass. Hermes export is compilation only.
 - **Review:** separate read-only Claude review: nothing blocking; two should-fix test gaps and doc/style nits fixed; re-review found one stale doc passage, now corrected.
 - **Still unverified:** older `debt`/`credit` type rows (K02), the published v1 layout beyond ordinary rows, and which sign means what for a lending objective in Cashew. No exact Cashew compatibility is claimed.
+
+## Session handoff — FORECAST-2 follow-up · Readable year-amount merge conflicts (F20) (19 November 2026, Claude cloud session)
+
+- **Implemented** (`fa0d73d`, review fix `2633179` on `codex/readable-year-amount-conflicts`):
+  - New `src/yearAmountConflicts.js`. After `mergeThreeWay`, it adds the planned cost's name and each side's usual amount to `events`/`yearAmounts` conflicts, for display only.
+  - The card title names the planned cost and the differing years, for example "December celebrations · amounts for 2027 and 2028".
+  - Each side (This device / Backup file) lists one line per differing year, such as "Amount for 2027: €410.00". A year with no year amount on a side reads "usual amount (€400.00)" with that side's usual amount. An empty set against no set reads "No year amounts; every year uses the usual amount (€X)".
+  - The merge decision is unchanged: one conflict per planned cost, and choosing a side takes that side's whole `yearAmounts`.
+  - The review card moved into a small `MergeConflictCard` component in src/Screens.jsx. Each side is now a button whose screen-reader name reads its label and every line, and which reports its selected state.
+  - Other conflict types are untouched. A browser test guards planned-cost edit-versus-delete.
+- **Tests:** tests/yearAmountConflicts.test.js (7 unit tests: one year, several years, years set on different sides, all year amounts cleared, empty set against none, an undescribed conflict, other conflicts passed through unchanged) and tests/browser/yearAmountConflicts.spec.js (choosing the backup takes its whole set plus accessible names; long name and large amounts at 320 px; edit-versus-delete still works).
+- **Checks** on the tree merged with origin/develop `f5e71d5`:
+  - `npm run test:coverage`: 495/495 (96.89% lines, 94.80% branches);
+  - `npm run test:browser`: 441/441;
+  - `npm run build`;
+  - `npm run check:android` (Hermes compilation only; no device test).
+- **Review:** a separate read-only Claude review found nothing blocking. It raised one should-fix (an empty `{}` against no year amounts gave a broken title) and one robustness nit (rendering an undescribed conflict would crash). Both were fixed test-first, and the re-review found nothing blocking.
+- **Deferred nits:**
+  - A short hint that the usual amount shown is each side's own.
+  - Moving the merge card into its own file. This was left alone to keep churn small in the shared Screens.jsx.
+- **Not done / owner:** separate merge choices per year would be a new owner question; nothing was asked.
+
+## Session handoff — LEDGER-2a · Earliest correctable month (19 November 2026, Claude cloud session)
+
+- **Implemented (L07):** `earliestCorrectableMonth` (`src/interestCorrection.js`) is the earliest of:
+  - the account's first entry month. Any entry on the account counts; a transfer counts by its target only when it is a transfer. App interest and corrections count by the month they belong to, even if re-dated.
+  - its first stored rate period.
+  - the current month.
+
+  The review refuses a draft rate before that month (`InterestScheduleError`) before it loops, so a mistyped year never reviews centuries of months. Apply re-reviews, so it refuses it too.
+- **Dialog:** `correctedSchedule` takes the bound, and `src/InterestCorrection.jsx` shows the earliest month as a hint. The hint and the refusal share `correctableStartText`; when the bound is only the current month, it says the account has no earlier entries or rate periods. A draft that falls behind the bound at month rollover shows the message and disables Apply instead of crashing the dialog.
+- **Changed tests:** two LEDGER-2 tests that started a correction before any recorded entry now record the money on its date (a transfer in, a first deposit). Their expected amounts are unchanged.
+- **Owner answers (L08):** no extra lookback floor; a mistyped entry date is fixed by editing or deleting that entry. An account with only an opening balance is correctable from the current month only. The account form's legacy past start gets the same limit, queued as **BUG-2**.
+- **Checks (tree merged with develop `278466c`):** `npm run test:coverage` 514/514 with thresholds met (96.9% lines, 94.8% branches); `npm run build`; `npm run check:android` (Hermes compilation only, no device test). `npm run test:browser`: 450/453. The three failures are the known BUG-1 flake (`fullRestore.spec.js` "makes the preview stale", all viewports in one run); the same test passed 9/9 when rerun alone. The pre-merge run of this branch had 440/441 with the same flake.
+- **Review:** a separate read-only Claude review found nothing blocking. It raised two should-fix items: the hint named the current month as the account's first entry, and a mistyped entry year reopens the slow path (an owner question, answered in L08). It also raised nits: `toAccount` on non-transfers, style, and hand-written bounds in tests. All were fixed test-first in `90460b2`. A re-review found nothing blocking or should-fix; it left two optional nits (argument shape of `correctableStartText`, a default wording when no current month is passed), not changed.
 
 ## Bug fix — BUG-1 · Flaky stale-preview full-restore test (19 November 2026, Claude cloud session)
 
