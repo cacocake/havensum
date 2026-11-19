@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
@@ -31,8 +31,8 @@ function copyProjectInputs(targetDirectory) {
 }
 
 function removeProjectCopy(projectDirectory) {
-  // Unlink the node_modules link first so removing the copy can never reach the repository's dependencies.
-  unlinkSync(join(projectDirectory, 'node_modules'));
+  // Remove the node_modules link itself first (no recursion, tolerating a missing link) so cleanup never reaches the repository's dependencies.
+  rmSync(join(projectDirectory, 'node_modules'), { force: true });
   rmSync(projectDirectory, { recursive: true, force: true });
 }
 
