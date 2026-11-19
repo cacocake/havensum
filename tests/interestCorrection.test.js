@@ -332,7 +332,18 @@ test('an app entry re-categorised as something else no longer counts as that mon
 
   const review = interestCorrectionReview(state, 'savings', { currentMonth: '2026-04' });
 
-  assert.deepEqual(review.months.map(({ month, recorded, difference }) => ({ month, recorded, difference }))[0], { month: '2026-01', recorded: 0, difference: 958 });
+  // The re-categorised €9.49 is now January salary: €1,009.49 earns 958 cents,
+  // and February and March compound on that extra income.
+  assert.deepEqual(review.months.map(({ month, recorded, difference }) => ({ month, recorded, difference })), [
+    { month: '2026-01', recorded: 0, difference: 958 },
+    { month: '2026-02', recorded: 958, difference: 9 },
+    { month: '2026-03', recorded: 967, difference: 9 }
+  ]);
+  const draft = { currentMonth: '2026-04' };
+  const corrected = applyInterestCorrection(state, 'savings', review, draft);
+  assert.equal(corrected.transactions.filter(transaction => transaction.id === 'interest-savings-2026-01').length, 1);
+  assert.ok(corrected.transactions.some(transaction => transaction.id === 'interest-correction-savings-2026-01-1'));
+  assert.doesNotThrow(() => validateState(corrected));
 });
 
 test('an app entry re-dated into a later month is still reviewed for the month it belongs to', () => {
@@ -341,5 +352,8 @@ test('an app entry re-dated into a later month is still reviewed for the month i
 
   const review = interestCorrectionReview(state, 'savings', { currentMonth: '2026-03', schedule: [{ since: '2026-02', rate: 12 }] });
 
-  assert.deepEqual(review.months.map(({ month, difference }) => ({ month, difference })).slice(0, 1), [{ month: '2026-01', difference: -949 }]);
+  assert.deepEqual(review.months.map(({ month, difference }) => ({ month, difference })), [
+    { month: '2026-01', difference: -949 },
+    { month: '2026-02', difference: -9 }
+  ]);
 });
