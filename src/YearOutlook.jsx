@@ -193,11 +193,11 @@ function scheduledCells(month, color) {
   return [{ key: 'scheduled', label: 'Scheduled', color, text: signedEuro(month.scheduled.balance) }];
 }
 
-function monthCells(month, ink) {
+function monthCells(month, ink, scheduledColor) {
   return [
     { key: 'plan', label: 'Plan', color: ink.plan, text: month.planned ? signedEuro(month.planned.balance) : 'Not set' },
     recordedCell(month, ink.actual),
-    ...scheduledCells(month, ink.actual),
+    ...scheduledCells(month, scheduledColor),
     { key: 'expected', label: month.partial ? 'Expected · partial' : 'Expected', color: ink.forecast, text: expectedText(month) }
   ];
 }
@@ -215,7 +215,7 @@ function OutlookMonths({ outlook, selectedMonth, ink, onSelectMonth }) {
     <T style={{ color: colors.sub, fontSize: 12, marginTop: 8, marginBottom: 15 }}>Purple is planned savings, blue is recorded and amber is expected. Scheduled entries are dated after today and count from their date. Select a month to see its forecast and breakdown.</T>
     {outlook.months.map(month => {
       const isSelected = month.month === selectedMonth;
-      const cells = monthCells(month, ink);
+      const cells = monthCells(month, ink, colors.sub);
       return <Squish key={month.month} testID={`year-month-${month.month}`} accessibilityLabel={monthAccessibilityLabel(month, cells)} onPress={() => onSelectMonth(month.month)} style={{ padding: 14, minHeight: 85, marginBottom: 8, borderRadius: 17, borderWidth: 1, borderColor: isSelected ? ink.plan : colors.line, backgroundColor: isSelected ? colors.soft : 'transparent' }}>
         <Row style={{ justifyContent: 'space-between', gap: 12 }}>
           <H size={20} style={{ flex: 1 }}>{longMonthName(month.month)}</H>

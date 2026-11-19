@@ -6,7 +6,7 @@ export function isScheduledEntry(transaction, today) {
   return transaction.date > today;
 }
 
-export function postedTransactions(transactions, today) {
+function postedTransactions(transactions, today) {
   return transactions.filter(transaction => !isScheduledEntry(transaction, today));
 }
 

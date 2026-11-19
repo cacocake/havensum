@@ -10,7 +10,7 @@ import {planInsights} from './planInsights.js';
 import {euro,reportingMonthStats,accountBalance,categorySettings,monthOf} from './engine.js';
 import { plannedMonth } from './planArchive.js';
 import { savingsRateLabel } from './savingsRateLabel.js';
-import { currentLocalMonth, localCalendarDate } from './calendar.js';
+import { currentLocalMonth } from './calendar.js';
 import { expensePaybacks, scheduledMonthStats } from './ledger.js';
 import { isScheduledEntry } from './posting.js';
 import { signedEuro } from './money.js';
@@ -38,11 +38,11 @@ function paybackSummary(paybacks){
  return summary;
 }
 export function TransactionRow({tx,last=false,wide=false,accountId=null}){
- const {state,setModal}=useApp(),c=useContext(Theme),cat=categorySettings(state.categories,tx.category),incoming=tx.type==='income'||tx.type==='reimbursement',transfer=tx.type==='transfer',received=transfer&&accountId===tx.toAccount;
- const linked=state.transactions.find(x=>x.id===tx.linkedId),paybacks=expensePaybacks(state.transactions,tx.id),account=state.accounts.find(a=>a.id===tx.account);
+ const {state,today,setModal}=useApp(),c=useContext(Theme),cat=categorySettings(state.categories,tx.category),incoming=tx.type==='income'||tx.type==='reimbursement',transfer=tx.type==='transfer',received=transfer&&accountId===tx.toAccount;
+ const linked=state.transactions.find(x=>x.id===tx.linkedId),paybacks=expensePaybacks(state.transactions,tx.id,today),account=state.accounts.find(a=>a.id===tx.account);
  const color=tx.type==='reimbursement'?'#779BC4':transfer?'#A69AC7':cat.color;
  // L01: an entry dated after today is scheduled until its date.
- const scheduled=isScheduledEntry(tx,localCalendarDate());
+ const scheduled=isScheduledEntry(tx,today);
  return <Squish accessibilityLabel={scheduled?`View ${tx.title}, scheduled`:`View ${tx.title}`} onPress={()=>setModal({type:'transaction-detail',id:tx.id})} style={{paddingVertical:14,borderBottomWidth:last?0:1,borderColor:c.line,minWidth:0}}>
   <Row style={{gap:12,minWidth:0}}><View style={{flexShrink:0}}><TileIcon name={transfer?'ArrowLeftRight':tx.type==='reimbursement'?'CornerDownLeft':cat.icon} color={color} size={43}/></View>
    <View style={{flex:1,minWidth:0}}><Row style={{gap:5,minWidth:0}}><T numberOfLines={1} style={{fontSize:14,fontWeight:'600',flexShrink:1}}>{tx.title}</T>{linked&&<Icon name="Link2" size={12} color={c.positive}/>}</Row>
@@ -74,16 +74,31 @@ function Activity(){
  </Card>;
 }
 // Entries dated after today in this month's report; they count from their date.
-function scheduledEntriesText(scheduled){
- const entries=scheduled.count===1?'1 scheduled entry':`${scheduled.count} scheduled entries`;
- return `${entries} · ${signedEuro(scheduled.balance)} when ${scheduled.count===1?'it posts':'they post'}`;
+function scheduledEntriesText(scheduled) {
+  const entries = scheduled.count === 1 ? '1 scheduled entry' : `${scheduled.count} scheduled entries`;
+  const posting = scheduled.count === 1 ? 'it posts' : 'they post';
+  return `${entries} · ${signedEuro(scheduled.balance)} when ${posting}`;
 }
+
+function MonthScheduledNote() {
+  const { state, month, today } = useApp();
+  const colors = useContext(Theme);
+  const scheduled = scheduledMonthStats(state, month, today);
+  if (!scheduled.count) {
+    return null;
+  }
+  return <Row style={{ gap: 6, marginTop: 10 }}>
+    <Icon name="CalendarDays" size={13} color={colors.sub}/>
+    <T testID="month-scheduled" style={{ fontSize: 12, color: colors.sub, flex: 1 }}>{scheduledEntriesText(scheduled)}</T>
+  </Row>;
+}
+
 function MonthPulse(){
- const {state,month,openActivity,setScreen}=useApp(),c=useContext(Theme),insight=planInsights(state,month),stats=insight.actual,scheduled=scheduledMonthStats(state,month),name=new Date(month+'-01T12:00:00').toLocaleString('en',{month:'long'});
+ const {state,month,today,openActivity,setScreen}=useApp(),c=useContext(Theme),insight=planInsights(state,month,today),stats=insight.actual,name=new Date(month+'-01T12:00:00').toLocaleString('en',{month:'long'});
  return <Card style={{padding:20,borderRadius:26,backgroundColor:c.cream,borderColor:'transparent'}}>
   <Row style={{justifyContent:'space-between',gap:10}}><View style={{flex:1}}><T testID="month-pulse-period" style={{fontSize:12,color:c.sub}}>{name}{insight.period==='current'?', so far':insight.period==='past'?' · recorded':' · posted so far'}</T><Row style={{gap:4,marginTop:6}}><Icon name={stats.balance>=0?'ArrowUpRight':'ArrowDownRight'} size={24} color={stats.balance>=0?c.positive:c.negative}/><H size={31} adjustsFontSizeToFit numberOfLines={1} style={{color:stats.balance>=0?c.positive:c.negative,flexShrink:1}}>{stats.balance>=0?'+':'−'}{euro(Math.abs(stats.balance))}</H></Row></View><View style={{width:44,height:44,borderRadius:17,backgroundColor:c.dark?'#665435':'#F3D997',alignItems:'center',justifyContent:'center',transform:[{rotate:'9deg'}]}}><Icon name="Sun" size={23} color={c.dark?'#F8D78E':'#A27A29'}/></View></Row>
   <Row style={{gap:12,marginTop:19,paddingTop:15,borderTopWidth:1,borderColor:c.line}}>{[['Income',stats.income,'ArrowDownLeft'],['Net spending',stats.spent,'ArrowUpRight']].map(([label,value,icon])=><Squish key={label} accessibilityLabel={`View ${label.toLowerCase()} transactions`} onPress={()=>openActivity(label==='Income'?{type:'income'}:{type:'expense',spending:true})} style={{flex:1,minWidth:0,minHeight:60}}><Row style={{gap:5}}><Icon name={icon} size={13} color={c.sub}/><T style={{fontSize:11,color:c.sub}}>{label}</T></Row><T adjustsFontSizeToFit numberOfLines={1} style={{fontSize:18,fontWeight:'600',marginTop:5}}>{euro(value)}</T></Squish>)}</Row>
-  {scheduled.count>0&&<Row style={{gap:6,marginTop:10}}><Icon name="CalendarDays" size={13} color={c.sub}/><T testID="month-scheduled" style={{fontSize:12,color:c.sub,flex:1}}>{scheduledEntriesText(scheduled)}</T></Row>}
+  <MonthScheduledNote/>
  <Squish accessibilityLabel="View savings forecast in Plan" onPress={()=>setScreen('Year Plan')} style={{marginTop:15,paddingTop:15,borderTopWidth:1,borderColor:c.line,minHeight:55}}><Row style={{justifyContent:'space-between',gap:10}}><View style={{flex:1}}><T style={{fontSize:12,color:c.sub}}>{insight.forecast?(insight.period==='past'?'Recorded monthly savings':insight.forecast.partial?'Expected savings · partial estimate':'Expected savings'):'Not enough history for Expected savings'}</T>{insight.forecast&&<H size={24}>{euro(insight.forecast.balance)}</H>}</View><Icon name="ArrowUpRight" size={19} color={c.sub}/></Row></Squish>
  </Card>;
 }
