@@ -18,19 +18,22 @@ The owner builds and signs Havensum on their own PC (decision A04 in DECISIONS.m
 1. Install **Node 24** (the repository requires `>=24.18.0`) and Git.
 2. Install **Android Studio**. In *SDK Manager* install *Android SDK Platform 36*, *Android SDK Build-Tools 36.0.0*, *Android SDK Platform-Tools* and *NDK (Side by side) 27.1.12297006*. Accept the licences.
 3. Set `ANDROID_HOME` to the SDK folder (shown in SDK Manager). On Windows it is usually `%LOCALAPPDATA%\Android\Sdk`; on macOS `~/Library/Android/sdk`; on Linux `~/Android/Sdk`.
-4. Use the JDK bundled with Android Studio (or any JDK 17–21) as `JAVA_HOME`.
+4. Use JDK 17 (React Native's recommendation) or the JDK bundled with Android Studio as `JAVA_HOME`.
+5. On Windows, clone the repository to a short path such as `C:\src\havensum`. The native C++ build can exceed Windows' 260-character path limit from a deeply nested folder. Alternatively, enable Windows long paths.
 
 ## Create the upload keystore (once, then keep it forever)
 
 The keystore signs every Havensum package. Android installs an update only when it is signed with the same key as the installed app. **If the keystore or its password is lost, the installed app can never be updated**: it would have to be uninstalled, which erases its on-phone data (Auto Backup is off).
 
-Create it **outside the repository**, for example in a `havensum-signing` folder in your home directory:
+Create it **outside the repository**, for example in a `havensum-signing` folder in your home directory. Change to that folder first, so the file is not written inside the checkout:
 
 ```sh
+mkdir havensum-signing
+cd havensum-signing
 keytool -genkeypair -v -storetype PKCS12 -keystore havensum-upload.jks -alias havensum-upload -keyalg RSA -keysize 4096 -validity 10000
 ```
 
-`keytool` comes with the JDK (`%JAVA_HOME%\bin\keytool` on Windows). Choose a strong password. Back up the `.jks` file **and** the password in two places you control, such as a password manager and an offline copy. Never put either in the repository, chat, or a cloud session.
+`keytool` comes with the JDK (`%JAVA_HOME%\bin\keytool` on Windows). Choose a long password made of letters, digits and simple punctuation. Avoid `\`, and do not start it with `#` or `!`: the Gradle properties file below would read those characters differently. Back up the `.jks` file **and** the password in two places you control, such as a password manager and an offline copy. Never put either in the repository, chat, or a cloud session.
 
 Then add these four lines to your **user** Gradle properties file, not the project's. On Windows it is `%USERPROFILE%\.gradle\gradle.properties`; on macOS/Linux, `~/.gradle/gradle.properties`. Use an absolute path, with forward slashes on Windows:
 
@@ -58,7 +61,7 @@ git restore package.json        # prebuild rewrites npm scripts; keep the commit
 
 Then build:
 
-- Windows: `cd android` then `gradlew.bat assembleRelease`
+- Windows (PowerShell or cmd): `cd android` then `.\gradlew.bat assembleRelease`
 - macOS/Linux: `cd android && ./gradlew assembleRelease`
 
 The APK is written to `android/app/build/outputs/apk/release/app-release.apk`. The first build downloads Gradle and dependencies and takes several minutes.
@@ -78,9 +81,11 @@ The printed *SHA-256 digest* must be the same for every Havensum build. Record i
 
 Before uninstalling Havensum, or moving to a new phone, export a Havensum backup from the app. Auto Backup is off, so Android will not keep the data for you.
 
+**Do not install a development build on a phone that holds your real data.** `npx expo run:android` (and `npm run android` after prebuild) installs a debug build with the same application ID, signed with the public debug key. Android refuses to put one over the other (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`), and the only way out is to uninstall, which erases the ledger. Use development builds only on an emulator or a spare phone.
+
 ## Play App Bundle (later)
 
-`gradlew bundleRelease` writes `android/app/build/outputs/bundle/release/app-release.aab`. For Play, the same keystore acts as the **upload key** under Play App Signing. Play publishing is not part of ANDROID-1.
+`.\gradlew.bat bundleRelease` (Windows) or `./gradlew bundleRelease` (macOS/Linux) writes `android/app/build/outputs/bundle/release/app-release.aab`. For Play, the same keystore acts as the **upload key** under Play App Signing. Play publishing is not part of ANDROID-1.
 
 ## Version policy
 

@@ -118,7 +118,11 @@ If the evidence supports it, design an editable estimate or range that shows its
 
 ### ANDROID-1 · Installable package
 
-**Needs:** App ID, target runtime and device support, and owner-controlled signing setup.
+**Needs:** App ID, target runtime and device support, and owner-controlled signing setup. **Status:** Configured, reviewed and merged from `codex/android-installable-package` (owner answers A01–A08 in DECISIONS.md, steps in [docs/ANDROID_BUILD.md](ANDROID_BUILD.md)). **Still open:** no package has been built yet. The first `assembleRelease` runs on the owner's PC with the owner's upload keystore, then gets recorded below. See the ANDROID-1 handoff note.
+
+| Source commit | Version name / code | Type | Build date | Signing certificate SHA-256 | Installed on |
+| --- | --- | --- | --- | --- | --- |
+| *(none built yet)* | | | | | |
 
 Produce an installable Android build. Record source commit, build profile, and signing ownership. Keep credentials and compiled artifacts out of Git. A Hermes bundle is only a compilation check.
 

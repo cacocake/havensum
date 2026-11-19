@@ -18,3 +18,8 @@ coverage/
 *.aab
 *.jks
 *.keystore
+*.p12
+*.pfx
+*.idsig
+*.apks
+/gradle.properties

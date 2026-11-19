@@ -11,6 +11,11 @@ const k_buildTypesOpening = 'buildTypes {';
 const k_releaseBuildTypeOpening = 'release {';
 const k_debugSigningLine = 'signingConfig signingConfigs.debug';
 const k_releaseSigningLine = 'signingConfig signingConfigs.release';
+const k_buildTypeClosing = '\n        }';
+const k_templateSigningCaution = `            // Caution! In production, you need to generate your own keystore file.
+            // see https://reactnative.dev/docs/signed-apk-android.
+`;
+const k_uploadKeyNote = '            // Signed with the owner\'s upload key; see docs/ANDROID_BUILD.md.\n';
 const k_releaseSigningConfig = `        ${k_signingMarker}
         release {
             if (findProperty('HAVENSUM_UPLOAD_STORE_FILE')) {
@@ -58,9 +63,15 @@ function addReleaseSigningConfig(appBuildGradle) {
 function signReleaseBuildTypeWithUploadKey(appBuildGradle) {
   const buildTypesIndex = requireIndex(appBuildGradle, k_buildTypesOpening, 0, 'the buildTypes block');
   const releaseIndex = requireIndex(appBuildGradle, k_releaseBuildTypeOpening, buildTypesIndex, 'the release build type');
-  const debugSigningIndex = requireIndex(appBuildGradle, k_debugSigningLine, releaseIndex, 'the release signing line');
-  const afterDebugSigningIndex = debugSigningIndex + k_debugSigningLine.length;
-  return appBuildGradle.slice(0, debugSigningIndex) + k_releaseSigningLine + appBuildGradle.slice(afterDebugSigningIndex);
+  const releaseClosingIndex = requireIndex(appBuildGradle, k_buildTypeClosing, releaseIndex, 'the end of the release build type');
+  const releaseBlock = appBuildGradle.slice(releaseIndex, releaseClosingIndex);
+  if (!releaseBlock.includes(k_debugSigningLine)) {
+    throw new Error('withHavensumReleaseSigning: could not find the release signing line in android/app/build.gradle. Update the plugin for the new Expo template before building a release.');
+  }
+  const signedReleaseBlock = releaseBlock
+    .replace(k_templateSigningCaution, k_uploadKeyNote)
+    .replace(k_debugSigningLine, k_releaseSigningLine);
+  return appBuildGradle.slice(0, releaseIndex) + signedReleaseBlock + appBuildGradle.slice(releaseClosingIndex);
 }
 
 function applyReleaseSigning(appBuildGradle) {

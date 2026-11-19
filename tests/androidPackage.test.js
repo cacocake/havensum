@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 
 const k_repositoryRoot = resolve(import.meta.dirname, '..');
+const k_expoCliPath = createRequire(import.meta.url).resolve('expo/bin/cli');
 const k_projectInputs = ['app.json', 'package.json', 'index.native.js', 'assets', 'plugins'];
 const k_prebuildTimeoutMilliseconds = 180000;
 const k_expectedApplicationId = 'com.havensum.app';
@@ -25,11 +27,11 @@ function copyProjectInputs(targetDirectory) {
   for (const input of k_projectInputs) {
     cpSync(join(k_repositoryRoot, input), join(targetDirectory, input), { recursive: true });
   }
-  symlinkSync(join(k_repositoryRoot, 'node_modules'), join(targetDirectory, 'node_modules'));
+  symlinkSync(join(k_repositoryRoot, 'node_modules'), join(targetDirectory, 'node_modules'), 'junction');
 }
 
 function runAndroidPrebuild(projectDirectory) {
-  execFileSync('npx', ['expo', 'prebuild', '--platform', 'android', '--no-install'], {
+  execFileSync(process.execPath, [k_expoCliPath, 'prebuild', '--platform', 'android', '--no-install'], {
     cwd: projectDirectory,
     env: { ...process.env, CI: '1', EXPO_NO_TELEMETRY: '1' },
     stdio: 'pipe',
@@ -41,11 +43,21 @@ function readGeneratedFile(projectDirectory, relativePath) {
   return readFileSync(join(projectDirectory, 'android', relativePath), 'utf8');
 }
 
+function requireIndex(text, fragment, fromIndex) {
+  const index = text.indexOf(fragment, fromIndex);
+  assert.ok(index >= 0, `expected "${fragment}" in the generated app/build.gradle`);
+  return index;
+}
+
 function releaseBuildTypeBlock(appBuildGradle) {
-  const buildTypesStart = appBuildGradle.indexOf('buildTypes {');
-  const releaseStart = appBuildGradle.indexOf('release {', buildTypesStart);
-  const packagingStart = appBuildGradle.indexOf('packagingOptions {', releaseStart);
+  const buildTypesStart = requireIndex(appBuildGradle, 'buildTypes {', 0);
+  const releaseStart = requireIndex(appBuildGradle, 'release {', buildTypesStart);
+  const packagingStart = requireIndex(appBuildGradle, 'packagingOptions {', releaseStart);
   return appBuildGradle.slice(releaseStart, packagingStart);
+}
+
+function escapeForRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 test('the generated Android project uses the owner-approved package, version code, backup and permission settings', { timeout: k_prebuildTimeoutMilliseconds * 2 }, (context) => {
@@ -64,11 +76,13 @@ test('the generated Android project uses the owner-approved package, version cod
   assert.match(appBuildGradle, new RegExp(`versionName "${appConfig.version}"`));
   assert.match(manifest, /android:allowBackup="false"/);
   for (const permission of k_removedPermissions) {
-    assert.doesNotMatch(manifest, new RegExp(`uses-permission android:name="${permission}"/>`));
+    const escapedPermission = escapeForRegExp(permission);
+    assert.doesNotMatch(manifest, new RegExp(`uses-permission android:name="${escapedPermission}"/>`));
+    assert.match(manifest, new RegExp(`uses-permission android:name="${escapedPermission}" tools:node="remove"/>`));
   }
 });
 
-test('a release package is signed only with the owner upload key named in Gradle properties, and prebuild is repeatable', { timeout: k_prebuildTimeoutMilliseconds * 3 }, (context) => {
+test('the generated release build type uses only the upload-key signing config from Gradle properties, guards a missing key, and prebuild is repeatable', { timeout: k_prebuildTimeoutMilliseconds * 3 }, (context) => {
   const projectDirectory = mkdtempSync(join(tmpdir(), 'havensum-prebuild-'));
   context.after(() => rmSync(projectDirectory, { recursive: true, force: true }));
   copyProjectInputs(projectDirectory);
@@ -84,5 +98,7 @@ test('a release package is signed only with the owner upload key named in Gradle
   for (const property of k_uploadKeyProperties) {
     assert.match(appBuildGradle, new RegExp(`findProperty\\('${property}'\\)`));
   }
-  assert.match(appBuildGradle, /throw new GradleException\(/);
+  assert.doesNotMatch(releaseBlock, /Caution! In production/);
+  assert.match(appBuildGradle, /\['packageRelease', 'bundleRelease'\]/);
+  assert.match(appBuildGradle, /if \(packagesRelease && !missingSigningProperties\.isEmpty\(\)\) \{\s*throw new GradleException\(/);
 });
