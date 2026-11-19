@@ -1,5 +1,8 @@
 import {buildPlan,compoundSavings} from './engine.js';
 import { k_currentStateVersion } from './stateSchema.js';
+const k_examplePlanYear = 2026;
+const k_exampleObservedMonth = 11;
+const k_examplePlanId = 'plan-example-2026';
 export const palette=['#E88A5B','#D99941','#C8A448','#45A2B2','#5B91C4','#8A88CC','#A084D0','#C47DA3','#C68C95','#A78669','#78989F','#8B819D'];
 export function seed(){
  const categories=[
@@ -52,12 +55,17 @@ export function seed(){
  add('lunch-11','expense','Lunch with Marina',2850,'2026-11-16','dining','joint');
  add('game-11','expense','Something for the collection',3499,'2026-11-15','fun');
  add('transport-11','expense','Navegante pass',4000,'2026-11-01','transport');
- let state={version:k_currentStateVersion,demo:true,accounts,categories,transactions,loans:[{id:'car',name:'Car loan',remaining:610500,payment:18500,start:'2025-09',end:'2029-08',account:'main',original:888000}],theme:'light',preferences:{visibility:'shared',cushion:true},plan:null,events:[{id:'winter',name:'December celebrations',month:12,amount:30000}]};
+ let state={version:k_currentStateVersion,demo:true,accounts,categories,transactions,loans:[{id:'car',name:'Car loan',remaining:610500,payment:18500,start:'2025-09',end:'2029-08',account:'main',original:888000}],theme:'light',preferences:{visibility:'shared',cushion:true},plans:{},events:[{id:'winter',name:'December celebrations',month:12,amount:30000}]};
  state=compoundSavings(state,'2026-11');
- state.plan=buildPlan(state,{year:2026,fromMonth:11,income:245000,cushion:12000});
- // Example plan made at the beginning of the year, preserved as a frozen snapshot.
- for(let m=1;m<=10;m++)state.plan.months[`2026-${String(m).padStart(2,'0')}`]={...state.plan.months['2026-11']};
- state.plan.createdAt='2026-01-01T12:00:00.000Z';state.plan.revision=1;
+ return { ...state, plans: { [String(k_examplePlanYear)]: [createExamplePlan(state)] } };
+}
 
- return state;
+// Example plan made at the beginning of the year, preserved as a frozen snapshot.
+function createExamplePlan(state) {
+  const examplePlan = buildPlan(state, { year: k_examplePlanYear, fromMonth: k_exampleObservedMonth, income: 245000, cushion: 12000 });
+  const observedMonth = examplePlan.months[`${k_examplePlanYear}-${String(k_exampleObservedMonth).padStart(2, '0')}`];
+  for (let monthNumber = 1; monthNumber < k_exampleObservedMonth; monthNumber += 1) {
+    examplePlan.months[`${k_examplePlanYear}-${String(monthNumber).padStart(2, '0')}`] = JSON.parse(JSON.stringify(observedMonth));
+  }
+  return { ...examplePlan, id: k_examplePlanId, createdAt: '2026-01-01T12:00:00.000Z', revision: 1 };
 }

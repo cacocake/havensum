@@ -1,6 +1,11 @@
+const k_planArchiveVersion = 3;
+
+// Ledgers before version 3 hold one frozen plan; later ledgers archive plans by year.
 export function createFinancialState(overrides = {}) {
+  const isSinglePlanLedger = overrides.version !== undefined && overrides.version < k_planArchiveVersion;
+  const planFields = isSinglePlanLedger ? { plan: null } : { plans: {} };
   return {
-    version: 2,
+    version: k_planArchiveVersion,
     demo: false,
     theme: 'light',
     preferences: {},
@@ -19,7 +24,7 @@ export function createFinancialState(overrides = {}) {
     transactions: [],
     loans: [],
     events: [],
-    plan: null,
+    ...planFields,
     ...overrides
   };
 }
@@ -35,4 +40,22 @@ export function createTransaction(overrides = {}) {
     category: 'groceries',
     ...overrides
   };
+}
+
+// The expected archive after migration: the legacy plan moves under its year
+// unchanged, gaining only the snapshot ID chosen by migration.
+export function expectedMigratedLedger(legacyState, migratedState) {
+  const { plan, ...unchangedFields } = legacyState;
+  if (!plan) {
+    return { ...unchangedFields, version: k_planArchiveVersion, plans: {} };
+  }
+  const yearKey = String(plan.year);
+  const migratedId = migratedState?.plans?.[yearKey]?.[0]?.id;
+  return { ...unchangedFields, version: k_planArchiveVersion, plans: { [yearKey]: [{ ...plan, id: migratedId }] } };
+}
+
+// Wraps a frozen plan as the only approved revision of its year.
+export function planArchiveOf(plan) {
+  const year = plan.year ?? Number(Object.keys(plan.months)[0].slice(0, 4));
+  return { [String(year)]: [{ id: `plan-${year}-fixture`, year, ...plan }] };
 }

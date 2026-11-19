@@ -32,7 +32,7 @@ As of 17 November 2026. Latest requirements in docs/HAVENSUM_REQUIREMENTS.md sup
 | C05 | Requirement | Optional budgets drive overspend bars only | A budget must not silently become a forecast input |
 | C06 | Requirement | Twelve-hue category palette; red/green reserved for status | Current category hues use apricot, gold, teal, blue, lavender, pink and neutral families |
 | F01 | Requirement | Explicit yearly initiation interview and a frozen plan | Ordinary entries must not keep moving the target |
-| F02 | Requirement | Remaining-year revisions preserve past months | Current same-year implementation works; cross-year archival is still a blocker |
+| F02 | Requirement | Remaining-year revisions preserve past months | Approved plans are archived per year as immutable revisions (schema v3, PLAN-1). Past years are read-only |
 | F03 | Requirement | Manual overrides win and are visibly marked | The owner's knowledge outranks a computed estimate |
 | F04 | Requirement | Variable rolling average; default six months | Current estimator uses completed recorded months; missing-history semantics need strengthening |
 | F05 | Requirement | Occasional spending feeds a cushion rather than the average | Current implementation separates it but uses a manually entered cushion; automatic estimation is incomplete |

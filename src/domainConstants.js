@@ -32,5 +32,6 @@ export const k_entityIdPrefixes = Object.freeze({
   account: 'account',
   category: 'cat',
   loan: 'loan',
-  event: 'event'
+  event: 'event',
+  plan: 'plan'
 });

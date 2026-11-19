@@ -14,10 +14,14 @@ import { isPositiveCentAmount, k_centsPerEuro } from './money.js';
 import { k_transactionTypes, k_systemCategoryIds, k_entityIdPrefixes } from './domainConstants.js';
 import { createEntityId } from './identifiers';
 import { isPlannedCostLink, plannedCostOptions } from './plannedCosts.js';
+import { approvePlanRevision, k_planRevisionStartKinds, latestPlan, planRevisionStart } from './planArchive.js';
+import { localCalendarDate, yearOfMonth } from './calendar.js';
 
 const k_percentageScale = 100;
 const k_draftEventId = 'event-draft';
 const k_invalidPlanAmountsMessage = 'Use valid non-negative amounts.';
+const k_planStartMovedMessage = 'The calendar has moved on, so this revision now starts later. The preview is refreshed. Review it and approve again.';
+const k_planYearReadOnlyMessage = 'is now a past year, so its plans are read-only. Nothing was saved.';
 const k_transactionAmountPattern = /^\d+([.,]\d{1,2})?$/;
 const k_transactionFormMessages = {
   invalidAmount: 'Use a positive amount with at most two decimal places.',
@@ -239,11 +243,15 @@ export function LoanForm({item,onClose}){
 }
 export function PlanForm({onClose}){
  const dismissRef=useRef(null);
- const {state,setState,month,notify}=useApp(),c=useContext(Theme);const [step,setStep]=useState(0),[income,setIncome]=useState(String((state.plan?.months[month]?.income||245000)/k_centsPerEuro)),[cushion,setCushion]=useState(String((state.plan?.months[month]?.cushion||12000)/k_centsPerEuro)),[window,setWindow]=useState(String(state.plan?.window||6)),[eventName,setEventName]=useState(''),[eventAmount,setEventAmount]=useState(''),[eventMonth,setEventMonth]=useState('12'),[overrides,setOverrides]=useState(()=>Object.fromEntries((state.plan?.months[month]?.lines||[]).filter(l=>l.override).map(l=>[l.id||l.category,String(l.amount/k_centsPerEuro)]))),[error,setError]=useState('');const year=Number(month.slice(0,4)),currentMonth=new Date().toISOString().slice(0,7),from=year===new Date().getFullYear()?Math.max(Number(month.slice(5,7)),Number(currentMonth.slice(5,7))):1;
- const [incomeChangeFrom,setIncomeChangeFrom]=useState(''),[incomeChangeAmount,setIncomeChangeAmount]=useState(''),[loanEdits,setLoanEdits]=useState({}),[loanChangeFrom,setLoanChangeFrom]=useState(String(from)),[tolerance,setTolerance]=useState(String((state.plan?.tolerance??200)/k_centsPerEuro)),[drift,setDrift]=useState(String(Math.round((state.plan?.drift??.3)*k_percentageScale))),[draftEvents,setDraftEvents]=useState([]);
+ const {state,setState,month,notify}=useApp(),c=useContext(Theme);
+ const year=yearOfMonth(month),approvedPlan=latestPlan(state,year);
+ // Fixed when the draft opens; save rechecks the calendar before approval.
+ const [from,setFrom]=useState(()=>planRevisionStart(year,month,localCalendarDate()).fromMonth??1);
+ const [step,setStep]=useState(0),[income,setIncome]=useState(String((approvedPlan?.months[month]?.income||245000)/k_centsPerEuro)),[cushion,setCushion]=useState(String((approvedPlan?.months[month]?.cushion||12000)/k_centsPerEuro)),[window,setWindow]=useState(String(approvedPlan?.window||6)),[eventName,setEventName]=useState(''),[eventAmount,setEventAmount]=useState(''),[eventMonth,setEventMonth]=useState('12'),[overrides,setOverrides]=useState(()=>Object.fromEntries((approvedPlan?.months[month]?.lines||[]).filter(l=>l.override).map(l=>[l.id||l.category,String(l.amount/k_centsPerEuro)]))),[error,setError]=useState('');
+ const [incomeChangeFrom,setIncomeChangeFrom]=useState(''),[incomeChangeAmount,setIncomeChangeAmount]=useState(''),[loanEdits,setLoanEdits]=useState({}),[loanChangeFrom,setLoanChangeFrom]=useState(String(from)),[tolerance,setTolerance]=useState(String((approvedPlan?.tolerance??200)/k_centsPerEuro)),[drift,setDrift]=useState(String(Math.round((approvedPlan?.drift??.3)*k_percentageScale))),[draftEvents,setDraftEvents]=useState([]);
  const candidateEvent=eventName.trim()&&cents(eventAmount)>0?{id:k_draftEventId,name:eventName.trim(),year,month:Number(eventMonth),amount:cents(eventAmount)}:null;
  const plannedEvents=[...(state.events||[]),...draftEvents,...(candidateEvent?[candidateEvent]:[])];
- const preview=buildPlan({...state,events:plannedEvents},{year,fromMonth:from,income:cents(income)||0,cushion:cents(cushion)||0,window:Number(window),incomeChanges:[...(state.plan?.incomeChanges||[]),...(incomeChangeFrom&&cents(incomeChangeAmount)>=0?[{since:`${year}-${incomeChangeFrom.padStart(2,'0')}`,amount:cents(incomeChangeAmount)}]:[])],loanChanges:[...(state.plan?.loanChanges||[]),...Object.entries(loanEdits).filter(([,v])=>v!==''&&cents(v)>=0).map(([loanId,v])=>({loanId,since:`${year}-${loanChangeFrom.padStart(2,'0')}`,amount:cents(v)}))],overrides:Object.fromEntries(Object.entries(overrides).filter(([,v])=>v!=='').map(([k,v])=>[k,cents(v)]))});
+ const preview=buildPlan({...state,events:plannedEvents},{year,fromMonth:from,income:cents(income)||0,cushion:cents(cushion)||0,window:Number(window),incomeChanges:[...(approvedPlan?.incomeChanges||[]),...(incomeChangeFrom&&cents(incomeChangeAmount)>=0?[{since:`${year}-${incomeChangeFrom.padStart(2,'0')}`,amount:cents(incomeChangeAmount)}]:[])],loanChanges:[...(approvedPlan?.loanChanges||[]),...Object.entries(loanEdits).filter(([,v])=>v!==''&&cents(v)>=0).map(([loanId,v])=>({loanId,since:`${year}-${loanChangeFrom.padStart(2,'0')}`,amount:cents(v)}))],overrides:Object.fromEntries(Object.entries(overrides).filter(([,v])=>v!=='').map(([k,v])=>[k,cents(v)]))});
  function addPlannedEvent() {
    if (!candidateEvent) {
      return;
@@ -264,12 +272,40 @@ export function PlanForm({onClose}){
      setError(k_invalidPlanAmountsMessage);
      return;
    }
-   preview.tolerance = cents(tolerance);
-   preview.drift = Number(drift) / k_percentageScale;
+   const today = localCalendarDate();
+   const start = planRevisionStart(year, month, today);
+   if (start.kind === k_planRevisionStartKinds.readOnly) {
+     setError(`${year} ${k_planYearReadOnlyMessage}`);
+     return;
+   }
+   if (start.fromMonth !== from) {
+     setFrom(start.fromMonth);
+     setLoanChangeFrom(previous => String(Math.max(Number(previous), start.fromMonth)));
+     setError(k_planStartMovedMessage);
+     return;
+   }
+   const approvedRevision = { ...preview, tolerance: cents(tolerance), drift: Number(drift) / k_percentageScale };
    const events = plannedEvents.map(event => event.id === k_draftEventId
      ? { ...event, id: createEntityId(k_entityIdPrefixes.event) }
      : event);
-   setState(currentState => ({ ...currentState, plan: preview, events }));
+   const revisionId = createEntityId(k_entityIdPrefixes.plan);
+   const approval = { id: revisionId, fromMonth: from, today };
+   try {
+     // Check against the ledger this preview was built from so a rejection is shown here.
+     approvePlanRevision({ ...state, events }, approvedRevision, approval);
+   } catch (approvalError) {
+     setError(approvalError.message);
+     return;
+   }
+   setState(currentState => {
+     // The dialog is modal, so the archive should not change while it is open.
+     // If it did, keep the ledger unchanged rather than throw during an update.
+     try {
+       return approvePlanRevision({ ...currentState, events }, approvedRevision, approval);
+     } catch {
+       return currentState;
+     }
+   });
    const firstRevisedMonthName = from === 1 ? 'January' : new Date(year, from - 1, 1).toLocaleString('en', { month: 'long' });
    notify(`Plan frozen · ${firstRevisedMonthName} onwards`);
    onClose();

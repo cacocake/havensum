@@ -106,7 +106,7 @@ Working defaults are a six-month window, ±€2 fixed tolerance and 30% variable
 
 These are grounded in the present code; they have not been fixed by the handoff documentation.
 
-1. **Year rollover:** state currently holds a single `plan`. Building a different year discards the previous plan's month map. Add archived plans/revisions keyed by year before claiming historical plans are preserved across years.
+1. **Year rollover:** resolved by PLAN-1. Schema v3 stores `plans` by year as immutable approved revisions; see [docs/STATE_MIGRATIONS.md](docs/STATE_MIGRATIONS.md). Automatic annual prompting is PLAN-4.
 2. **Future-dated cash:** `accountBalance` defaults to an all-time cutoff, and the UI generally calls that default. A future-dated transaction can change today's displayed balance. Define posted/planned behavior and an explicit as-of date.
 3. **Fixed-cost granularity:** fixed baselines and tolerance are category/behaviour totals, not individually recognized rent/contracts. Offsetting changes can mask each other, and a cancelled cost can retain its older non-zero baseline.
 4. **Drift/data completeness:** no explicit complete-month marker exists. Missing/incomplete imported months can produce misleading drift recommendations. Suggestions are also relative to the selected month rather than a fully modeled reporting period.

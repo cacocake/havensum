@@ -13,7 +13,8 @@ import CategoryGlyph from './CategoryGlyph.jsx';
 import {euro,monthOf,reportingMonthStats,netExpenses,categorySettings,accountBalance,driftAlerts,mergeThreeWay,validateTransaction} from './engine.js';
 import {AccountCard,TransactionRow} from './Dashboard.jsx';
 import {exportExcel,downloadJSON,downloadSavedLedgerCopy,chooseFile,readImport} from './files';
-import {readInvalidSnapshotCopy,readSnapshot,writeSnapshot,isDemoSession} from './storage';
+import {readInvalidSnapshotCopy,readSnapshot,writeSnapshot,writeMergeRecovery,isDemoSession} from './storage';
+import { k_planYearConflictField, representedPlanYears, takeReviewedPlanYear } from './planMerge.js';
 import { clearMissingTransactionCategories, migrateState, validateState } from './stateSchema.js';
 import MissingCategoryReview from './MissingCategoryReview.jsx';
 import { applyCategoryReviewEdits, categoryReviewRows } from './categoryReview.js';
@@ -23,7 +24,7 @@ const k_backupMessages = {
   previewUnavailable: 'Merge baselines are unavailable in preview mode. Open the main app to review a backup merge.',
   missingBaseline: 'Export a backup first to establish a shared merge baseline.'
 };
-const k_mergeConflictFields = { plan: '$plan', outlook: '$outlook', record: '$record' };
+const k_mergeConflictFields = { outlook: '$outlook', record: '$record' };
 const k_filteredSpendingHint = 'Past and current totals use entries through today. Future months show registered entries. The list includes future-dated rows; open a movement for its breakdown.';
 export function Transactions(){
  const {state,month,search,setSearch,filters,setFilters,searchFocus}=useApp(),c=useContext(Theme),searchRef=useRef(null);
@@ -59,6 +60,9 @@ function mergeConflictTitle(conflict) {
   if (conflict.field === '$paybackTask') {
     return `Payback task · ${conflict.id}`;
   }
+  if (conflict.field === k_planYearConflictField) {
+    return `${conflict.id} plan · revision history (the chosen side replaces this year's whole history)`;
+  }
   return `${conflict.collection} · ${conflict.id} · ${conflict.field === '$record' ? 'Edit vs. delete' : conflict.field}`;
 }
 
@@ -73,7 +77,17 @@ function mergeConflictLines(conflict, side) {
       value.task ? `Expected payback ${euro(value.task.expectedAmount)}` : 'No payback task'
     ];
   }
+  if (conflict.field === k_planYearConflictField) {
+    return planHistoryLines(value);
+  }
   return [value === undefined ? 'Deleted' : typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)];
+}
+
+function planHistoryLines(revisions) {
+  if (!revisions) {
+    return ['No plan for this year'];
+  }
+  return revisions.map(revision => `Revision ${revision.revision} · approved ${revision.createdAt?.slice(0, 10) ?? 'unknown date'}`);
 }
 
 export function Settings(){
@@ -142,7 +156,7 @@ export function Settings(){
      if (!baseline) {
        throw Error(k_backupMessages.missingBaseline);
      }
-     const mergedState = mergeThreeWay(baseline, state, remoteState);
+     const mergedState = mergeThreeWay(baseline, state, remoteState, { remotePlanYears: representedPlanYears(backup) });
      setMerge({ ...mergedState, choices: {}, categoryEdits: {} });
    } catch (error) {
      notify(error.message);
@@ -165,7 +179,11 @@ export function Settings(){
        result = takeReviewedPaybackTask(result, conflict.id, selectedValue);
        continue;
      }
-     if (conflict.field === k_mergeConflictFields.plan || conflict.field === k_mergeConflictFields.outlook) {
+     if (conflict.field === k_planYearConflictField) {
+       result = takeReviewedPlanYear(result, conflict.id, selectedValue);
+       continue;
+     }
+     if (conflict.field === k_mergeConflictFields.outlook) {
        result[conflict.collection] = selectedValue;
        continue;
      }
@@ -197,6 +215,8 @@ export function Settings(){
  async function applyMerge() {
    try {
      const result = validateState(applyCategoryReviewEdits(reviewedMerge.state, reviewedMerge.rows, merge.categoryEdits));
+     // A failed recovery copy blocks the merge, leaving this device's ledger unchanged.
+     await writeMergeRecovery(state);
      setState(result);
      await writeSnapshot(result);
      setMerge(null);
@@ -209,7 +229,7 @@ export function Settings(){
  <DataTools onImport={selectImport} onBackup={exportBackup} onExcel={excel} busy={busy}/>
  <Card><Row style={{gap:12,marginBottom:18}}><TileIcon name="UsersRound" color="#91B6A9"/><View><H size={22}>A shared rhythm</H><T style={{fontSize:11,color:c.sub,marginTop:4}}>For you and Marina, without the guesswork.</T></View></Row><Row style={{justifyContent:'space-between'}}><T style={{fontSize:13}}>Google Drive</T><Badge>Not connected</Badge></Row><T style={{fontSize:12,color:c.sub,marginTop:12}}>Automatic Drive sync needs Google OAuth configuration. Until then, exchange full JSON backups manually using a common exported baseline.</T><Row style={{gap:10,marginTop:17,flexWrap:'wrap'}}><Button small kind="outline" icon="GitMerge" disabled={isPreview} onPress={mergeFile}>Review backup merge</Button><Button small kind="soft" icon="Download" onPress={exportBackup}>{isPreview ? 'Export example backup' : 'Export shared baseline'}</Button><Button small kind="soft" disabled={isPreview} onPress={downloadInvalidBaseline}>Download invalid baseline copy</Button></Row>{isPreview&&<T style={{fontSize:11,color:c.muted,marginTop:15}}>{k_backupMessages.previewUnavailable}</T>}<T style={{fontSize:11,color:c.muted,marginTop:15}}>Different-field edits merge silently. Same-field edits and edit-versus-delete always require your choice. A saved local baseline is used for the three-way comparison.</T><Divider/><Row style={{gap:10}}><Icon name="Eye" size={16} color={c.sub}/><T style={{flex:1,fontSize:11,color:c.sub}}>Both people's accounts are included in an exchanged backup. Account tags are labels, not privacy controls.</T></Row></Card>
  <Card><Row style={{gap:12}}><TileIcon name="ChartNoAxesCombined" color="#B3A0CA"/><View style={{flex:1}}><H size={20}>Investment prices</H><T style={{fontSize:11,color:c.sub,marginTop:6}}>Twelve Data is not connected. Your investments use manual balances. ETF coverage, end-of-day access, and licensing still need verification.</T></View><Badge>Manual</Badge></Row></Card>
- {state.demo&&<Card style={{borderColor:c.dark?'#5b4637':'#f0d6c1'}}><H size={20}>A fresh start</H><T style={{fontSize:12,color:c.sub,marginTop:8,marginBottom:16}}>You are exploring example data. Clear it to begin with your own accounts and transactions. Export a backup first if you want to keep any changes.</T>{clear?<Row style={{gap:10,flexWrap:'wrap'}}><Button small kind="outline" onPress={()=>setClear(false)}>Keep my data</Button><Button small onPress={()=>{setState(s=>({...s,demo:false,accounts:[],transactions:[],loans:[],events:[],plan:null,outlook:{},paybackTasks:undefined,paybackTasksVersion:undefined,migrationCategoryWarnings:undefined}));setClear(false);notify('Example data cleared');}}>Clear example data permanently</Button></Row>:<Button small kind="outline" onPress={()=>setClear(true)} icon="Eraser">Clear example data</Button>}</Card>}
+ {state.demo&&<Card style={{borderColor:c.dark?'#5b4637':'#f0d6c1'}}><H size={20}>A fresh start</H><T style={{fontSize:12,color:c.sub,marginTop:8,marginBottom:16}}>You are exploring example data. Clear it to begin with your own accounts and transactions. Export a backup first if you want to keep any changes.</T>{clear?<Row style={{gap:10,flexWrap:'wrap'}}><Button small kind="outline" onPress={()=>setClear(false)}>Keep my data</Button><Button small onPress={()=>{setState(s=>({...s,demo:false,accounts:[],transactions:[],loans:[],events:[],plans:{},outlook:{},paybackTasks:undefined,paybackTasksVersion:undefined,migrationCategoryWarnings:undefined}));setClear(false);notify('Example data cleared');}}>Clear example data permanently</Button></Row>:<Button small kind="outline" onPress={()=>setClear(true)} icon="Eraser">Clear example data</Button>}</Card>}
  <T style={{fontSize:11,color:c.muted,textAlign:'center'}}>Havensum 0.1 · Android-first React Native · Browser preview</T>
  {importData&&<ImportDialog data={importData} onClose={()=>setImportData(null)}/>}
  {merge&&<Dialog title="Two sides. Your choice." subtitle={`${merge.conflicts.length} conflicts need review. Nothing is applied until you finish.`} onClose={()=>setMerge(null)} width={650}>

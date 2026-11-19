@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { planInsights } from '../src/planInsights.js';
-import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
+import { createFinancialState, createTransaction, planArchiveOf } from './helpers/financialFixtures.js';
 
 test('transfer-only and unlinked-payback-only months do not dilute historical averages', () => {
   const state = createFinancialState({ transactions: [
@@ -45,7 +45,7 @@ test('independent outlook uses leap-month length without double-counting paid re
       createTransaction({ id: 'history-food', amount: 2900, date: '2024-01-10' }),
       createTransaction({ id: 'history-salary', type: 'income', amount: 200000, date: '2024-01-01' })
     ],
-    plan: { months: {
+    plans: planArchiveOf({ months: {
       '2024-02': {
         income: 200000, expense: 12900, balance: 187100,
         lines: [
@@ -53,7 +53,7 @@ test('independent outlook uses leap-month length without double-counting paid re
           { category: 'groceries', kind: 'Variable', amount: 2900 }
         ]
       }
-    } }
+    } })
   });
   const insights = planInsights(state, '2024-02', '2024-02-15');
 
@@ -65,9 +65,9 @@ test('independent outlook uses leap-month length without double-counting paid re
 test('month-end leaves no remaining variable allowance and no estimate leaks into actuals', () => {
   const state = createFinancialState({
     transactions: [createTransaction({ amount: 1234 })],
-    plan: { months: {
+    plans: planArchiveOf({ months: {
       '2026-11': { income: 100000, expense: 30000, balance: 70000, lines: [{ category: 'groceries', kind: 'Variable', amount: 30000 }] }
-    } }
+    } })
   });
   const insights = planInsights(state, '2026-11', '2026-11-30');
 
@@ -81,9 +81,9 @@ test('known future loans and occasional expenses establish floors without becomi
       createTransaction({ id: 'future-loan', category: 'loan', kind: 'Fixed', amount: 20000, date: '2026-11-28' }),
       createTransaction({ id: 'future-purchase', category: 'shopping', kind: 'Occasional', amount: 30000, date: '2026-11-29' })
     ],
-    plan: { months: {
+    plans: planArchiveOf({ months: {
       '2026-11': { income: 100000, expense: 20000, balance: 80000, loan: 10000, cushion: 10000, lines: [] }
-    } }
+    } })
   });
   const insights = planInsights(state, '2026-11', '2026-11-15');
 

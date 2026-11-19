@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createFinancialState, createTransaction } from '../helpers/financialFixtures.js';
+import { createFinancialState, createTransaction, planArchiveOf } from '../helpers/financialFixtures.js';
 import { openMoreSection } from '../helpers/userFlows.js';
 import { buildPlan } from '../../src/planning.js';
 
@@ -49,7 +49,7 @@ test('individual bill cancellation survives reload without changing the plan or 
       createTransaction({ id: 'rent', title: 'Rent', category: 'rent', amount: 80000, date: '2026-11-01' })
     ]
   });
-  state.plan = buildPlan(state, { year: 2026, fromMonth: 11, income: 100000, window: 6 });
+  state.plans = planArchiveOf(buildPlan(state, { year: 2026, fromMonth: 11, income: 100000, window: 6 }));
   await page.addInitScript(initialState => {
     if (!localStorage.getItem('melo-state-v1')) {
       localStorage.setItem('melo-state-v1', JSON.stringify(initialState));
@@ -64,7 +64,7 @@ test('individual bill cancellation survives reload without changing the plan or 
   await expect(page.getByRole('button', { name: 'Inspect expected bill Internet', exact: true })).toContainText('Cancelled');
   await expect(page.getByRole('button', { name: 'Inspect expected bill Rent', exact: true })).toContainText('Recorded');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')));
-  expect(saved.plan).toEqual(state.plan);
+  expect(saved.plans).toEqual(state.plans);
   expect(saved.transactions).toEqual(state.transactions);
   await page.reload();
   await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
@@ -92,7 +92,7 @@ test('history completeness and independent income assumptions persist without cr
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')));
   expect(saved.outlook.completeMonths).toEqual(['2026-10']);
   expect(saved.outlook.incomeChanges).toEqual([{ since: '2026-11', amount: 200000 }]);
-  expect(saved.plan).toBeNull();
+  expect(saved.plans).toEqual({});
 });
 
 test('an upcoming cost is explicitly matched to its recorded expense', async ({ page }) => {
@@ -166,8 +166,8 @@ test('adopting legacy dated changes retains existing independent assumptions', a
   const state = createFinancialState({
     outlook: { incomeChanges: [{ since: '2026-12', amount: 250000 }] }
   });
-  state.plan = buildPlan(state, { year: 2026, fromMonth: 1, income: 100000, window: 6,
-    incomeChanges: [{ since: '2026-10', amount: 200000 }] });
+  state.plans = planArchiveOf(buildPlan(state, { year: 2026, fromMonth: 1, income: 100000, window: 6,
+    incomeChanges: [{ since: '2026-10', amount: 200000 }] }));
   await page.addInitScript(initialState => localStorage.setItem('melo-state-v1', JSON.stringify(initialState)), state);
   await page.goto('/');
   await page.getByRole('button', { name: 'Year Plan', exact: true }).click();

@@ -1,6 +1,6 @@
 import test, { beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createFinancialState } from '../helpers/financialFixtures.js';
+import { createFinancialState, expectedMigratedLedger } from '../helpers/financialFixtures.js';
 
 const g_values = new Map();
 const g_storageAdapter = {
@@ -28,10 +28,10 @@ test('native legacy ledger and baseline migration retain independent original re
   g_values.set('melo-state-v1', stateBytes);
   g_values.set('melo-sync-base', baselineBytes);
 
-  assert.deepEqual(await readState(), { ...originalState, version: 2 });
-  assert.deepEqual(await readSnapshot(), { ...originalBaseline, version: 2 });
-  await writeState(createFinancialState({ version: 2, theme: 'dark' }));
-  await writeSnapshot(createFinancialState({ version: 2 }));
+  assert.deepEqual(await readState(), expectedMigratedLedger(originalState));
+  assert.deepEqual(await readSnapshot(), expectedMigratedLedger(originalBaseline));
+  await writeState(createFinancialState({ theme: 'dark' }));
+  await writeSnapshot(createFinancialState());
   assert.equal(g_values.get('melo-state-v1:recovery:v1'), stateBytes);
   assert.equal(g_values.get('melo-sync-base:recovery:v1'), baselineBytes);
 });
@@ -58,7 +58,7 @@ test('a native migration in flight cannot overwrite a newer save', async context
 
   const reading = readState();
   await migrationStarted;
-  const saving = writeState(createFinancialState({ version: 2, theme: 'dark' }));
+  const saving = writeState(createFinancialState({ theme: 'dark' }));
   setImmediate(releaseMigration);
   await Promise.all([reading, saving]);
 
@@ -83,6 +83,16 @@ test('native import recovery retains the pre-import ledger without replacing the
   await writeState({ ...state, theme: 'dark' });
   assert.deepEqual(await readImportRecovery(), state);
   assert.deepEqual(await readSnapshot(), state);
+});
+
+test('native merge recovery keeps the pre-merge ledger apart from import recovery', async () => {
+  const { writeImportRecovery, readImportRecovery, writeMergeRecovery, readMergeRecovery } = await import('../../src/storage.native.js');
+  const importRecovery = createFinancialState({ theme: 'dark' });
+  const preMergeLedger = createFinancialState();
+  await writeImportRecovery(importRecovery);
+  await writeMergeRecovery(preMergeLedger);
+  assert.deepEqual(await readMergeRecovery(), preMergeLedger);
+  assert.deepEqual(await readImportRecovery(), importRecovery);
 });
 
 test('native storage retains legacy state and baseline independently', async () => {

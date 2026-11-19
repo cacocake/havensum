@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**Next implementation ticket: PLAN-1.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**Next implementation ticket: PLAN-2.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -20,7 +20,7 @@ Use integer EUR cents. Cash follows its transaction date, including for early pa
 
 ### PLAN-1 · Preserve frozen plans by year and revision
 
-**Status:** Next. **Depends on:** Current reviewed `develop`.
+**Status:** Done, reviewed and merged into `develop` from `codex/plan-archive` (implementation `28e3b46`, review fixes `ecf9d2b`, `82fb948`, `24ad7c3`). See the PLAN-1 handoff note below. **Depends on:** Current reviewed `develop`.
 
 - Store approved plans by year and retain each approved revision as an immutable snapshot. Give new snapshots collision-resistant IDs so two devices can create different revisions with the same display number. A shared year/month lookup should serve Year Plan, dashboard, charts, drill-downs, and plan comparisons. Display the latest approved revision for the selected year by default and allow read-only access to earlier years and revisions.
 - Keep the existing revision start rule. For the current year, use the later of the selected month and the current calendar month at save time. For a future year, start in January. Recheck the calendar on save. If the start month moved within an editable year, refresh the preview and ask for a fresh approval. If the selected year has become a past year, block the save and explain that the year is now read-only. Before the revision start, retain months from the latest approved snapshot exactly, including months that were never planned. Saving a second year adds it without altering the first. Keep past years read-only.
@@ -145,3 +145,10 @@ Use the reviewed merge engine with revision-aware writes, offline retry and reco
 **Status:** Parked. **Needs:** Explicit owner interest before starting.
 
 Start with units and a manually entered EUR price if requested. For automatic prices, first verify fund, exchange, provider coverage and entitlement, usage terms, and credential handling. Show quote dates and stale or offline state. Test quantity × price and separate valuation movement from received cash and income. Cash distributions belong in the ledger only when recorded.
+
+## Session handoff — PLAN-1 (19 November 2026, Claude cloud session)
+
+- **Implementation:** schema v3 `plans` archive keyed by year with append-only approved revisions (`src/planArchive.js`), per-year append-only merge (`src/planMerge.js`), pre-merge recovery copy `havensum-merge-recovery-v1`, v1/v2 migration with `:recovery:v2` bytes, revision-start recheck on save, read-only past years, read-only earlier revisions in Year Plan. Details in [STATE_MIGRATIONS.md](STATE_MIGRATIONS.md).
+- **Checks (final commit):** `npm run test:coverage` 272/272 with thresholds met, `npm run test:browser` 228/228, `npm run build` and `npm run check:android` (Hermes compilation only) all pass. Browser tests ran against the preinstalled Chromium because the pinned Playwright browser download was blocked by the sandbox network policy.
+- **Review:** a separate read-only Claude review found two merge defects that could drop approved revisions, an unguarded earlier-month rewrite path and a silent save failure. All were fixed test-first in `ecf9d2b`. A re-review found an un-appliable merge for out-of-order legacy snapshots and a migration lockout for plans without a revision number; both fixed test-first in `82fb948`/`24ad7c3`. The final re-review reported no blocking defects.
+- **Recorded, not changed (owner input welcome):** (a) the merge recovery copy is a single slot, so a later merge replaces the previous pre-merge copy; (b) after a same-year conflict is resolved, the rejected history survives only in that recovery copy; (c) a new year no longer inherits income/loan changes, tolerance and drift from another year's plan. That carry-forward belongs to PLAN-3.

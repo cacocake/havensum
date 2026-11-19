@@ -1,4 +1,4 @@
-import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey } from './storageKeys.js';
+import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey, k_mergeRecoveryStorageKey } from './storageKeys.js';
 import { parseMergeBaseline } from './storageSerialization.js';
 import { createPersistedStorage } from './persistedState.js';
 
@@ -56,4 +56,19 @@ export async function readImportRecovery() {
     return null;
   }
   return k_persistedStorage.read(k_importRecoveryStorageKey);
+}
+
+// The ledger as it was before a reviewed backup merge, separate from CSV import recovery.
+export async function writeMergeRecovery(state) {
+  if (isDemoSession()) {
+    return;
+  }
+  await k_persistedStorage.write(k_mergeRecoveryStorageKey, state, { recoverInvalid: true });
+}
+
+export async function readMergeRecovery() {
+  if (isDemoSession()) {
+    return null;
+  }
+  return k_persistedStorage.read(k_mergeRecoveryStorageKey);
 }

@@ -1,12 +1,38 @@
 import { accountBalance } from './ledger.js';
 import { mergePaybackTasks } from './paybackMerge.js';
+import { mergePlanArchives } from './planMerge.js';
 export { monthOf } from './calendar.js';
 export { categorySettings, netExpenses, monthStats, reportingMonthStats, accountBalance } from './ledger.js';
 export { buildPlan, driftAlerts } from './planning.js';
 import { validateTransaction } from './transactionValidation.js';
 export { validateTransaction } from './transactionValidation.js';
 export { euro, cents } from './money.js';
-export function mergeThreeWay(base,local,remote){
+const k_outlookField = 'outlook';
+
+// Review concurrent outlook edits, including completion/cancellation metadata,
+// as one whole snapshot.
+function mergeOutlookSnapshot(base, local, remote, result, conflicts) {
+  const baseValue = JSON.stringify(base[k_outlookField]);
+  const localValue = JSON.stringify(local[k_outlookField]);
+  const remoteValue = JSON.stringify(remote[k_outlookField]);
+  if (localValue === remoteValue || baseValue === remoteValue) {
+    return;
+  }
+  if (baseValue === localValue) {
+    result[k_outlookField] = remote[k_outlookField];
+    return;
+  }
+  conflicts.push({
+    collection: k_outlookField,
+    id: k_outlookField,
+    field: `$${k_outlookField}`,
+    base: base[k_outlookField],
+    local: local[k_outlookField],
+    remote: remote[k_outlookField]
+  });
+}
+
+export function mergeThreeWay(base,local,remote,{ remotePlanYears = null } = {}){
  const result={...local},conflicts=[];
  for(const collection of ['transactions','accounts','categories','loans','events']){
   const b=new Map((base[collection]||[]).map(x=>[x.id,x])),l=new Map((local[collection]||[]).map(x=>[x.id,x])),r=new Map((remote[collection]||[]).map(x=>[x.id,x]));const merged=[];
@@ -23,20 +49,10 @@ export function mergeThreeWay(base,local,remote){
    }merged.push(item);
   }result[collection]=merged;
  }
- // Review concurrent snapshot edits, including completion/cancellation metadata.
- for (const field of ['plan', 'outlook']) {
-  const baseValue = JSON.stringify(base[field]);
-  const localValue = JSON.stringify(local[field]);
-  const remoteValue = JSON.stringify(remote[field]);
-  if (localValue === remoteValue || baseValue === remoteValue) {
-   continue;
-  }
-  if (baseValue === localValue) {
-   result[field] = remote[field];
-   continue;
-  }
-  conflicts.push({collection:field,id:field,field:`$${field}`,base:base[field],local:local[field],remote:remote[field]});
- }
+ const planMerge = mergePlanArchives(base.plans, local.plans, remote.plans, { remotePlanYears });
+ result.plans = planMerge.plans;
+ conflicts.push(...planMerge.conflicts);
+ mergeOutlookSnapshot(base, local, remote, result, conflicts);
  return { result: mergePaybackTasks(base, local, remote, result, conflicts), conflicts };
 }
 export function fingerprint(t){return t.externalId?`external:${t.externalId}`:[t.date,t.type,t.title?.trim().toLowerCase(),t.amount,t.account,t.category||'',t.note||''].join('|');}

@@ -1,6 +1,8 @@
 import { categorySettings, netExpenses, hasCategoryParent } from './ledger.js';
 import { previousMonths } from './calendar.js';
 import { hasRecordedFinancialActivity } from './reportingHistory.js';
+import { latestPlan } from './planArchive.js';
+import { yearOfMonth } from './calendar.js';
 import { k_defaultHistoryWindow, k_monthsPerYear, k_spendingBehaviors, k_systemCategoryIds } from './domainConstants.js';
 
 const k_defaultPlanIncome = 245000;
@@ -20,9 +22,10 @@ export function buildPlan(state, {
   cushion = k_defaultPlanCushion,
   window = k_defaultHistoryWindow,
   overrides = {},
-  incomeChanges = state.plan?.incomeChanges || [],
-  loanChanges = state.plan?.loanChanges || []
+  incomeChanges = latestPlan(state, year)?.incomeChanges || [],
+  loanChanges = latestPlan(state, year)?.loanChanges || []
 }) {
+  const approvedPlan = latestPlan(state, year);
   const revisionMonth = `${year}-${String(fromMonth).padStart(2, '0')}`;
   const history = previousMonths(revisionMonth, window);
   const recordedMonthCount = history.filter(month => hasRecordedFinancialActivity(state.transactions, month)).length;
@@ -61,7 +64,7 @@ export function buildPlan(state, {
     });
   });
 
-  const carriedMonths = state.plan?.year === year ? (state.plan.months ?? {}) : {};
+  const carriedMonths = approvedPlan?.months ?? {};
   // Plans are JSON data. Clone carried history too, using the same operation on
   // Hermes and web, so a returned revision cannot mutate the source snapshot.
   const months = JSON.parse(JSON.stringify(carriedMonths));
@@ -90,9 +93,9 @@ export function buildPlan(state, {
   }
   return {
     year, incomeChanges, loanChanges, createdAt: new Date().toISOString(), window,
-    tolerance: state.plan?.tolerance ?? k_defaultFixedTolerance,
-    drift: state.plan?.drift ?? k_defaultVariableDrift,
-    months, revision: (state.plan?.revision || 0) + 1
+    tolerance: approvedPlan?.tolerance ?? k_defaultFixedTolerance,
+    drift: approvedPlan?.drift ?? k_defaultVariableDrift,
+    months, revision: (approvedPlan?.revision || 0) + 1
   };
 }
 function spendingForLine(state, month, line) {
@@ -106,14 +109,15 @@ function spendingForLine(state, month, line) {
 }
 
 export function driftAlerts(state, month) {
-  const plannedMonth = state.plan?.months[month];
+  const approvedPlan = latestPlan(state, yearOfMonth(month));
+  const plannedMonth = approvedPlan?.months[month];
   if (!plannedMonth) {
     return [];
   }
   const alerts = [];
   const completedMonths = previousMonths(month, k_completedMonthsForDrift);
-  const fixedTolerance = state.plan.tolerance ?? k_defaultFixedTolerance;
-  const variableDrift = state.plan.drift ?? k_defaultVariableDrift;
+  const fixedTolerance = approvedPlan.tolerance ?? k_defaultFixedTolerance;
+  const variableDrift = approvedPlan.drift ?? k_defaultVariableDrift;
 
   for (const line of plannedMonth.lines) {
     const latestSpending = spendingForLine(state, completedMonths[0], line);

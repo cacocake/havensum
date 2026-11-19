@@ -1,9 +1,13 @@
 import { validateTransaction } from './transactionValidation.js';
 import { validateOutlookState } from './outlookInputs.js';
 import { validatePaybackState } from './paybackState.js';
+import { legacyPlanArchive } from './planArchive.js';
 
-export const k_currentStateVersion = 2;
+export const k_currentStateVersion = 3;
 const k_legacyStateVersion = 1;
+const k_singlePlanStateVersion = 2;
+const k_supportedStateVersions = new Set([k_legacyStateVersion, k_singlePlanStateVersion, k_currentStateVersion]);
+const k_yearKeyPattern = /^\d{4}$/;
 const k_collectionNames = ['accounts', 'categories', 'transactions', 'loans', 'events'];
 const k_spendingKinds = new Set(['Fixed', 'Variable', 'Occasional']);
 const k_monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -65,11 +69,43 @@ function validatePlan(plan) {
   }
 }
 
+function validatePlanArchive(plans) {
+  requireValid(isRecord(plans), 'plan archive must be a record');
+  const snapshotIds = new Set();
+  for (const [yearKey, revisions] of Object.entries(plans)) {
+    requireValid(k_yearKeyPattern.test(yearKey), 'plan archive year');
+    requireValid(Array.isArray(revisions) && revisions.length > 0, 'plan archive revisions');
+    let previousRevisionNumber = null;
+    for (const revision of revisions) {
+      validatePlan(revision);
+      // Legacy plans were not required to carry a number. A first snapshot
+      // without one (missing, null or 0) counts as revision 0.
+      const isMigratedWithoutNumber = previousRevisionNumber === null && (revision.revision ?? 0) === 0;
+      const revisionNumber = isMigratedWithoutNumber ? 0 : revision.revision;
+      requireValid(isMigratedWithoutNumber || (Number.isSafeInteger(revisionNumber) && revisionNumber > 0), 'plan revision number');
+      requireValid(previousRevisionNumber === null || revisionNumber > previousRevisionNumber, 'plan revision numbers must increase');
+      previousRevisionNumber = revisionNumber;
+      requireValid(revision !== null && revision.year === Number(yearKey), 'plan revision year');
+      requireValid(isIdentifier(revision.id) && !snapshotIds.has(revision.id), 'plan revision ID');
+      snapshotIds.add(revision.id);
+    }
+  }
+}
+
+function validatePlans(state) {
+  if (state.version === k_currentStateVersion) {
+    requireValid(state.plan === undefined, 'current ledgers keep plans in the archive');
+    validatePlanArchive(state.plans);
+    return;
+  }
+  validatePlan(state.plan);
+}
+
 export class UnsupportedStateVersionError extends SyntaxError {}
 
 export function validateState(state) {
   requireValid(isRecord(state), 'ledger must be a record');
-  if (state.version !== k_legacyStateVersion && state.version !== k_currentStateVersion) {
+  if (!k_supportedStateVersions.has(state.version)) {
     throw new UnsupportedStateVersionError('Invalid stored data: unsupported schema version.');
   }
   for (const collectionName of k_collectionNames) {
@@ -143,22 +179,27 @@ export function validateState(state) {
       requireValid(isRecord(warning) && isStoredIdentifier(warning.transactionId) && isStoredIdentifier(warning.categoryId), 'migration category warning IDs');
     }
   }
-  validatePlan(state.plan);
+  validatePlans(state);
   validateOutlookState(state);
   validatePaybackState(state);
   return state;
 }
 
-// Version 2 establishes a validated persistence boundary. It does not renumber
-// records or change financial values, plans, links or custom fields.
+// Version 2 established a validated persistence boundary. Version 3 archives
+// the single frozen plan by year. Neither renumbers records or changes money,
+// links, plan figures, overrides or custom fields.
 export function migrateState(state) {
   validateState(state);
-  return { ...state, version: k_currentStateVersion };
+  if (state.version === k_currentStateVersion) {
+    return state;
+  }
+  const { plan, ...unchangedFields } = state;
+  return { ...unchangedFields, version: k_currentStateVersion, plans: legacyPlanArchive(plan) };
 }
 
 export function clearMissingTransactionCategories(state) {
   const canReview = isRecord(state)
-    && [k_legacyStateVersion, k_currentStateVersion].includes(state.version)
+    && k_supportedStateVersions.has(state.version)
     && Array.isArray(state.categories) && Array.isArray(state.transactions);
   if (!canReview) {
     return { state, missingCategories: [] };

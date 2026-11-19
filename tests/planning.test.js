@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildPlan, driftAlerts } from '../src/engine.js';
-import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
+import { createFinancialState, createTransaction, planArchiveOf } from './helpers/financialFixtures.js';
 
 const k_planOptions = { year: 2026, fromMonth: 11, income: 100000, cushion: 0, window: 6 };
 
@@ -68,12 +68,12 @@ function createDriftState(behavior, amounts, overrides = {}) {
       id: `completed-month-${index}`, amount, kind: behavior,
       date: index === 0 ? '2026-12-01' : '2026-11-01'
     })),
-    plan: {
+    plans: planArchiveOf({
       tolerance: 200,
       drift: 0.3,
       months: { '2027-01': { lines: [{ category: 'groceries', name: 'Groceries', kind: behavior, amount: 10000 }] } },
       ...overrides
-    }
+    })
   });
 }
 
@@ -120,7 +120,7 @@ test('a returned revision cannot mutate the earlier plan through carried histori
   const state = createFinancialState();
   const frozenPlan = buildPlan(state, { ...k_planOptions, fromMonth: 1 });
   const originalJanuary = structuredClone(frozenPlan.months['2026-01']);
-  const revisedPlan = buildPlan({ ...state, plan: frozenPlan }, { ...k_planOptions, fromMonth: 6 });
+  const revisedPlan = buildPlan({ ...state, plans: planArchiveOf(frozenPlan) }, { ...k_planOptions, fromMonth: 6 });
   revisedPlan.months['2026-01'].lines[0].amount = 99999;
   revisedPlan.months['2026-01'].lines.push({ id: 'revision-only', amount: 1234 });
 

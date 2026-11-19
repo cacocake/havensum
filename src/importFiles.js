@@ -37,7 +37,7 @@ export async function parseImportContent(fileName, content) {
     }
     if (Array.isArray(data?.transactions)) {
       const isLedgerBackup = data.version !== undefined
-        && ['accounts', 'categories', 'loans', 'events', 'plan', 'preferences', 'theme', 'demo'].some(key => Object.hasOwn(data, key));
+        && ['accounts', 'categories', 'loans', 'events', 'plan', 'plans', 'preferences', 'theme', 'demo'].some(key => Object.hasOwn(data, key));
       const backup = isLedgerBackup ? migrateState(data) : null;
       return { rows: data.transactions, backup };
     }
