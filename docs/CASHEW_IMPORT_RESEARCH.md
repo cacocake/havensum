@@ -55,3 +55,14 @@ The owner exported a small test file from their Cashew app (the newer layout wit
 - Category styling is written as `0XFF…` colours and icon names; it is ignored.
 
 Still unverified: older `debt`/`credit` type rows (K02), the published v1 layout beyond the earlier ordinary rows, and loan objectives used for lending (the owner confirmed for this export that the sign follows the cash on a loan objective: + = loan money received, − = a payment on the loan; K13). No exact Cashew compatibility is claimed.
+
+## What Cashew's public source shows (read 19 November 2026, revision `9cfbe50`)
+
+The public repository has only `main`, at the revision researched earlier. Its exporter writes the original 15-column layout; the owner's app writes the newer one with `amount unpaid` and `extra`, so that exporter is newer than the public source. The source still settles these points for the app logic (code is evidence of intent, not a real export):
+
+- **Borrowing and lending types:** saving a `credit` (Lent) row forces money out (`income` false, negative amount) and a `debt` (Borrowed) row forces money in (`income` true, positive amount). A negative `debt` row cannot occur, so K02/K03 handling matches; lending stays blocked. Cashew's own income/expense filters leave loan rows out, which matches Havensum keeping borrowing out of income and spending.
+- **Loan objectives:** adding a row to a loan objective switches its type to Default, as in the owner's export. Whether the objective is money lent or borrowed is stored on the objective (`income` true = lent), not on the row, so the CSV cannot tell them apart (K16). The published exporter writes only the goal objective's name; the owner's newer app also writes the loan objective's name.
+- **Transfers:** Cashew writes both legs in the balance-correction category with the note `<translated "Transferred Balance">` newline `A → B`, or `A ← B` when the amount was negative (money from B to A). Havensum accepts every shipped translation of the heading and both arrows (K14), listed in `src/cashewTransferHeadings.js`. The source saves the legs one second apart (:30 for the negative leg, :31 for the positive one); the owner's export had both at :00, so Havensum allows up to 60 seconds (K15). The CSV carries no pairing ID, so a pair is still a suggestion the owner can change.
+- **Original layout:** the published exporter writes `type` as `TransactionSpecialType.<name>` or `null`, exports only rows marked paid, and writes amounts as Dart doubles, all as already handled.
+
+Still unverified against a real export: older `debt`/`credit` rows, the original layout beyond ordinary rows, and loan objectives used for lending. No exact Cashew compatibility is claimed.

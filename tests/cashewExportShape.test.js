@@ -185,3 +185,54 @@ test('the review spells out what a loan-linked Cashew row becomes from its sign 
   assert.equal(debtReview.rows[0].bank.loanRequired, true);
   assert.equal(loanMeaning(debtReview.rows[0].bank), 'Payment on the loan · a repayment expense in the loan category');
 });
+
+function suggestedTypes(preview) {
+  return preview.rows.map(row => row.transaction.type);
+}
+
+test('a Cashew transfer note is recognised in another app language (K14)', async () => {
+  const state = createFinancialState();
+  for (const heading of ['Balanço transferido', 'Saldo transferido', '振替済残高']) {
+    const note = `${heading}\nCarteira → Cartão Vale`;
+    const preview = previewImportFile(state, await exportFile([transferLeg('Carteira', '-25.0', note), transferLeg('Cartão Vale', '25.0', note)]), k_accountOptions);
+    assert.deepEqual(suggestedTypes(preview), ['transfer', undefined], heading);
+    assert.equal(preview.rows[0].transaction.toAccount, 'shared');
+  }
+  const unknownHeading = 'Dinheiro mudado\nCarteira → Cartão Vale';
+  const unknown = previewImportFile(state, await exportFile([transferLeg('Carteira', '-25.0', unknownHeading), transferLeg('Cartão Vale', '25.0', unknownHeading)]), k_accountOptions);
+  assert.deepEqual(suggestedTypes(unknown), [undefined, undefined]);
+});
+
+test('a reversed Cashew transfer note (A ← B) means money moved from B to A (K14)', async () => {
+  const state = createFinancialState();
+  const note = 'Transferred Balance\nCartão Vale ← Carteira';
+  const preview = previewImportFile(state, await exportFile([transferLeg('Cartão Vale', '25.0', note), transferLeg('Carteira', '-25.0', note)]), k_accountOptions);
+  assert.deepEqual(preview.rows.map(row => row.status), ['paired', 'new']);
+  assert.equal(preview.rows[1].transaction.account, 'everyday');
+  assert.equal(preview.rows[1].transaction.toAccount, 'shared');
+  const wrongWay = 'Transferred Balance\nCarteira ← Cartão Vale';
+  const refused = previewImportFile(state, await exportFile([transferLeg('Cartão Vale', '25.0', wrongWay), transferLeg('Carteira', '-25.0', wrongWay)]), k_accountOptions);
+  assert.deepEqual(suggestedTypes(refused), [undefined, undefined]);
+});
+
+test('Cashew transfer legs up to a minute apart are still suggested as a pair (K15)', async () => {
+  const state = createFinancialState();
+  const note = transferNote('Carteira', 'Cartão Vale');
+  const legsAt = (debitTime, creditTime) => exportFile([
+    exportRow({ account: 'Carteira', amount: '-25.0', title: 'Mover dinheiro', note, date: debitTime, 'category name': 'Correção de saldo' }),
+    exportRow({ account: 'Cartão Vale', amount: '25.0', title: 'Mover dinheiro', note, date: creditTime, 'category name': 'Correção de saldo' })
+  ]);
+  const oneSecond = previewImportFile(state, await legsAt('2026-11-10 20:28:30.000', '2026-11-10 20:28:31.000'), k_accountOptions);
+  assert.deepEqual(suggestedTypes(oneSecond), ['transfer', undefined]);
+  const acrossMidnight = previewImportFile(state, await legsAt('2026-11-10 23:59:30.000', '2026-11-11 00:00:30.000'), k_accountOptions);
+  assert.deepEqual(suggestedTypes(acrossMidnight), ['transfer', undefined]);
+  const tooFar = previewImportFile(state, await legsAt('2026-11-10 20:28:30.000', '2026-11-10 20:29:31.000'), k_accountOptions);
+  assert.deepEqual(suggestedTypes(tooFar), [undefined, undefined]);
+});
+
+test('the objective note says to pick a loan only for money borrowed (K16)', async () => {
+  const state = createFinancialState({ loans: [k_carLoan] });
+  const preview = previewImportFile(state, await exportFile([objectiveRow('-50.0', 'Prestação')]), k_accountOptions);
+  assert.match(preview.rows[0].bank.objectiveNote, /only for money you borrowed/i);
+  assert.match(preview.rows[0].bank.objectiveNote, /money you lent.*skip.*unlinked balance adjustment/i);
+});

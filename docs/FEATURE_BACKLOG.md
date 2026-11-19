@@ -640,3 +640,8 @@ The implementation note below records how these were built; it stores only per-y
 
 - **K13 follow-up:** the owner confirmed the loan-objective sign follows the cash (+ = loan money received, − = a payment on the loan). The sign rule stays; the review now spells out what a loan-linked row becomes. Merged and pushed as `e6e026a` after the full gate (523 unit, 468 browser, build, Hermes compile) and a read-only Claude review with nothing blocking.
 - **Board:** IMPORT-2 is closed. Optional only: real exports with older `debt`/`credit` type rows (K02), the published v1 layout beyond ordinary rows, or a loan objective used for lending would verify those cases.
+
+## Session handoff — IMPORT-2 source-informed transfer rules (19 November 2026)
+
+- **Why:** the owner asked to infer the remaining cases from Cashew's open-source code. Findings are in the last section of docs/CASHEW_IMPORT_RESEARCH.md. Owner answers K14 (translated note headings and the `←` arrow), K15 (legs up to 60 seconds apart) and K16 (lending guidance on objective rows) are in DECISIONS.md.
+- **Branch:** `codex/cashew-source-transfer-rules` from develop.
