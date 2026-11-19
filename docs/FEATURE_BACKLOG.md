@@ -427,3 +427,51 @@ The implementation note below records how these were built; it stores only per-y
   - `npm run test:browser` 402/402;
   - `npm run build`;
   - `npm run check:android` (Hermes compilation only; no device test).
+
+## Session handoff — DRIVE-2a (19 November 2026, Claude cloud session)
+
+- **Split:** the owner approved splitting DRIVE-2 into DRIVE-2a (this ticket, credential-free sync core) and DRIVE-2b (Google transport and two-account verification, still blocked on the owner's Google Cloud setup and ANDROID-1's Android client ID).
+- **Owner answers (multiple choice, recommended option first):**
+  - A device holding only example data adopts the shared file directly (recommended; D2A-01).
+  - The missing-category review list is shared (the owner chose "Share it" over the recommended "Stay on device"; D2A-02).
+  - IMPORT-1 is closed as not needed (recommended; the DRIVE-1 session relayed the same clarification: both owners use the same bank layout).
+- **Implemented (new modules):**
+  - `sharedFileDocument.js`: the file envelope and the shared/device key classification.
+  - `sharedFileBinding.js`: the file-bound link and baselines.
+  - `sharedFileRead.js` and `sharedFileSync.js`: the protocol, with write-ahead, verify and lost-race re-merge.
+  - `sharedFileMerge.js`: shared-ledger merge, review of deleted-but-used records, and the shared warning list.
+  - `sharedFileJoin.js`: first join, adopt or merge, and a second file.
+  - `sharedFileStatus.js`: triggers, scheduler, progress saver and card states.
+  - `sharedFileTransport.js`: the transport contract.
+  - `mergeReview.js`: choice handling extracted from the backup merge, now shared by both.
+  - `SharedFileStatus.jsx`: the Drive row in Settings. It honestly shows "Not connected", with Open before Create, both disabled, and Create blocked with example data.
+  - Storage: `havensum-shared-file-binding-v1` and `havensum-shared-file-join-recovery-v1`, with web/native parity and an atomic ledger+link save. `melo-sync-base` is unchanged.
+  - Decisions are D2A-01–D2A-09 in DECISIONS.md. The protocol is described in DRIVE_ACCESS_MODEL.md under "Sync core (DRIVE-2a)".
+- **Tests:**
+  - 76 node tests against an in-memory stand-in for the Drive boundary only, covering:
+    - two devices, independent and same-field edits;
+    - edit/delete and deleted-but-used records;
+    - concurrent plan revisions;
+    - lost races, overwritten verified writes, lost write replies and stopped apps;
+    - corrupted and older-schema files, lost access, deleted files, an expired session and offline;
+    - first join, adoption with recovery, a second file;
+    - the scheduler, and edits during a sync save.
+  - Native storage parity.
+  - Browser tests for the Settings row at three viewports, including 320 px.
+- **Not done (DRIVE-2b):**
+  - No Google OAuth, Picker or HTTP code. Drive is not claimed to work.
+  - The review and join dialogs and the app wiring are not built (scheduler, `createSyncProgressSaver` with `snapshotBinding` and `adoptSavedState`, and `commitSharedFileJoin`), because nothing can reach them without a transport.
+  - The Android AsyncStorage row size with five snapshots of a large ledger must be checked.
+- **Review:** a separate read-only Claude review (fresh subagent given the spec and the diff) ran on the branch and on each fix:
+  - **First pass:** two blocking findings.
+    - A lost write reply or a stopped app could let a lagging baseline revert the partner's later changes. Fixed by write-ahead link snapshots and an atomic ledger+link save.
+    - A record deleted on one side and used on the other was merged silently or broke sync. Fixed by offering it for review and refusing invalid merges.
+    - It also raised ten should-fix items and several nits, all fixed.
+  - **Four re-reviews:** they found successive should-fix items in the sync-progress saver, all fixed test-first:
+    - install the saved ledger in the app;
+    - keep an edit typed during a save;
+    - leave a collision typed during a save for review;
+    - keep that edit saved.
+  - **Final re-review of `1e0aa07`:** no blocking or should-fix findings remain.
+- **Checks:** see the merged-tree line below.
+- **Known pre-existing flake:** `fullRestore.spec.js` "a ledger saved by another tab after the preview makes the preview stale" fails intermittently, on `develop` too (reproduced here 7 of 12 runs on unmodified develop, under load). It is recorded as BUG-1 by the LEDGER-2 session and was not changed here.
