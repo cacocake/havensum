@@ -80,7 +80,7 @@ The printed *SHA-256 digest* must be the same for every Havensum build. Record i
 
 ## Install on a phone
 
-- With USB debugging on, from the repository root: `adb install -r android/app/build/outputs/apk/release/app-release.apk`. `adb` is in the SDK's `platform-tools` folder (`%ANDROID_HOME%\platform-tools\adb.exe` on Windows).
+- With USB debugging on, from the repository root: `adb install -r android/app/build/outputs/apk/release/app-release.apk`. `adb` is in the SDK's `platform-tools` folder (on Windows, `"%ANDROID_HOME%\platform-tools\adb.exe"` in cmd or `& "$env:ANDROID_HOME\platform-tools\adb.exe"` in PowerShell).
 - Or copy the APK to the phone and open it. Android asks once to allow installs from that app (the file manager or browser).
 
 Before uninstalling Havensum, or moving to a new phone, export a Havensum backup from the app. Auto Backup is off, so Android will not keep the data for you.
@@ -103,7 +103,7 @@ Before uninstalling Havensum, or moving to a new phone, export a Havensum backup
 
 ## EAS
 
-`eas.json` remains for a possible future switch to Expo's cloud builds. The owner chose local PC builds (A04), so it is unused. An EAS build would fail as configured: EAS injects its own signing, so the `HAVENSUM_UPLOAD_*` properties are absent and the plugin's guard stops the release. Adopting EAS means changing the plugin and ignoring EAS's local `credentials.json`. It reads the version from `app.json` (`appVersionSource: local`), so both paths share one version policy.
+`eas.json` remains for a possible future switch to Expo's cloud builds. The owner chose local PC builds (A04), so it is unused. An EAS build would fail as configured: EAS injects its own signing, so the `HAVENSUM_UPLOAD_*` properties are absent and the plugin's guard stops the release. Adopting EAS means changing the plugin and adding EAS's local `credentials.json` to `.gitignore`. `eas.json` reads the version from `app.json` (`appVersionSource: local`), so both paths share one version policy.
 
 ## What this configuration has and has not proven
 
