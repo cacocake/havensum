@@ -12,35 +12,47 @@ const k_betaHeaders = [
   'category name', 'subcategory name', 'color', 'icon', 'emoji', 'budget', 'objective', 'extra'
 ];
 const k_profiles = [[k_cashewCsvProfile, k_headers], [k_cashewBetaProfile, k_betaHeaders]];
-const k_signedAmount = /^[+-]?\d+(?:[.,]\d{1,2})?$/;
-const k_betaAmount = /^[+-]?(\d+)(?:[.,](\d{1,20}))?$/;
+// Dart's double.toString() writes a dot and never pads zeros beyond `.0`, so
+// a comma or a padded fraction such as `1.000` is a thousands separator.
+const k_signedDecimalAmount = /^[+-]?(\d+)(?:\.(\d{1,20}))?$/;
+const k_maximumUnpaddedDecimals = 2;
+const k_amountFormatMessage = 'Use a signed EUR amount with at most two decimals and no thousands separator.';
 const k_centsPerEuro = 100n;
 const k_floatingPointNoiseDenominator = 10_000_000_000n;
 const k_datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const k_cashewMarkers = ['account', 'income', 'category name', 'subcategory name'];
+// K04: a blank or zero `amount unpaid` marks a paid row; an unpaid remainder
+// stays a row error. K10: `extra` is read-only source information.
+const k_zeroAmount = /^[+-]?0+(?:\.0+)?$/;
 
-function readAmount(amountText, profile) {
-  if (k_signedAmount.test(amountText)) {
-    return parseImportAmount(amountText.replace(/^[+-]/, ''), 'euros');
-  }
-  const decimal = profile === k_cashewBetaProfile ? k_betaAmount.exec(amountText) : null;
+function hasUnpaidRemainder(amountUnpaidText) {
+  const text = amountUnpaidText.trim();
+  return text !== '' && !k_zeroAmount.test(text);
+}
+
+// Both layouts serialize a Dart double, so an amount can carry a
+// floating-point tail. Only accept tails within €0.0000000001 of a cent.
+function readAmount(amountText) {
+  const decimal = k_signedDecimalAmount.exec(amountText);
   if (!decimal) {
-    throw Error('Use a signed EUR amount with at most two decimals and no thousands separator.');
+    throw Error(k_amountFormatMessage);
   }
-  const [, whole, fraction] = decimal;
+  const [, whole, fraction = ''] = decimal;
+  if (fraction.length > k_maximumUnpaddedDecimals && fraction.endsWith('0')) {
+    throw Error(k_amountFormatMessage);
+  }
   const scale = 10n ** BigInt(fraction.length);
-  const scaledCents = BigInt(fraction) * k_centsPerEuro;
+  const scaledCents = BigInt(fraction || '0') * k_centsPerEuro;
   const nearestCents = (scaledCents + scale / 2n) / scale;
   const difference = scaledCents - nearestCents * scale;
   const absoluteDifference = difference < 0n ? -difference : difference;
-  // The beta serializes floating-point amounts. Only accept tails within €0.0000000001 of a cent.
   if (absoluteDifference * k_floatingPointNoiseDenominator > scale * k_centsPerEuro) {
     throw Error('The Cashew amount includes a fraction of a cent.');
   }
   return parseImportAmount(BigInt(whole) * k_centsPerEuro + nearestCents, 'cents');
 }
 
-function readMovement(amountText, currency, timestamp, profile) {
+function readMovement(amountText, currency, timestamp) {
   if (currency !== 'EUR') {
     throw Error('Only EUR is supported.');
   }
@@ -51,7 +63,7 @@ function readMovement(amountText, currency, timestamp, profile) {
     throw Error('The Cashew transaction date is invalid.');
   }
   return {
-    amount: readAmount(amountText, profile),
+    amount: readAmount(amountText),
     date,
     direction: amountText.startsWith('-') ? 'debit' : 'credit'
   };
@@ -85,17 +97,17 @@ export function readCashewCsv(rows) {
     const row = {
       sourceRow: headerIndex + index + 2, account: field('account').trim(), title: field('title'), note: field('note'),
       income: field('income'), specialType, timestamp: field('date').trim(),
-      category: [field('category name'), field('subcategory name')].filter(Boolean).join(' / ')
+      category: [field('category name'), field('subcategory name')].filter(Boolean).join(' / '),
+      budget: field('budget').trim(), objective: field('objective').trim(), extra: field('extra').trim()
     };
     try {
       if (record.slice(headers.length).some(Boolean)) {
         throw Error('This row has extra values beyond the Cashew header.');
       }
-      const unverifiedField = ['amount unpaid', 'extra'].find(name => field(name).trim());
-      if (unverifiedField) {
-        throw Error(`Cashew "${unverifiedField}" is populated. Review this row outside the import.`);
+      if (hasUnpaidRemainder(field('amount unpaid'))) {
+        throw Error('Cashew "amount unpaid" is populated. Review this row outside the import.');
       }
-      return [{ ...row, movement: readMovement(field('amount').trim(), field('currency').trim(), row.timestamp, profile) }];
+      return [{ ...row, movement: readMovement(field('amount').trim(), field('currency').trim(), row.timestamp) }];
     } catch (error) {
       return [{ ...row, error: error.message }];
     }
