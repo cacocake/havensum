@@ -5,7 +5,7 @@ import { billIdentity } from '../src/outlookInputs.js';
 import { planInsights } from '../src/planInsights.js';
 import { accountBalance, reportingMonthStats } from '../src/ledger.js';
 import { plannedCostOptions } from '../src/plannedCosts.js';
-import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
+import { createFinancialState, createTransaction, planArchiveOf } from './helpers/financialFixtures.js';
 
 test('the planned-cost picker offers dated occurrences and retains a saved choice when the original month moved', () => {
   const events = [
@@ -206,13 +206,13 @@ test('target-only edits cannot move expected savings', () => {
     createTransaction({ date: '2026-10-10', amount: 30000 })
   ] });
   const prediction = expectedSavings(state, '2026-11', '2026-11-15');
-  state.plan = {
+  state.plans = planArchiveOf({
     window: 12,
     months: { '2026-11': {
       income: 900000, expense: 100, balance: 899900, cushion: 90000, loan: 80000,
       lines: [{ category: 'groceries', kind: 'Variable', amount: 100, override: true }]
     } }
-  };
+  });
 
   assert.deepEqual(expectedSavings(state, '2026-11', '2026-11-15'), prediction);
 });
@@ -271,13 +271,13 @@ test('independent income and loan changes affect the estimate without changing a
   const state = createFinancialState({
     outlook: { incomeChanges: [{ since: '2026-11', amount: 250000 }], loanChanges: [{ loanId: 'car', since: '2026-11', amount: 15000 }] },
     loans: [{ id: 'car', payment: 20000, start: '2026-01', end: '2026-12' }],
-    plan: { months: { '2026-11': { balance: 123 } } }
+    plans: planArchiveOf({ months: { '2026-11': { balance: 123 } } })
   });
   const result = expectedSavings(state, '2026-11', '2026-11-15');
   assert.equal(result.income, 250000);
   assert.equal(result.loan, 15000);
   assert.equal(result.balance, 235000);
-  assert.equal(state.plan.months['2026-11'].balance, 123);
+  assert.equal(state.plans[2026][0].months['2026-11'].balance, 123);
 });
 
 test('the screen insight boundary exposes independent savings even without a plan', () => {

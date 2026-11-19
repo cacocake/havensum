@@ -12,7 +12,7 @@ test('cash activity keeps the posted month when filtering expenses and spending 
   assert.deepEqual(selectTransactions(state, '2027-03', { type: 'expense' }).map(expense => expense.id), ['deposit']);
   assert.deepEqual(selectTransactions(state, '2027-11', { type: 'expense', spending: true }).map(expense => expense.id), ['deposit']);
 });
-const legacyFixture=()=>({categories:[{id:'home',name:'Home',kind:'Fixed'},{id:'rent',parentId:'home',name:'Rent'},{id:'food',name:'Food',kind:'Variable'},{id:'fun',name:'Fun',kind:'Occasional'},{id:'loan',name:'Loan',kind:'Fixed'}],transactions:[{id:'rent',type:'expense',category:'rent',date:'2026-11-02',amount:80000,account:'a',title:'Rent'},{id:'food',type:'expense',category:'food',date:'2026-11-04',amount:10000,account:'a',title:'Food'},{id:'loan',type:'expense',category:'loan',date:'2026-11-03',amount:10000,account:'a',title:'Loan'},{id:'salary',type:'income',date:'2026-11-01',amount:200000,account:'a',title:'Salary'}],plan:{window:6,months:{'2026-11':{income:200000,expense:120000,balance:80000,loan:10000,cushion:10000,event:0,lines:[{category:'home',kind:'Fixed',amount:80000},{category:'food',kind:'Variable',amount:20000}]}}}});
+const legacyFixture=()=>({categories:[{id:'home',name:'Home',kind:'Fixed'},{id:'rent',parentId:'home',name:'Rent'},{id:'food',name:'Food',kind:'Variable'},{id:'fun',name:'Fun',kind:'Occasional'},{id:'loan',name:'Loan',kind:'Fixed'}],transactions:[{id:'rent',type:'expense',category:'rent',date:'2026-11-02',amount:80000,account:'a',title:'Rent'},{id:'food',type:'expense',category:'food',date:'2026-11-04',amount:10000,account:'a',title:'Food'},{id:'loan',type:'expense',category:'loan',date:'2026-11-03',amount:10000,account:'a',title:'Loan'},{id:'salary',type:'income',date:'2026-11-01',amount:200000,account:'a',title:'Salary'}],plans:{2026:[{id:'plan-2026-fixture',year:2026,window:6,months:{'2026-11':{income:200000,expense:120000,balance:80000,loan:10000,cushion:10000,event:0,lines:[{category:'home',kind:'Fixed',amount:80000},{category:'food',kind:'Variable',amount:20000}]}}}]}});
 function fixture() {
   const state = legacyFixture();
   state.transactions.push(
@@ -31,7 +31,7 @@ test('historical averages use completed recorded months, include net occasional 
 test('past results are recorded and prediction remains available without a target', () => {
   const state = fixture();
   assert.equal(planInsights(state, '2026-11', '2026-12-01').forecast.expense, 100000);
-  state.plan = null;
+  state.plans = {};
   const insight = planInsights(state, '2026-11', '2026-11-15');
   assert.equal(insight.forecast.expense, 120000);
   assert.equal(insight.forecast.variance, null);

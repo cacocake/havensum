@@ -4,7 +4,7 @@ import ExcelJS from 'exceljs';
 import { readImport } from '../src/files.web.js';
 import { createWorkbook } from '../src/workbook.js';
 import { importUnique, mergeThreeWay } from '../src/engine.js';
-import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
+import { createFinancialState, createTransaction, expectedMigratedLedger } from './helpers/financialFixtures.js';
 
 test('workbook serialization preserves euro amounts, identities and transaction associations', async () => {
   const transactions = [
@@ -66,7 +66,7 @@ test('legacy full backups migrate for review while future schema backups are rej
   const legacyState = createFinancialState({ version: 1, transactions: [createTransaction()] });
   const originalBytes = JSON.stringify(legacyState);
   const imported = await readImport(new File([originalBytes], 'legacy-backup.json'));
-  assert.deepEqual(imported.backup, { ...legacyState, version: 2 });
+  assert.deepEqual(imported.backup, expectedMigratedLedger(legacyState));
   assert.deepEqual(imported.rows, legacyState.transactions);
   assert.equal(legacyState.version, 1);
   await assert.rejects(readImport(new File([JSON.stringify({ ...legacyState, version: 99 })], 'future-backup.json')), /schema version/);
@@ -128,13 +128,15 @@ test('independent new records merge without changing any input', () => {
   assert.deepEqual([base, local, remote], originals);
 });
 
-test('concurrent frozen-plan edits conflict as whole snapshots', () => {
-  const base = createFinancialState({ plan: { revision: 1, months: {} } });
-  const local = createFinancialState({ plan: { revision: 2, months: { '2026-11': { balance: 10000 } } } });
-  const remote = createFinancialState({ plan: { revision: 2, months: { '2026-11': { balance: 20000 } } } });
+test('concurrent same-year plan revisions conflict as whole revision histories', () => {
+  const firstRevision = { id: 'plan-a', year: 2026, revision: 1, months: {} };
+  const base = createFinancialState({ plans: { 2026: [firstRevision] } });
+  const local = createFinancialState({ plans: { 2026: [firstRevision, { id: 'plan-local', year: 2026, revision: 2, months: { '2026-11': { balance: 10000 } } }] } });
+  const remote = createFinancialState({ plans: { 2026: [firstRevision, { id: 'plan-remote', year: 2026, revision: 2, months: { '2026-11': { balance: 20000 } } }] } });
   const merged = mergeThreeWay(base, local, remote);
 
-  assert.equal(merged.conflicts[0].field, '$plan');
-  assert.deepEqual(merged.result.plan, local.plan);
-  assert.deepEqual(mergeThreeWay(base, base, remote).result.plan, remote.plan);
+  assert.deepEqual(merged.conflicts.map(conflict => [conflict.field, conflict.id]), [['$planYear', '2026']]);
+  assert.deepEqual([merged.conflicts[0].local, merged.conflicts[0].remote], [local.plans[2026], remote.plans[2026]]);
+  assert.deepEqual(merged.result.plans, local.plans);
+  assert.deepEqual(mergeThreeWay(base, base, remote).result.plans, remote.plans);
 });

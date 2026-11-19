@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readInvalidSnapshotCopy, readState, writeState, readSnapshot, writeSnapshot } from '../src/storage.web.js';
 import { installBrowserStorage } from './helpers/browserStorage.js';
-import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
+import { createFinancialState, createTransaction, expectedMigratedLedger } from './helpers/financialFixtures.js';
 import { buildPlan } from '../src/engine.js';
 
 test('exporting a new baseline retains the original corrupt baseline bytes', async context => {
@@ -58,7 +58,7 @@ test('legacy ledger migration preserves original bytes, identities and frozen ta
   storage.setItem('melo-state-v1', originalBytes);
 
   const migratedState = await readState();
-  assert.deepEqual(migratedState, { ...legacyState, version: 2 });
+  assert.deepEqual(migratedState, expectedMigratedLedger(legacyState, migratedState));
   assert.equal(storage.getItem('melo-state-v1:recovery:v1'), originalBytes);
   await writeState({ ...migratedState, theme: 'dark' });
   assert.equal((await readState()).theme, 'dark');
@@ -80,8 +80,8 @@ test('failed recovery writes leave legacy ledger and baseline bytes untouched an
   assert.equal(storage.getItem('melo-sync-base'), originalBytes);
 
   failedWrite.mock.restore();
-  assert.equal((await readState()).version, 2);
-  assert.equal((await readSnapshot()).version, 2);
+  assert.equal((await readState()).version, 3);
+  assert.equal((await readSnapshot()).version, 3);
   assert.equal(storage.getItem('melo-state-v1:recovery:v1'), originalBytes);
   assert.equal(storage.getItem('melo-sync-base:recovery:v1'), originalBytes);
 });
@@ -102,13 +102,13 @@ test('migration interrupted after recovery creation retries without overwriting 
   assert.equal(storage.getItem('melo-state-v1'), originalBytes);
   assert.equal(storage.getItem('melo-state-v1:recovery:v1'), originalBytes);
   interruptedWrite.mock.restore();
-  assert.equal((await readState()).version, 2);
+  assert.equal((await readState()).version, 3);
   assert.equal(storage.getItem('melo-state-v1:recovery:v1'), originalBytes);
 
   context.mock.method(storage, 'setItem', () => {
     throw Error('Read must not need another write');
   });
-  assert.equal((await readState()).version, 2);
+  assert.equal((await readState()).version, 3);
 });
 
 test('invalid saves and unsupported saved versions cannot replace an existing ledger or baseline', async context => {
@@ -139,7 +139,7 @@ test('unknown, malformed and invalid ledgers are rejected without altering any s
     createFinancialState({ transactions: [createTransaction({ amount: 12.34 })] }),
     createFinancialState({ transactions: [createTransaction(), createTransaction()] }),
     createFinancialState({ categories: [{ id: 'loop', parentId: 'loop', name: 'Loop' }] }),
-    createFinancialState({ plan: { year: 2026, months: { '2026-11': { income: 'bad' } } } })
+    createFinancialState({ version: 2, plan: { year: 2026, months: { '2026-11': { income: 'bad' } } } })
   ];
   for (const invalidState of invalidStates) {
     const originalBytes = JSON.stringify(invalidState);
@@ -153,12 +153,13 @@ test('unknown, malformed and invalid ledgers are rejected without altering any s
 test('malformed saved plan assumptions and transaction behaviours cannot pass schema validation', async context => {
   const storage = installBrowserStorage(context);
   const state = createFinancialState();
-  const plan = buildPlan(state, { year: 2026 });
+  const plan = { ...buildPlan(state, { year: 2026 }), id: 'plan-2026-first' };
+  const archived = revision => ({ ...state, plans: { 2026: [revision] } });
   const invalidStates = [
-    { ...state, plan: { ...plan, incomeChanges: 'not a list' } },
-    { ...state, plan: { ...plan, loanChanges: [{ loanId: 'car', since: '2026-13', amount: 100 }] } },
-    { ...state, plan: { ...plan, window: 'six' } },
-    { ...state, plan: { ...plan, tolerance: 1.5 } },
+    archived({ ...plan, incomeChanges: 'not a list' }),
+    archived({ ...plan, loanChanges: [{ loanId: 'car', since: '2026-13', amount: 100 }] }),
+    archived({ ...plan, window: 'six' }),
+    archived({ ...plan, tolerance: 1.5 }),
     { ...state, transactions: [createTransaction({ kind: 'Unknown' })] }
   ];
   for (const invalidState of invalidStates) {
@@ -188,7 +189,8 @@ test('migration retains savings, loans, scheduled changes and per-field category
     overrides: { home: 99999 }
   });
   storage.setItem('melo-state-v1', JSON.stringify(legacyState));
-  assert.deepEqual(await readState(), { ...legacyState, version: 2 });
+  const migratedState = await readState();
+  assert.deepEqual(migratedState, expectedMigratedLedger(legacyState, migratedState));
 });
 
 test('legacy numeric imported transaction IDs and their reimbursement links survive migration unchanged', async context => {
@@ -198,7 +200,8 @@ test('legacy numeric imported transaction IDs and their reimbursement links surv
     createTransaction({ id: 124, type: 'reimbursement', linkedId: 123, amount: 400 })
   ] });
   storage.setItem('melo-state-v1', JSON.stringify(legacyState));
-  assert.deepEqual(await readState(), { ...legacyState, version: 2 });
+  const migratedState = await readState();
+  assert.deepEqual(migratedState, expectedMigratedLedger(legacyState, migratedState));
 });
 
 test('legacy merge baselines migrate independently and retain their first original copy', async context => {
@@ -207,9 +210,9 @@ test('legacy merge baselines migrate independently and retain their first origin
   const originalBytes = JSON.stringify(legacyBaseline, null, 2);
   storage.setItem('melo-sync-base', originalBytes);
 
-  assert.deepEqual(await readSnapshot(), { ...legacyBaseline, version: 2 });
+  assert.deepEqual(await readSnapshot(), expectedMigratedLedger(legacyBaseline));
   assert.equal(storage.getItem('melo-sync-base:recovery:v1'), originalBytes);
-  await writeSnapshot(createFinancialState({ version: 2 }));
+  await writeSnapshot(createFinancialState());
   assert.equal(storage.getItem('melo-sync-base:recovery:v1'), originalBytes);
   assert.equal(storage.getItem('melo-state-v1'), null);
 });
@@ -221,8 +224,8 @@ test('saving before reading protects both original legacy values before replacem
   storage.setItem('melo-state-v1', originalState);
   storage.setItem('melo-sync-base', originalBaseline);
 
-  await writeState(createFinancialState({ version: 2, theme: 'dark' }));
-  await writeSnapshot(createFinancialState({ version: 2 }));
+  await writeState(createFinancialState({ theme: 'dark' }));
+  await writeSnapshot(createFinancialState());
 
   assert.equal(storage.getItem('melo-state-v1:recovery:v1'), originalState);
   assert.equal(storage.getItem('melo-sync-base:recovery:v1'), originalBaseline);

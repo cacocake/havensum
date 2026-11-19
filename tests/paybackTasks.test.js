@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { accountBalance, mergeThreeWay, monthStats } from '../src/engine.js';
 import { parseImportContent } from '../src/importFiles.js';
-import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
+import { createFinancialState, createTransaction, planArchiveOf } from './helpers/financialFixtures.js';
 
 const k_createdAt = '2026-11-18T10:00:00.000Z';
 
@@ -123,14 +123,14 @@ test('a backup edit to only the payback task can restore its deleted expense', a
 
 test('expecting a payback creates follow-up metadata without changing cash, spending or the frozen target', async () => {
   const { createPaybackTask } = await import('../src/paybackTasks.js');
-  const state = createFinancialState({ transactions: [createTransaction({ amount: 10000 })], plan: { revision: 4, months: { '2026-11': { balance: 50000 } } } });
+  const state = createFinancialState({ transactions: [createTransaction({ amount: 10000 })], plans: planArchiveOf({ revision: 4, months: { '2026-11': { balance: 50000 } } }) });
   const result = createPaybackTask(state, 'weekly-shopping', { id: 'task-synthetic', at: k_createdAt });
 
   assert.equal(result.paybackTasksVersion, 1);
   assert.deepEqual(result.paybackTasks.map(task => [task.id, task.expenseId, task.expectedAmount]), [['task-synthetic', 'weekly-shopping', 10000]]);
   assert.equal(accountBalance(result, 'everyday'), 90000);
   assert.deepEqual(monthStats(result, '2026-11'), monthStats(state, '2026-11'));
-  assert.deepEqual(result.plan, state.plan);
+  assert.deepEqual(result.plans, state.plans);
   assert.equal(state.paybackTasks, undefined);
 });
 
@@ -225,7 +225,7 @@ test('closing without payment preserves every money record and an explicit closu
   const state = createFinancialState({ transactions: [
     createTransaction({ amount: 10000, date: '2026-10-10' }),
     createTransaction({ id: 'partial-payback', type: 'reimbursement', linkedId: 'weekly-shopping', amount: 2500, date: '2026-11-10' })
-  ], plan: { revision: 8 } });
+  ], plans: planArchiveOf({ year: 2026, revision: 8, months: {} }) });
   const tracked = createPaybackTask(state, 'weekly-shopping', { id: 'follow-up', at: k_createdAt });
   const result = closePaybackTask(tracked, 'follow-up', { at: '2026-11-18T11:00:00.000Z', reason: 'No further payback expected' });
 
@@ -235,7 +235,7 @@ test('closing without payment preserves every money record and an explicit closu
   assert.equal(monthStats(result, '2026-10').spent, 7500);
   assert.equal(monthStats(result, '2026-11').income, 0);
   assert.deepEqual(result.transactions, state.transactions);
-  assert.deepEqual(result.plan, state.plan);
+  assert.deepEqual(result.plans, state.plans);
   assert.equal(tracked.paybackTasks[0].manuallyClosed, false);
 });
 
