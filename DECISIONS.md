@@ -138,4 +138,4 @@ These choices are approved requirements for the upcoming implementation, not cla
 | ID | Status | Decision | Consequence |
 | --- | --- | --- | --- |
 | L01 | Owner approved | An entry dated after today counts in current account balances and monthly reports from its date, by the device's local date | Until its date it is shown as upcoming/scheduled and still feeds forecasts. From that day it is included automatically, with no manual confirmation step |
-| L02 | Derived from L01, owner to confirm | "Today" is the device's local calendar date everywhere a view decides what has posted | Replaces the UTC dates recorded in PLAN-4 Q4 and FORECAST-1 Q3 for balances, reports, forecasts, the starting month and new-entry dates |
+| L02 | Owner confirmed (19 November 2026, in chat) | "Today" is the device's local calendar date everywhere: what has posted, the starting month, and the default dates of new entries and loans | Replaces the UTC dates recorded in PLAN-4 Q4 and FORECAST-1 Q3 for balances, reports, forecasts, the starting month and new-entry dates |
