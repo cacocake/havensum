@@ -82,7 +82,7 @@ Reuse the Real Bank adapter if the second layout matches. Otherwise create a dis
 
 **Needs:** Representative rows and agreed classifications for the cases the owner uses.
 
-**Status (19 November 2026):** Done, reviewed and merged into `develop` from `codex/cashew-verification` (started from `75a8108`; implementation `fd0f9a9`–`b202a16`; review fixes `bc6518b`, `e440610`, `771e7c4`). See the IMPORT-2 handoff note at the end. The owner chose to proceed with synthetic rows that mirror the documented Cashew export format; every case beyond the verified ordinary EUR rows from v6.7.5+524 stays explicitly unverified against a real export.
+**Status (19 November 2026):** Done, reviewed and merged into `develop` from `codex/cashew-verification` (started from `75a8108`; implementation `11c9a44`–`b202a16`; review fixes `bc6518b`, `e440610`, `771e7c4`). See the IMPORT-2 handoff note at the end. The owner chose to proceed with synthetic rows that mirror the documented Cashew export format; every case beyond the verified ordinary EUR rows from v6.7.5+524 stays explicitly unverified against a real export.
 
 **Owner answers (19 November 2026, in chat; recorded as K01–K08 in DECISIONS.md):**
 1. **Borrowing/lending:** a `debt` row is importable only after picking an existing Havensum loan in review; positive = loan proceeds (unlinked balance adjustment tagged with the loan), negative = loan repayment expense tagged with the loan. `credit` (lent) rows stay blocked.
