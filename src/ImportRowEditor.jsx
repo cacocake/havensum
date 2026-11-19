@@ -89,7 +89,8 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
         linkedId: isReimbursement && draft.linkedId !== ''
           ? (bank ? draft.linkedId : selectedId(expenses, draft.linkedId) ?? draft.linkedId)
           : undefined,
-        loanId: draft.type === transaction.type ? transaction.loanId : undefined
+        loanId: bank?.loanRequired ? selectedId(state.loans, draft.loanId)
+          : draft.type === transaction.type ? transaction.loanId : undefined
       });
     } catch (failure) {
       setError(failure.message);
@@ -146,6 +147,12 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
       {isReimbursement && (
         <Select label="Original expense" value={bank ? (JSON.stringify(draft.linkedId) ?? '') : (draft.linkedId ?? '')}
           onChange={changeLinkedExpense} options={linkedExpenseOptions} />
+      )}
+      {bank?.loanRequired && (
+        <Select label="Havensum loan" value={draft.loanId ?? ''} onChange={value => change('loanId', value)} options={[
+          { value: '', label: state.loans.length ? 'Choose the loan for this borrowing entry' : 'Add the loan first to import this entry' },
+          ...state.loans.map(loan => ({ value: loan.id, label: loan.name }))
+        ]} />
       )}
       <Field label="Note" value={draft.note} onChangeText={value => change('note', value)} multiline />
       {!!error && <T accessibilityRole="alert" style={{ color: colors.negative }}>{error}</T>}

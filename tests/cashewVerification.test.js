@@ -214,3 +214,58 @@ test('Cashew suggests no transfer when the opposite Balance Correction row is am
     assert.deepEqual(preview.rows.map(row => row.bank.suggestedCounterpartRow), rows.map(() => undefined));
   }
 });
+
+const k_carLoan = { id: 'car', name: 'Car loan', remaining: 500000, original: 800000, payment: 18500, start: '2026-01', end: '2029-12', account: 'everyday' };
+
+function debtRow(amount, title) {
+  const income = String(!amount.startsWith('-'));
+  return publishedRow({ ...k_cafe, account: 'Carteira', amount, income, title, type: 'TransactionSpecialType.debt', 'category name': 'Dívidas', 'subcategory name': '' });
+}
+
+test('a Cashew borrowing row imports only once a Havensum loan is picked, and its sign decides proceeds or repayment (K02/K03)', async () => {
+  const state = createFinancialState({ loans: [k_carLoan] });
+  const file = await cashewFile(k_publishedHeader, [debtRow('2000.0', 'Borrowed from bank'), debtRow('-185.0', 'Loan instalment')]);
+  const options = { accounts: { Carteira: 'everyday' } };
+  let review = previewImportFile(state, file, options);
+  assert.deepEqual(review.rows.map(row => row.bank.loanRequired), [true, true]);
+  assert.deepEqual(review.rows.map(row => row.status), ['invalid', 'invalid']);
+
+  const attempts = [
+    [0, { type: 'reimbursement', linkedId: null }, /choose the havensum loan/i],
+    [0, { type: 'reimbursement', linkedId: null, loanId: 'unknown-loan' }, /choose the havensum loan/i],
+    [0, { type: 'income', category: 'salary', loanId: 'car' }, /loan proceeds/i],
+    [1, { type: 'expense', category: 'groceries', loanId: 'car' }, /loan category/i],
+    [1, { type: 'expense', category: 'loan' }, /choose the havensum loan/i]
+  ];
+  for (const [index, changes, message] of attempts) {
+    const attempt = reviseTransactionImport(state, review, index, changes);
+    assert.equal(attempt.rows[index].status, 'invalid');
+    assert.match(attempt.rows[index].error, message);
+  }
+
+  review = reviseTransactionImport(state, review, 0, { type: 'reimbursement', linkedId: null, loanId: 'car' });
+  review = reviseTransactionImport(state, review, 1, { type: 'expense', category: 'loan', loanId: 'car' });
+  assert.deepEqual(review.rows.map(row => row.status), ['new', 'new']);
+  let next = 0;
+  const saved = applyTransactionImport(state, review, {}, () => `debt-${next++}`);
+  assert.deepEqual(saved.transactions.map(({ type, amount, loanId }) => [type, amount, loanId]),
+    [['reimbursement', 200000, 'car'], ['expense', 18500, 'car']]);
+  assert.deepEqual(saved.loans, state.loans);
+  assert.equal(accountBalance(saved, 'everyday', '2026-11-30'), 100000 + 200000 - 18500);
+  assert.equal(monthStats(saved, '2026-11').income, 0);
+  assert.equal(monthStats(saved, '2026-11').spent, 18500);
+});
+
+test('Cashew borrowing proceeds cannot be linked to an expense and lending stays blocked (K02/K03)', async () => {
+  const expense = createTransaction({ id: 'old-expense', date: '2026-10-14', amount: 300000 });
+  const state = createFinancialState({ loans: [k_carLoan], transactions: [expense] });
+  const lending = publishedRow({ ...k_cafe, account: 'Carteira', amount: '-50.0', type: 'TransactionSpecialType.credit' });
+  const file = await cashewFile(k_publishedHeader, [debtRow('2000.0', 'Borrowed'), lending]);
+  const review = previewImportFile(state, file, { accounts: { Carteira: 'everyday' } });
+  const linked = reviseTransactionImport(state, review, 0, { type: 'reimbursement', linkedId: 'old-expense', loanId: 'car' });
+  assert.match(linked.rows[0].error, /loan proceeds/i);
+  assert.equal(review.rows[1].bank.loanRequired, undefined);
+  const lendingAsExpense = reviseTransactionImport(state, review, 1, { type: 'expense', category: 'loan', loanId: 'car' });
+  assert.equal(lendingAsExpense.rows[1].status, 'invalid');
+  assert.match(lendingAsExpense.rows[1].error, /lending/i);
+});

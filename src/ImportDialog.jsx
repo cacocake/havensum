@@ -333,6 +333,7 @@ export default function ImportDialog({ data, onClose }) {
                 </T>
               )}
               {row.transaction.category !== undefined && <T style={{ fontSize: 12, color: colors.sub }}>{displayField(state, 'category', row.transaction.category)}</T>}
+              {row.transaction.loanId != null && <T style={{ fontSize: 12, color: colors.sub }}>Loan · {displayField(state, 'loanId', row.transaction.loanId)}</T>}
               {row.transaction.plannedCost && <T style={{ fontSize: 12, color: colors.sub }}>{displayField(state, 'plannedCost', row.transaction.plannedCost)}</T>}
               <T style={{ fontSize: 12, color: colors.sub }}>{k_statusLabels[row.status]}</T>
               {row.status === 'paired' && (

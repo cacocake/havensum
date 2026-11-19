@@ -1,11 +1,18 @@
 import { categoryPath } from './csvExchange.js';
 import { isRecordIdentifier } from './recordIdentity.js';
 import { movementFingerprint } from './movementFingerprint.js';
+import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
 
 const k_cashewSource = 'cashew';
-const k_loanTypes = new Set(['credit', 'debt']);
+const k_lendingType = 'credit';
+const k_borrowingType = 'debt';
 const k_scheduledTypes = new Set(['upcoming', 'subscription', 'repetitive']);
-const k_reviewLoanMessage = 'Review this outside the import. Cashew borrowing and lending cannot be brought in as ordinary transactions.';
+const k_lendingMessage = 'Cashew lending cannot be imported. Review it outside the import.';
+const k_borrowingMessages = Object.freeze({
+  loan: 'Choose the Havensum loan for this Cashew borrowing entry.',
+  proceeds: 'Record borrowed money as loan proceeds: an unlinked balance adjustment.',
+  repayment: 'Record a borrowing repayment as an expense in the loan category.'
+});
 const k_scheduledNote = 'From a scheduled Cashew entry exported as paid. Unverified against a real export.';
 const k_balanceCorrectionCategory = 'balance correction';
 const k_newAccountDefaults = { openingBalance: 0, tag: 'Personal', icon: 'Wallet', color: '#91A4CE' };
@@ -89,7 +96,7 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
     const account = mapped ? matching[0] : pending ?? matching[0];
     const categories = state.categories.filter(category => categoryPath(state.categories, category.id) === row.category);
     const specialType = row.specialType.trim().toLowerCase().split('.').at(-1);
-    const specialTypeError = k_loanTypes.has(specialType) ? k_reviewLoanMessage : undefined;
+    const specialTypeError = specialType === k_lendingType ? k_lendingMessage : undefined;
     return {
       bank: {
         profile: data.cashew.profile, sourceRow: row.sourceRow, statementNumber: 1,
@@ -97,6 +104,7 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
         valueDate: row.movement?.date, amount: row.movement?.amount,
         specialType: row.specialType, sourceWarning: sourceWarning(row),
         sourceDetails: sourceDetails(row),
+        loanRequired: specialType === k_borrowingType ? true : undefined,
         scheduledNote: k_scheduledTypes.has(specialType) ? k_scheduledNote : undefined,
         error: row.error ?? specialTypeError ?? (!row.account || matching.length > 1 || !account
           ? 'Map this Cashew account or approve creating it.' : undefined)
@@ -112,4 +120,24 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
   });
   const suggestedTransfers = suggestTransferPairs(data.rows, drafts);
   return { drafts, pendingAccounts, suggestedTransfers };
+}
+
+// K02/K03: a Cashew borrowing row needs an existing Havensum loan. A credit is
+// loan proceeds (an unlinked balance adjustment); a debit is a repayment expense.
+export function validateCashewLoanDraft(state, bank, transaction) {
+  if (!bank.loanRequired) {
+    return;
+  }
+  if (!state.loans.some(loan => loan.id === transaction.loanId)) {
+    throw Error(k_borrowingMessages.loan);
+  }
+  if (bank.direction === 'credit') {
+    if (transaction.type !== k_transactionTypes.reimbursement || transaction.linkedId !== null) {
+      throw Error(k_borrowingMessages.proceeds);
+    }
+    return;
+  }
+  if (transaction.type !== k_transactionTypes.expense || transaction.category !== k_systemCategoryIds.loan) {
+    throw Error(k_borrowingMessages.repayment);
+  }
 }

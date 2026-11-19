@@ -111,10 +111,10 @@ test('a Cashew borrowing or lending entry cannot be applied as ordinary income o
   const file = await parseImportContent('synthetic.csv', [k_header, k_borrowing, lending].join('\n'));
   const state = createFinancialState();
   const review = previewImportFile(state, file, { accounts: { Wallet: 'everyday' } });
-  for (const [index, type] of [[0, 'income'], [1, 'expense']]) {
+  for (const [index, type, message] of [[0, 'income', /choose the havensum loan/i], [1, 'expense', /lending cannot be imported/i]]) {
     const changed = reviseTransactionImport(state, review, index, { type, category: 'groceries' });
     assert.equal(changed.rows[index].status, 'invalid');
-    assert.match(changed.rows[index].error, /borrowing and lending/i);
+    assert.match(changed.rows[index].error, message);
   }
   assert.deepEqual(applyTransactionImport(state, review, { 0: 'skip', 1: 'skip' }).transactions, []);
 });
