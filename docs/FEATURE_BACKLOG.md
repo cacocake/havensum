@@ -130,13 +130,13 @@ Test installation and upgrade, offline startup, storage recovery, file picker an
 
 ### DRIVE-1 · Shared-file decisions
 
-**Needs:** Owner decisions on OAuth and sign-in, file ownership and discovery, revocation, and personal-account visibility.
+**Status:** Decided (owner answers G01–G06 in DECISIONS.md, 19 November 2026); see the DRIVE-1 handoff at the end. The access model is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md). Verifying it with real accounts moves to DRIVE-2.
 
 Document who can find, read, and update the file and how access changes. Verify the agreed access model before implementing transport.
 
 ### DRIVE-2 · Shared Drive sync
 
-**Depends on:** DRIVE-1.
+**Depends on:** DRIVE-1 (decided). **Blocked on:** the owner's Google Cloud setup: a project with the Drive and Picker APIs, an External consent screen with only `drive.file` and both owners as test users, OAuth client IDs for Android (final package + SHA-1 of each signing key, so it also needs ANDROID-1) and web (authorized JavaScript origins), a Picker API key and the project number. Both owners' accounts are needed for the two-person checks. The full list is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md#drive-2-blocker-setup-the-owner-must-provide).
 
 Use the reviewed merge engine with revision-aware writes, offline retry and recovery, and visible conflict review. Verify two devices with independent edits, same-field edits, deletion, concurrent plan revisions, interrupted writes, and stale writes. Confirm the agreed account visibility.
 
@@ -303,3 +303,24 @@ The implementation note below records how these were built; it stores only per-y
 - **Checks (`b9bfbfd`):** `npm run test:coverage` 404/404 with thresholds met (96.3% lines, 94.5% branches), `npm run test:browser` 384/384, `npm run build`, `npm run check:android` (Hermes compilation only; no device test).
 - **Review:** separate read-only Claude review (one blocking defect: expense rows and details counted a later payback as received; should-fix items for drift alerts, the workbook summary, loan defaults, the import preview, a stale Year ahead after a day change and style), then three focused re-reviews. They found two more items: a second "today" source that could disagree after midnight, and the same payback defect on the Paybacks screen. All were fixed test-first. The last re-review found no blocking defects.
 - **Not done (nits):** backup and CSV file names still use the UTC date; a scheduled payback's amount stays green on the Paybacks screen; a payback task's creation day is a UTC day (accepted in FORECAST-2); the future-month Home label reads "December · posted so far".
+
+## Session handoff — DRIVE-1 (19 November 2026, Claude cloud session)
+
+- **Owner answers (multiple choice; the recommended option was chosen each time):**
+  - `drive.file` only (G01).
+  - Either person creates the file and shares it with the partner as editor. The partner picks it once in Google's picker (G02). The creator stays owner (G03).
+  - Sign-out or revocation keeps local data and pauses sync (G04).
+  - Everything financial is shared with both people (G05).
+  - Theme and display preferences stay per device (G06).
+- **Documents:**
+  - DECISIONS.md section "DRIVE-1" (G01–G06).
+  - [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md): who can find, read and update the file; how access changes; transport constraints; what DRIVE-2 must verify; the owner's Cloud setup.
+- **Research limits:**
+  - Google's facts came from search results of the official pages. This session's network could not open developers.google.com or support.google.com directly.
+  - Not documented, so DRIVE-2 must verify:
+    - whether `drive.file` grants survive revocation and re-consent;
+    - the Android desktop/mobile Picker's redirect and client requirements;
+    - whether an unverified-app screen appears with only a non-sensitive scope.
+  - Drive v3 documents no conditional (If-Match) writes, so the write protocol cannot assume compare-and-swap.
+- **Not done:** no Drive code was written (out of scope for this ticket). Nothing is verified with real accounts. S03 (baseline/revision protocol) and the first-join merge for a partner who already has local data are DRIVE-2 design work.
+- **Checks:** docs only, so no app code, tests or build inputs changed. The test, browser, build and Hermes checks are unaffected and were not rerun. Link targets and Markdown were checked by hand.

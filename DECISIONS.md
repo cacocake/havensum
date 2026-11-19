@@ -137,3 +137,16 @@ These choices are approved requirements for the upcoming implementation, not cla
 | --- | --- | --- | --- |
 | L01 | Owner approved | An entry dated after today counts in current account balances and monthly reports from its date, by the device's local date | Until its date it is shown as upcoming/scheduled and still feeds forecasts. From that day it is included automatically, with no manual confirmation step |
 | L02 | Derived from L01, owner to confirm | "Today" is the device's local calendar date everywhere a view decides what has posted | Replaces the UTC dates recorded in PLAN-4 Q4 and FORECAST-1 Q3 for balances, reports, forecasts, the starting month and new-entry dates |
+
+## DRIVE-1 — shared Drive file access (owner answers, 19 November 2026)
+
+These are owner decisions for DRIVE-2. They are not claims that Drive works: Havensum has no Drive code and nothing has been tested with real Google accounts. Who can find, read and update the file, how access changes, what DRIVE-2 must verify and the setup the owner must provide are in [docs/DRIVE_ACCESS_MODEL.md](docs/DRIVE_ACCESS_MODEL.md). These rows settle S01's ownership and discovery, S04 and S05, and questions 2 and 3 above. S03 (the local baseline and revision protocol) stays open for DRIVE-2.
+
+| ID | Status | Decision | Consequence |
+| --- | --- | --- | --- |
+| G01 | Owner approved, not implemented | Request only the `drive.file` scope (supersedes S04's candidate) | Non-sensitive and per file, so no restricted-scope verification or security assessment. The app sees only a file it created or one the person picked. No `drive`, `drive.readonly`, `drive.metadata.readonly` or `drive.appdata` (app-data files cannot be shared) |
+| G02 | Owner approved, not implemented | Either person may create the shared file from the app. The app shares it as editor with the partner's Google email | The partner opens it once through Google's picker (web Picker; Android desktop/mobile Picker), filtered to that file where possible. Each installation stores the file ID and its own baseline |
+| G03 | Owner approved | The creator stays the owner | The app offers no ownership transfer. A manual transfer between personal accounts is a pending-owner request in Drive that the recipient must accept |
+| G04 | Owner approved, not implemented | Sign-out, removed app access, removed sharing or a trashed file keep all local data and pause sync | Nothing is deleted locally or remotely. Unsynced edits wait and merge through the normal review on reconnect. A device that lost access keeps its copy. The app never silently switches, re-creates or overwrites the file |
+| G05 | Owner approved (answers S05 and question 3) | Every account and all financial data are in the shared file, visible to both people | Same contents as the full backup. Personal/Joint tags stay labels, not privacy controls. The file is unencrypted JSON in the creator's Drive |
+| G06 | Owner approved, not implemented | Theme and display preferences stay on each device | The shared file carries financial data and plans only. DRIVE-2 must classify every top-level state key and ask the owner if one is unclear |
