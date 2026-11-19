@@ -1,8 +1,7 @@
-import { monthOf, k_calendarDateLength } from './calendar.js';
+import { localCalendarDate, monthOf, k_calendarDateLength } from './calendar.js';
 import { k_spendingBehaviors, k_transactionTypes } from './domainConstants.js';
 import { expenseReportingMonth } from './plannedCosts.js';
 
-const k_allDatesCutoff = '9999-12-31';
 const k_defaultCategory = {
   name: 'Uncategorized', color: '#aa9ca5', icon: 'Shapes', kind: k_spendingBehaviors.variable
 };
@@ -55,7 +54,9 @@ export function reportingMonthStats(state, month, today = new Date().toISOString
   return monthStats(recordedState, month);
 }
 
-export function accountBalance(state, accountId, until = k_allDatesCutoff) {
+// L01: the current balance counts entries dated through today, by the device's
+// local date. Later entries are scheduled and count from their date.
+export function accountBalance(state, accountId, until = localCalendarDate()) {
   const account = state.accounts.find(account => account.id === accountId);
   if (!account) {
     return 0;

@@ -9,6 +9,9 @@ import { getImportResults } from '../src/importOutcomes.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 import { accountBalance, monthStats } from '../src/engine.js';
 
+// The synthetic statements are dated in 2032; balances are read once they have posted.
+const k_afterStatements = '2032-12-31';
+
 const k_realBankStatement = [
   'Consultar saldos e movimentos à ordem - 09-02-2032',
   '',
@@ -100,7 +103,7 @@ test('ambiguous statement amounts and invalid value dates report row errors befo
   assert.deepEqual(rows.map(row => row.status), Array(5).fill('invalid'));
   const expectedMessages = [/DD-MM-YYYY/, /valid calendar/, /exactly one/, /thousands separator/, /safe integer/];
   rows.forEach((row, index) => assert.match(row.error, expectedMessages[index]));
-  assert.equal(accountBalance(state, 'everyday'), 100000);
+  assert.equal(accountBalance(state, 'everyday', k_afterStatements), 100000);
 });
 
 test('overlapping Real Bank exports review identical purchases after draft edits and a canonical round trip', async () => {
@@ -152,8 +155,8 @@ test('opposite statement rows become one neutral transfer only when the counterp
   assert.deepEqual(paired.rows.map(row => row.status), ['new', 'paired']);
   const saved = applyTransactionImport(state, paired, {}, () => 'reviewed-transfer');
   assert.equal(saved.transactions.length, 1);
-  assert.equal(accountBalance(saved, 'everyday'), 98755);
-  assert.equal(accountBalance(saved, 'shared'), 51245);
+  assert.equal(accountBalance(saved, 'everyday', k_afterStatements), 98755);
+  assert.equal(accountBalance(saved, 'shared', k_afterStatements), 51245);
   assert.equal(monthStats(saved, '2032-02').income, 0);
   assert.equal(monthStats(saved, '2032-02').spent, 0);
 });
@@ -261,7 +264,7 @@ test('pairing a transfer flags its credit when that movement has already been re
   const paired = reviseTransactionImport(ledger, preview, 0, { type: 'transfer', counterpartIndex: 1 });
   assert.deepEqual(paired.rows[0].possibleMatches.map(record => record.id), ['saved-credit']);
   assert.throws(() => applyTransactionImport(ledger, paired, {}), /make a review choice/i);
-  assert.equal(accountBalance(applyTransactionImport(ledger, paired, { 0: 'skip' }), 'shared'), 51245);
+  assert.equal(accountBalance(applyTransactionImport(ledger, paired, { 0: 'skip' }), 'shared', k_afterStatements), 51245);
 });
 
 test('a credit repeated across statements needs review even when its other copy is paired', async () => {
@@ -280,7 +283,7 @@ test('a credit repeated across statements needs review even when its other copy 
     assert.equal(reviewed.rows[otherCredit].status, 'possible');
     assert.throws(() => applyTransactionImport(state, reviewed, {}, () => 'saved-transfer'), /make a review choice/i);
     const saved = applyTransactionImport(state, reviewed, { [otherCredit]: 'skip' }, () => 'saved-transfer');
-    assert.equal(accountBalance(saved, 'shared'), 51245);
+    assert.equal(accountBalance(saved, 'shared', k_afterStatements), 51245);
   }
 });
 
@@ -304,7 +307,7 @@ test('a saved transfer credit needs duplicate review even when paired with a deb
   assert.deepEqual(secondPair.rows[0].possibleMatches.map(record => record.id), ['saved-transfer']);
   assert.throws(() => applyTransactionImport(ledger, secondPair, {}), /make a review choice/i);
   const saved = applyTransactionImport(ledger, secondPair, { 0: 'skip' });
-  assert.equal(accountBalance(saved, 'shared'), 51245);
+  assert.equal(accountBalance(saved, 'shared', k_afterStatements), 51245);
 });
 
 test('a bank refund requires an explicit expense or balance-adjustment choice and never becomes earnings', async () => {
@@ -320,7 +323,7 @@ test('a bank refund requires an explicit expense or balance-adjustment choice an
 
   const reviewed = reviseTransactionImport(state, unresolved, 0, { type: 'reimbursement', linkedId: originalExpense.id });
   const saved = applyTransactionImport(state, reviewed, {}, () => 'recorded-refund');
-  assert.equal(accountBalance(saved, 'everyday'), 99300);
+  assert.equal(accountBalance(saved, 'everyday', k_afterStatements), 99300);
   assert.equal(monthStats(saved, '2032-01').spent, 700);
   assert.equal(monthStats(saved, '2032-02').spent, 0);
   assert.equal(monthStats(saved, '2032-02').income, 0);
