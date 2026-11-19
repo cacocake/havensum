@@ -147,6 +147,7 @@ These choices are approved requirements for the upcoming implementation, not cla
 | L04 | Owner approved | A correction keeps every recorded interest entry and adds one marked *Interest correction* entry per affected month for the difference, dated that month's end | Nothing recorded is rewritten. A downward correction is a negative interest-income entry, so income, cash and the month total stay consistent. A completed month that never had an app entry gets its ordinary app entry instead |
 | L05 | Owner approved | When bank-posted interest (an imported or typed Interest income entry) exists for an account and month that also has, or would get, an app interest entry, the owner chooses per month: use the bank amount only, or keep both | Until chosen, the app posts no interest of its own for that month and the account shows the month as needing a choice. *Bank only* offsets an existing app entry with a correction; *keep both* keeps or posts the app entry. Each choice is stored on the account so it is asked once |
 | L06 | Owner approved | The review lists every affected completed month (recorded, corrected, difference) with later months marked *compounding effect*, plus a total; Apply corrects all listed months at once and Cancel changes nothing | A stale or repeated Apply is refused and re-reviewed, so corrections are never duplicated |
+| L07 | Owner approved (19 November 2026, follow-up answers) | Corrections are not edited directly (review again instead); later months stay previewed while a bank choice is pending; only the *Interest* category itself (not subcategories) counts as bank interest; a correction cannot start before the account's first recorded entry or first rate period | The first three confirm LEDGER-2 as built. The earliest-month limit is the follow-up LEDGER-2a |
 
 ## ANDROID-1 — installable package (owner answers, 19 November 2026)
 
@@ -179,6 +180,13 @@ These are owner decisions for DRIVE-2. They are not claims that Drive works: Hav
 | G08 | Owner approved, not implemented | A partner with existing local entries chooses either to adopt the file (after a local recovery copy) or to merge with a review of every one-sided record | Without a common baseline, `mergeThreeWay` would silently union independently entered duplicates. The current merge UI refuses to run without a baseline. DRIVE-2 designs a dedicated first-join review |
 | G09 | Owner approved, not implemented | Setup offers "Open shared file" before "Create", and Create warns to check with the partner | If two files exist anyway, the person opens the one to keep, picks the other, and merges it in through the G08 one-sided-record review (the files share no baseline). No file is deleted automatically |
 | G10 | Owner approved, not implemented | Sync runs automatically (start, resume, shortly after edits when online) plus a "Sync now" button | Conflicts always wait for review. An expired web token (short-lived, no refresh token in the browser) shows "Reconnect" instead of an unprompted popup |
+
+## FORECAST-2 — follow-up owner answers (19 November 2026)
+
+| ID | Status | Decision | Consequence |
+| --- | --- | --- | --- |
+| F19 | Owner confirmed, current behaviour (implemented) | Accepting a suggested planned-cost amount also changes Expected savings | A planned cost's amount is forecast evidence (PLAN-3 convention); a target-only edit still leaves Expected savings unchanged |
+| F20 | Owner approved, not implemented | A merge conflict on a planned cost's year amount uses readable wording, e.g. "December celebrations · amount for 2027: €410.00 here, €450.00 on the other device" | Queued as the "Readable year-amount merge conflicts" follow-up ticket; the merge decision itself is unchanged |
 
 ## IMPORT-2 — Cashew classifications (owner answers, 19 November 2026)
 
