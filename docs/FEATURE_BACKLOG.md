@@ -347,7 +347,7 @@ The implementation note below records how these were built; it stores only per-y
 - **Build profile and signing ownership:**
   - Release APK via `assembleRelease` (AAB via `bundleRelease` later).
   - Signed with the owner's upload keystore, held only by the owner.
-  - The version code is raised by 1 in a `develop` commit before every package that reaches a phone.
+  - The first package ships as version code 1. Each later package that reaches a phone gets a version code raised by 1 in a `develop` commit first.
 - **Not built here:** the container has no Android SDK, and its network blocks `dl.google.com` (Android SDK and Google Maven) and `api.expo.dev`. No APK, installation or device test exists yet. The first `assembleRelease` and the missing-key guard are unverified until the owner's PC build. Record that build in the ANDROID-1 table above.
 - **Checks** (merged with develop at 75a8108):
   - `npm run test:coverage` 434/434, thresholds met.
@@ -355,9 +355,10 @@ The implementation note below records how these were built; it stores only per-y
   - `npm run build`.
   - `npm run check:android` (Hermes compilation only).
   - `tests/androidPackage.test.js` runs `expo prebuild` offline and checks the generated application ID, version code, backup, removed permissions, release signing, guard and repeatability.
-- **Review:** a separate read-only Claude review found no blocking defects, and its should-fix items were fixed in `7784250`: Windows Gradle commands, a debug/release signature-clash warning, a portable test, and a ticket status with a build record. A re-review (no blocking defects) prompted `e175ca7`, which keeps the keystore outside the checkout, corrects the password advice and the `npm run android` wording, removes a duplicated plugin message, makes test cleanup safe, and corrects the backlog status. A final re-review found no blocking defects; its two nits (this line, and cleanup tolerating a missing link) were fixed in the closing commit.
+- **Review:** a separate read-only Claude review found no blocking defects, and its should-fix items were fixed in `7784250`: Windows Gradle commands, a debug/release signature-clash warning, a portable test, and a ticket status with a build record. A re-review (no blocking defects) prompted `e175ca7`, which keeps the keystore outside the checkout, corrects the password advice and the `npm run android` wording, removes a duplicated plugin message, makes test cleanup safe, and corrects the backlog status. A final re-review found no blocking defects; its two nits (this line, and cleanup tolerating a missing link) were fixed in `ee85ae0`. A full review of the whole branch found no blocking defects; its build-guide fixes (cmd-safe commands, commands run from the repository root, Windows tool paths, the first version code, EAS incompatibility) were applied before merging.
 - **Owner questions (non-blocking):**
   1. Should debug builds get a separate ID (`com.havensum.app.debug`) so a development build can sit beside the real app on the same phone? For now the guide warns against installing a development build on the phone that holds your data.
   2. The Expo `slug` is still `melo-money`. Local builds don't use it; rename it only if EAS is adopted later.
   3. `package.json` has a duplicate `expo-crypto` dependency key (pre-existing). It is harmless; `expo prebuild` removes it when it rewrites the file.
+- **Device check for ANDROID-2:** prebuild warns that `userInterfaceStyle: automatic` needs `expo-system-ui` on Android. Check dark mode and the system bars on the phone.
 - **Unverified on Windows:** the prebuild test's Windows changes (Expo CLI through `node`, a junction for `node_modules`) were not run on Windows.
