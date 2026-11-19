@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
@@ -28,6 +28,12 @@ function copyProjectInputs(targetDirectory) {
     cpSync(join(k_repositoryRoot, input), join(targetDirectory, input), { recursive: true });
   }
   symlinkSync(join(k_repositoryRoot, 'node_modules'), join(targetDirectory, 'node_modules'), 'junction');
+}
+
+function removeProjectCopy(projectDirectory) {
+  // Unlink the node_modules link first so removing the copy can never reach the repository's dependencies.
+  unlinkSync(join(projectDirectory, 'node_modules'));
+  rmSync(projectDirectory, { recursive: true, force: true });
 }
 
 function runAndroidPrebuild(projectDirectory) {
@@ -62,7 +68,7 @@ function escapeForRegExp(text) {
 
 test('the generated Android project uses the owner-approved package, version code, backup and permission settings', { timeout: k_prebuildTimeoutMilliseconds * 2 }, (context) => {
   const projectDirectory = mkdtempSync(join(tmpdir(), 'havensum-prebuild-'));
-  context.after(() => rmSync(projectDirectory, { recursive: true, force: true }));
+  context.after(() => removeProjectCopy(projectDirectory));
   copyProjectInputs(projectDirectory);
   const appConfig = JSON.parse(readFileSync(join(k_repositoryRoot, 'app.json'), 'utf8')).expo;
 
@@ -84,7 +90,7 @@ test('the generated Android project uses the owner-approved package, version cod
 
 test('the generated release build type uses only the upload-key signing config from Gradle properties, guards a missing key, and prebuild is repeatable', { timeout: k_prebuildTimeoutMilliseconds * 3 }, (context) => {
   const projectDirectory = mkdtempSync(join(tmpdir(), 'havensum-prebuild-'));
-  context.after(() => rmSync(projectDirectory, { recursive: true, force: true }));
+  context.after(() => removeProjectCopy(projectDirectory));
   copyProjectInputs(projectDirectory);
 
   runAndroidPrebuild(projectDirectory);

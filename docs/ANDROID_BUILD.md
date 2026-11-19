@@ -25,15 +25,16 @@ The owner builds and signs Havensum on their own PC (decision A04 in DECISIONS.m
 
 The keystore signs every Havensum package. Android installs an update only when it is signed with the same key as the installed app. **If the keystore or its password is lost, the installed app can never be updated**: it would have to be uninstalled, which erases its on-phone data (Auto Backup is off).
 
-Create it **outside the repository**, for example in a `havensum-signing` folder in your home directory. Change to that folder first, so the file is not written inside the checkout:
+Create it **outside the repository**, in a `havensum-signing` folder in your home directory. The first line moves to your home folder (in Windows cmd use `cd %USERPROFILE%`), so the key is never written inside the checkout, where a `git clean` could delete it:
 
 ```sh
+cd ~
 mkdir havensum-signing
 cd havensum-signing
 keytool -genkeypair -v -storetype PKCS12 -keystore havensum-upload.jks -alias havensum-upload -keyalg RSA -keysize 4096 -validity 10000
 ```
 
-`keytool` comes with the JDK (`%JAVA_HOME%\bin\keytool` on Windows). Choose a long password made of letters, digits and simple punctuation. Avoid `\`, and do not start it with `#` or `!`: the Gradle properties file below would read those characters differently. Back up the `.jks` file **and** the password in two places you control, such as a password manager and an offline copy. Never put either in the repository, chat, or a cloud session.
+`keytool` comes with the JDK (`%JAVA_HOME%\bin\keytool` on Windows). Choose a long password made of ASCII letters, digits and simple punctuation. Avoid `\`, accented or other non-ASCII characters, and leading spaces: the Gradle properties file below would read them differently and signing would fail. Back up the `.jks` file **and** the password in two places you control, such as a password manager and an offline copy. Never put either in the repository, chat, or a cloud session.
 
 Then add these four lines to your **user** Gradle properties file, not the project's. On Windows it is `%USERPROFILE%\.gradle\gradle.properties`; on macOS/Linux, `~/.gradle/gradle.properties`. Use an absolute path, with forward slashes on Windows:
 
@@ -81,7 +82,7 @@ The printed *SHA-256 digest* must be the same for every Havensum build. Record i
 
 Before uninstalling Havensum, or moving to a new phone, export a Havensum backup from the app. Auto Backup is off, so Android will not keep the data for you.
 
-**Do not install a development build on a phone that holds your real data.** `npx expo run:android` (and `npm run android` after prebuild) installs a debug build with the same application ID, signed with the public debug key. Android refuses to put one over the other (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`), and the only way out is to uninstall, which erases the ledger. Use development builds only on an emulator or a spare phone.
+**Do not install a development build on a phone that holds your real data.** `npx expo run:android` (or `gradlew installDebug`) installs a debug build with the same application ID, signed with the public debug key. Android refuses to put one over the other (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`), and the only way out is to uninstall, which erases the ledger. Use development builds only on an emulator or a spare phone.
 
 ## Play App Bundle (later)
 

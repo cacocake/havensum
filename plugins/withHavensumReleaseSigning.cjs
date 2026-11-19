@@ -46,10 +46,14 @@ gradle.taskGraph.whenReady { taskGraph ->
 }
 `;
 
+function templateMismatchError(description) {
+  return new Error(`withHavensumReleaseSigning: could not find ${description} in android/app/build.gradle. Update the plugin for the new Expo template before building a release.`);
+}
+
 function requireIndex(text, fragment, fromIndex, description) {
   const index = text.indexOf(fragment, fromIndex);
   if (index === -1) {
-    throw new Error(`withHavensumReleaseSigning: could not find ${description} in android/app/build.gradle. Update the plugin for the new Expo template before building a release.`);
+    throw templateMismatchError(description);
   }
   return index;
 }
@@ -66,8 +70,9 @@ function signReleaseBuildTypeWithUploadKey(appBuildGradle) {
   const releaseClosingIndex = requireIndex(appBuildGradle, k_buildTypeClosing, releaseIndex, 'the end of the release build type');
   const releaseBlock = appBuildGradle.slice(releaseIndex, releaseClosingIndex);
   if (!releaseBlock.includes(k_debugSigningLine)) {
-    throw new Error('withHavensumReleaseSigning: could not find the release signing line in android/app/build.gradle. Update the plugin for the new Expo template before building a release.');
+    throw templateMismatchError('the release signing line');
   }
+  // The caution comment is optional template text; tests/androidPackage.test.js fails if it survives.
   const signedReleaseBlock = releaseBlock
     .replace(k_templateSigningCaution, k_uploadKeyNote)
     .replace(k_debugSigningLine, k_releaseSigningLine);
