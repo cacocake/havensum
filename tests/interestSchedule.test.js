@@ -138,8 +138,11 @@ test('the first period may start in a past month so an unscheduled legacy rate c
   assert.deepEqual(scheduleWithPeriod([], { since: '2026-03', rate: 2.5 }, '2026-11', { allowPastStart: true, correctableBound }), [{ since: '2026-03', rate: 2.5 }]);
 });
 
-test('a legacy past start without an earliest correctable month is refused rather than unlimited', () => {
+test('a legacy past start without an earliest correctable month may start from the current month only', () => {
+  const currentMonthOnlyMessage = 'This account has no earlier entries or rate periods, so rates can start from Nov 2026.';
   assert.throws(() => scheduleWithPeriod([], { since: '2020-01', rate: 3 }, '2026-11', { allowPastStart: true }), InterestScheduleError);
+  assert.throws(() => scheduleWithPeriod([], { since: '2026-10', rate: 3 }, '2026-11', { allowPastStart: true }), { message: currentMonthOnlyMessage });
+  assert.deepEqual(scheduleWithPeriod([], { since: '2026-11', rate: 3 }, '2026-11', { allowPastStart: true }), [{ since: '2026-11', rate: 3 }]);
 });
 
 test('only current and future periods can be removed, so recorded history keeps its rates', () => {
