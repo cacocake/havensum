@@ -13,8 +13,13 @@ function startsWith(history, prefix) {
   return prefix.length <= history.length && prefix.every((snapshot, index) => sameSnapshot(snapshot, history[index]));
 }
 
+function revisionNumber(snapshot) {
+  return snapshot?.revision ?? 0;
+}
+
 // An older backup holds one snapshot of the year. It extends the shared
-// baseline history instead of replacing it.
+// baseline history when it follows it; otherwise it is offered on its own
+// as a whole-history choice.
 function legacyCandidateHistory(baseHistory, localHistory, legacyHistory) {
   const [legacySnapshot] = legacyHistory;
   if (localHistory.some(snapshot => snapshot.id === legacySnapshot.id)) {
@@ -22,6 +27,9 @@ function legacyCandidateHistory(baseHistory, localHistory, legacyHistory) {
   }
   if (baseHistory.some(snapshot => snapshot.id === legacySnapshot.id)) {
     return baseHistory;
+  }
+  if (baseHistory.length && revisionNumber(legacySnapshot) <= revisionNumber(baseHistory.at(-1))) {
+    return legacyHistory;
   }
   return [...baseHistory, legacySnapshot];
 }

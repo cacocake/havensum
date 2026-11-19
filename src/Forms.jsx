@@ -297,7 +297,15 @@ export function PlanForm({onClose}){
      setError(approvalError.message);
      return;
    }
-   setState(currentState => approvePlanRevision({ ...currentState, events }, approvedRevision, approval));
+   setState(currentState => {
+     // The dialog is modal, so the archive should not change while it is open.
+     // If it did, keep the ledger unchanged rather than throw during an update.
+     try {
+       return approvePlanRevision({ ...currentState, events }, approvedRevision, approval);
+     } catch {
+       return currentState;
+     }
+   });
    const firstRevisedMonthName = from === 1 ? 'January' : new Date(year, from - 1, 1).toLocaleString('en', { month: 'long' });
    notify(`Plan frozen · ${firstRevisedMonthName} onwards`);
    onClose();

@@ -75,11 +75,15 @@ function validatePlanArchive(plans) {
   for (const [yearKey, revisions] of Object.entries(plans)) {
     requireValid(k_yearKeyPattern.test(yearKey), 'plan archive year');
     requireValid(Array.isArray(revisions) && revisions.length > 0, 'plan archive revisions');
-    let previousRevisionNumber = 0;
+    let previousRevisionNumber = null;
     for (const revision of revisions) {
       validatePlan(revision);
-      requireValid(Number.isSafeInteger(revision.revision) && revision.revision > previousRevisionNumber, 'plan revision numbers must increase');
-      previousRevisionNumber = revision.revision;
+      // A migrated legacy plan may lack a number; it counts as revision 0.
+      const isMigratedWithoutNumber = previousRevisionNumber === null && revision.revision === undefined;
+      const revisionNumber = isMigratedWithoutNumber ? 0 : revision.revision;
+      requireValid(isMigratedWithoutNumber || (Number.isSafeInteger(revisionNumber) && revisionNumber > 0), 'plan revision number');
+      requireValid(previousRevisionNumber === null || revisionNumber > previousRevisionNumber, 'plan revision numbers must increase');
+      previousRevisionNumber = revisionNumber;
       requireValid(revision !== null && revision.year === Number(yearKey), 'plan revision year');
       requireValid(isIdentifier(revision.id) && !snapshotIds.has(revision.id), 'plan revision ID');
       snapshotIds.add(revision.id);

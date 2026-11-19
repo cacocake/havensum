@@ -270,3 +270,42 @@ test('revision numbers must be positive and increase within a year', async conte
     await assert.rejects(writeState({ ...state, plans: { 2026: revisions } }), SyntaxError);
   }
 });
+
+test('an older backup whose revision does not follow the shared history needs an explicit choice', () => {
+  const first = snapshot('plan-2026-a', 2026, 1, 100);
+  const base = createFinancialState({ plans: { 2026: [first] } });
+  const { id: discardedId, ...legacyPlan } = snapshot('not-in-legacy-data', 2026, 1, 900);
+  const legacyBackup = createFinancialState({ version: k_legacyVersion, plan: legacyPlan });
+  const remote = migrateState(legacyBackup);
+
+  const merged = mergeThreeWay(base, base, remote, { remotePlanYears: representedPlanYears(legacyBackup) });
+
+  assert.deepEqual(merged.result.plans[2026], [first]);
+  assert.equal(merged.conflicts.length, 1);
+  for (const side of ['local', 'remote']) {
+    const reviewed = takeReviewedPlanYear(merged.result, '2026', merged.conflicts[0][side]);
+    assert.equal(validateState(reviewed), reviewed);
+  }
+});
+
+test('a legacy plan without a revision number migrates to a ledger that can still be saved and revised', async context => {
+  const storage = installBrowserStorage(context);
+  const legacyState = createLegacyLedger();
+  delete legacyState.plan.revision;
+  storage.setItem('melo-state-v1', JSON.stringify(legacyState));
+
+  const loadedState = await readState();
+  const revised = approvePlanRevision(loadedState, buildPlan(loadedState, { year: 2026, fromMonth: 11, income: 1, cushion: 0 }), { id: 'plan-next', fromMonth: 11, today: k_today });
+  await writeState(revised);
+
+  assert.equal(latestPlan(loadedState, 2026).revision, undefined);
+  assert.deepEqual(planRevisions(await readState(), 2026).map(revision => revision.revision), [undefined, 1]);
+});
+
+test('approval without a valid start month is rejected explicitly', () => {
+  const state = createFinancialState();
+  const draft = buildPlan(state, { year: 2026, fromMonth: 11, income: 1, cushion: 0 });
+  for (const fromMonth of [undefined, 0, 13, 1.5]) {
+    assert.throws(() => approvePlanRevision(state, draft, { id: 'plan-x', fromMonth, today: k_today }), /start month/);
+  }
+});

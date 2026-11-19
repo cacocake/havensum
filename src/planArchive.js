@@ -1,4 +1,5 @@
 import { monthNumberOf, monthOf, yearOfMonth } from './calendar.js';
+import { k_monthsPerYear } from './domainConstants.js';
 import { fingerprintText } from './textFingerprint.js';
 
 const k_legacyPlanIdPrefix = 'plan-legacy';
@@ -68,6 +69,9 @@ function monthsBefore(months, firstMonth) {
 export function approvePlanRevision(state, revision, { id, fromMonth, today }) {
   if (planRevisionStart(revision.year, `${revision.year}-01`, today).kind === k_planRevisionStartKinds.readOnly) {
     throw new ReadOnlyPlanYearError(`${revision.year} is now a past year. Its plans are read-only.`);
+  }
+  if (!Number.isInteger(fromMonth) || fromMonth < 1 || fromMonth > k_monthsPerYear) {
+    throw new RangeError('A plan revision needs a start month from 1 to 12.');
   }
   const firstRevisedMonth = `${revision.year}-${String(fromMonth).padStart(2, '0')}`;
   const carriedMonths = monthsBefore(latestPlan(state, revision.year)?.months, firstRevisedMonth);
