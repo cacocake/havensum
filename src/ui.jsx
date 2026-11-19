@@ -36,7 +36,7 @@ export function Toggle({value,onChange,label,description}){
   return <Pressable accessibilityRole="switch" aria-checked={value} accessibilityState={{checked:value}} accessibilityLabel={label} accessibilityHint={description} aria-describedby={describedBy} onPress={()=>onChange(!value)} style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:15,minHeight:48,paddingVertical:12}}>
     <View style={{flex:1}}>
       <T style={{fontSize:13,fontWeight:'500'}}>{label}</T>
-      {description&&<T nativeID={descriptionId} style={{fontSize:11,color:c.muted,marginTop:3}}>{description}</T>}
+      {description?<T nativeID={descriptionId} style={{fontSize:11,color:c.muted,marginTop:3}}>{description}</T>:null}
     </View>
     <View style={{width:36,height:21,borderRadius:12,padding:3,backgroundColor:value?c.accent:c.line,alignItems:value?'flex-end':'flex-start'}}>
       <View style={{width:15,height:15,borderRadius:9,backgroundColor:'#fff'}}/>

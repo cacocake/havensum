@@ -129,7 +129,7 @@ function savedLinkLabel(event, savedLink) {
   if (!event) {
     return `Former planned cost · original month ${savedLink.month}`;
   }
-  if (!plannedCostOccursInYear(event, yearOfMonth(savedLink.month))) {
+  if (!event.year && !plannedCostOccursInYear(event, yearOfMonth(savedLink.month))) {
     return `${event.name} · ${savedLink.month}, before it repeats`;
   }
   return `${event.name} · original month ${savedLink.month}`;

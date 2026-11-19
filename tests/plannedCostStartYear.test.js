@@ -224,3 +224,11 @@ test("an amount edited on one device and a name on the other keep the cost's sta
 
   assert.deepEqual([conflicts, result.events], [[], [{ ...k_ski, amount: 95000, name: 'Ski trip' }]]);
 });
+
+test('a saved link to another year of a one-off cost keeps the original-month wording', () => {
+  const trip = { id: 'trip', name: 'Autumn trip', month: 10, amount: 90000, year: 2026 };
+
+  const labels = plannedCostOptions([trip], '2026-11-19', { eventId: 'trip', month: '2025-10', singleOccurrence: true }).map(option => option.label);
+
+  assert.deepEqual(labels, ['Autumn trip · original month 2025-10', 'Autumn trip · October 2026']);
+});
