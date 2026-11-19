@@ -156,12 +156,12 @@ When two devices set different amounts for the same year of a recurring planned 
 
 ### ANDROID-1 · Installable package
 
-**Needs:** App ID, target runtime and device support, and owner-controlled signing setup. **Status:** Configured, reviewed and merged into `develop` from `codex/android-installable-package` (owner answers A01–A08 in DECISIONS.md, steps in [docs/ANDROID_BUILD.md](ANDROID_BUILD.md)). **Done:** the owner built a release APK on their PC with their upload keystore from `fd55ca2`; it installed and starts on the owner's phone (recorded below). Full device QA is ANDROID-2. See the ANDROID-1 handoff note and the startup-crash bug fix.
+**Needs:** App ID, target runtime and device support, and owner-controlled signing setup. **Status:** Configured, reviewed and merged into `develop` from `codex/android-installable-package` (owner answers A01–A08 in DECISIONS.md, steps in [docs/ANDROID_BUILD.md](ANDROID_BUILD.md)). **Built and installed:** the owner built a release APK on their PC with their upload keystore from `fd55ca2`; it installed and starts on the owner's phone (recorded below). Full device QA is ANDROID-2. See the ANDROID-1 handoff note and the startup-crash bug fix.
 
 | Source commit | Version name / code | Type | Build date | Signing certificate SHA-256 | Installed on |
 | --- | --- | --- | --- | --- | --- |
 | develop (owner's PC; exact commit not recorded) | 0.1.0 / 1 | Release APK | 19 November 2026 | not recorded | Owner's phone: installed, **crashed at startup** (Reanimated rejected the native timing curve; fixed in `fd55ca2`) |
-| `fd55ca2` | 0.1.0 / 2 | Release APK | 19 November 2026 | `29591ff335e46c13c4556dd419e8c2812bd8efa40e2ede17d0c94f024d2e7d37` | Owner's phone: installed as an update and starts (owner report; full QA is ANDROID-2) |
+| `fd55ca2` | 0.1.0 / 2 | Release APK | reported 19 November 2026 | `29591ff335e46c13c4556dd419e8c2812bd8efa40e2ede17d0c94f024d2e7d37` | Owner's phone: installed as an update and starts (owner report; full QA is ANDROID-2) |
 
 Produce an installable Android build. Record source commit, build profile, and signing ownership. Keep credentials and compiled artifacts out of Git. A Hermes bundle is only a compilation check.
 
@@ -397,7 +397,7 @@ The implementation note below records how these were built; it stores only per-y
   - Release APK via `assembleRelease` (AAB via `bundleRelease` later).
   - Signed with the owner's upload keystore, held only by the owner.
   - The first package ships as version code 1. Each later package that reaches a phone gets a version code raised by 1 in a `develop` commit first.
-- **Not built here:** the container has no Android SDK, and its network blocks `dl.google.com` (Android SDK and Google Maven) and `api.expo.dev`. No APK, installation or device test exists yet. The first `assembleRelease` and the missing-key guard are unverified until the owner's PC build. Record that build in the ANDROID-1 table above.
+- **Not built here:** the container has no Android SDK, and its network blocks `dl.google.com` (Android SDK and Google Maven) and `api.expo.dev`. No APK, installation or device test existed at that point (since built from `fd55ca2`, see the ANDROID-1 table). The first `assembleRelease` and the missing-key guard are unverified until the owner's PC build. Record that build in the ANDROID-1 table above.
 - **Checks** (merged with develop at 75a8108):
   - `npm run test:coverage` 434/434, thresholds met.
   - `npm run test:browser`.
