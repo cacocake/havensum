@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**Next implementation ticket: PLAN-3.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**Next implementation ticket: PLAN-4.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -40,7 +40,7 @@ Use integer EUR cents. Cash follows its transaction date, including for early pa
 
 ### PLAN-3 · Review assumptions carried forward
 
-**Status:** Queued. **Depends on:** PLAN-2.
+**Status:** Done, reviewed and merged into `develop` from `codex/plan-carry-forward` (implementation `4923875`, review fixes `5117fec`, `42609b9`). The new recurring-cost option is deferred pending an owner decision. See the PLAN-3 handoff note below. **Depends on:** PLAN-2.
 
 - Reuse the three-step interview. Prefill recurring income, applicable income and loan changes, history window, and review thresholds from the latest earlier plan. Use amounts effective at the start of the period and show later changes in their applicable months. Preserve deliberately entered zeros.
 - Show earlier manual overrides beside fresh suggestions. Apply the ones the owner chooses to keep. For a same-year revision, prefill that year's current overrides. Surface assumptions for removed categories or closed loans without applying them.
@@ -160,3 +160,11 @@ Start with units and a manually entered EUR price if requested. For automatic pr
 - **Owner questions (non-blocking; current behaviour follows existing conventions):** (1) plan bill targets are net of received paybacks while Expected savings uses each bill's latest gross amount. Should they match? (2) Planning next year in November with a 3-month window uses Aug–Oct, the same anchoring as Expected savings, rather than only October. (3) Drift suggestions now need owner-confirmed complete months, so a ledger that never confirms months gets none. (4) The bill list in the interview shows statuses for the first planned month only.
 - **Checks (on `1ed718a`; `7ed3b0e` only removes an unused import and was rechecked with the Node suite):** `npm run test:coverage` 289/289 with thresholds met, `npm run test:browser` 234/234, `npm run build` and `npm run check:android` (Hermes compilation only).
 - **Review:** separate read-only Claude review, then a focused re-review that confirmed every actionable finding fixed and passed the review gate.
+
+## Session handoff — PLAN-3 (19 November 2026, Claude cloud session)
+
+- **Implementation:** `src/planCarryForward.js` prefills a draft from this year's latest revision, otherwise the nearest earlier year's latest plan: income effective at the period start, later income and loan changes once, a loan change already in effect restated at the period start, history window, tolerance and drift. Zeros survive. Earlier overrides appear beside fresh suggestions with Keep/Drop; a same-year revision keeps that year's overrides. Overrides for removed categories and changes for ended or removed loans are listed as not applied. Existing recurring events (stored without a year) carry into every year and one-off events stay in their year. Step 2 shows loan payments in effect at the start and lists carried later income and loan changes in their months, each removable for the draft. Step 3 previews each month's planned and expected savings; draft events feed the forecast, draft targets do not.
+- **Review fixes:** step 2 showed stale loan amounts and hid carried changes; overrides for lines that no longer exist vanished silently; preview tests were sign-dependent; the cushion of a same-year revision came from the selected rather than the start month; preview rows hid values from screen readers. All fixed test-first.
+- **Owner questions (blocking only the deferred item):** (1) **Deferred:** a "repeats every year" option for new named costs. Saving one without a year would also change this year's forecast and any later revision of it. Should a new recurring cost apply from the plan's year onwards (needs a start-year field) or to every year? (2) A same-year revision now stores only later income/loan changes plus a restated loan payment, so Outlook settings' "Copy existing scheduled changes" no longer sees earlier changes from that plan. Acceptable? (3) When a carried loan change differs from a newer payment entered on the loan itself, which should the draft start from? It currently uses the carried change.
+- **Checks (`42609b9`):** `npm run test:coverage` 295/295 with thresholds met, `npm run build`, `npm run check:android` (Hermes only), `npm run test:browser` 248/249. The one failure is a pre-existing intermittent failure in `paybackTasks.spec.js` (backup review of an expense and payback task), reproduced on `develop` without PLAN-3 and handled as its own bug task.
+- **Review:** separate read-only Claude review and a focused re-review; all actionable findings fixed; the re-review reported no blocking defects.

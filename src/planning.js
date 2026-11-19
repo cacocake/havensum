@@ -4,10 +4,10 @@ import { latestPlan } from './planArchive.js';
 import { billsDueInMonth, lineSpending, planDraftEstimates } from './planDraftEstimates.js';
 import { k_defaultHistoryWindow, k_monthsPerYear, k_spendingBehaviors, k_systemCategoryIds } from './domainConstants.js';
 
-const k_defaultPlanIncome = 245000;
+export const k_defaultPlanIncome = 245000;
 export const k_defaultPlanCushion = 12000;
-const k_defaultFixedTolerance = 200;
-const k_defaultVariableDrift = 0.3;
+export const k_defaultFixedTolerance = 200;
+export const k_defaultVariableDrift = 0.3;
 const k_completedMonthsForDrift = 2;
 const k_driftReasons = {
   fixed: 'Fixed spending moved outside its tolerance.',
