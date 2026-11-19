@@ -54,8 +54,8 @@ test('a Cashew sign and income mismatch reaches review with its warning and no c
 
 test('opposite Cashew rows become one neutral transfer, with both export legs available for duplicate review', async () => {
   const rows = [
-    'Wallet,-36.40,EUR,Explicit transfer out,,2026-11-12 23:40:00.123,false,null,Balance Correction,,,,,,',
-    'Savings,36.40,EUR,Explicit transfer in,,2026-11-12 23:40:00.123,true,null,Balance Correction,,,,,,'
+    'Wallet,-36.40,EUR,Explicit transfer out,"Transferred Balance\nWallet → Savings",2026-11-12 23:40:00.123,false,null,Balance Correction,,,,,,',
+    'Savings,36.40,EUR,Explicit transfer in,"Transferred Balance\nWallet → Savings",2026-11-12 23:40:00.123,true,null,Balance Correction,,,,,,'
   ];
   const file = await parseImportContent('synthetic.csv', [k_header, ...rows].join('\n'));
   const state = createFinancialState();

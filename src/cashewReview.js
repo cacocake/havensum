@@ -14,7 +14,8 @@ const k_borrowingMessages = Object.freeze({
   repayment: 'Record a borrowing repayment as an expense in the loan category.'
 });
 const k_scheduledNote = 'From a scheduled Cashew entry exported as paid. Unverified against a real export.';
-const k_balanceCorrectionCategory = 'balance correction';
+const k_transferNoteHeading = 'Transferred Balance';
+const k_transferRouteSeparator = '→';
 const k_readOnlySourceFields = ['budget', 'objective', 'extra'];
 const k_newAccountDefaults = { openingBalance: 0, tag: 'Personal', icon: 'Wallet', color: '#91A4CE' };
 
@@ -38,15 +39,40 @@ function sourceDetails(row) {
   return Object.keys(details).length > 0 ? details : undefined;
 }
 
+// K11: Cashew notes a transfer leg as `Transferred Balance` followed by
+// `from → to` source account names, in any app language.
+function transferRoute(note) {
+  const [heading = '', route = '', ...rest] = note.split(/\r?\n/);
+  if (heading.trim() !== k_transferNoteHeading || rest.some(line => line.trim())) {
+    return undefined;
+  }
+  const accounts = route.split(k_transferRouteSeparator);
+  if (accounts.length !== 2) {
+    return undefined;
+  }
+  const [from, to] = accounts.map(account => account.trim());
+  return from && to ? { from, to } : undefined;
+}
+
 function isTransferLeg(row, draft) {
-  return Boolean(row.movement) && !draft.bank.error && !draft.bank.loanRequired && draft.transaction.account !== undefined
-    && row.category.trim().toLowerCase() === k_balanceCorrectionCategory;
+  if (!row.movement || draft.bank.error || draft.bank.loanRequired || draft.transaction.account === undefined) {
+    return false;
+  }
+  const route = transferRoute(row.note);
+  if (!route) {
+    return false;
+  }
+  const ownAccount = row.movement.direction === 'debit' ? route.from : route.to;
+  return ownAccount === row.account;
 }
 
 function oppositeLegs(rows, drafts, index) {
   const leg = rows[index];
+  const route = transferRoute(leg.note);
   return rows.flatMap((candidate, candidateIndex) => {
-    const isOpposite = isTransferLeg(candidate, drafts[candidateIndex])
+    const candidateRoute = isTransferLeg(candidate, drafts[candidateIndex]) ? transferRoute(candidate.note) : undefined;
+    const isOpposite = candidateRoute !== undefined
+      && candidateRoute.from === route.from && candidateRoute.to === route.to
       && candidate.movement.direction !== leg.movement.direction
       && candidate.movement.amount === leg.movement.amount
       && candidate.timestamp === leg.timestamp
@@ -56,7 +82,7 @@ function oppositeLegs(rows, drafts, index) {
   });
 }
 
-// K05: Cashew writes a transfer as two Balance Correction rows. Suggest a
+// K05/K11: Cashew writes a transfer as two noted legs. Suggest a
 // pair only when each leg has exactly one opposite leg; the owner can change it.
 function markSuggestedTransferPairs(rows, drafts) {
   const pairs = [];

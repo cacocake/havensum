@@ -46,8 +46,8 @@ test('Cashew account creation takes effect with the reviewed import and recovery
 
 test('the two legs in one Cashew export are suggested as a pair and can be confirmed during review', async ({ page }) => {
   const dialog = await openCashewImport(page, [
-    'Everyday,-15,EUR,Move funds,,2026-11-10 12:00:00.000,false,null,Balance Correction,,,,,,',
-    'Shared,15,EUR,Funds received,,2026-11-10 12:00:00.000,true,null,Balance Correction,,,,,,'
+    'Everyday,-15,EUR,Move funds,"Transferred Balance\nEveryday → Shared",2026-11-10 12:00:00.000,false,null,Balance Correction,,,,,,',
+    'Shared,15,EUR,Funds received,"Transferred Balance\nEveryday → Shared",2026-11-10 12:00:00.000,true,null,Balance Correction,,,,,,'
   ]);
   await dialog.getByRole('button', { name: 'Preview import', exact: true }).click();
   await expect(dialog.getByText('Suggested transfer with row 3 · check or change it before importing', { exact: true })).toBeVisible();

@@ -49,3 +49,40 @@ test('recurrence text in Cashew extra is shown read-only and no longer blocks an
   assert.equal(monthStats(saved, '2026-11').spent, 450);
   assert.deepEqual(saved.events, state.events);
 });
+
+function transferLeg(account, amount, note, category = 'Correção do equilíbrio') {
+  return exportRow({ account, amount, title: 'Mover dinheiro', note, 'category name': category, icon: 'charts' });
+}
+
+test('a Cashew transfer is suggested from its Transferred Balance note in any app language (K11)', async () => {
+  const note = transferNote('Carteira', 'Cartão Vale');
+  const file = await exportFile([
+    transferLeg('Cartão Vale', '25.0', note),
+    exportRow({ account: 'Carteira', amount: '-25.0', title: 'Almoço', 'category name': 'Comer Fora', extra: k_recurrence }),
+    transferLeg('Carteira', '-25.0', note)
+  ]);
+  const state = createFinancialState();
+  const preview = previewImportFile(state, file, k_accountOptions);
+  assert.deepEqual(preview.rows.map(row => row.status), ['paired', 'invalid', 'new']);
+  assert.equal(preview.rows[2].transaction.type, 'transfer');
+  assert.equal(preview.rows[2].transaction.toAccount, 'shared');
+  const saved = applyTransactionImport(state, preview, { 1: 'skip' }, () => 'note-transfer');
+  assert.equal(accountBalance(saved, 'everyday', '2026-11-30'), 100000 - 2500);
+  assert.equal(accountBalance(saved, 'shared', '2026-11-30'), 50000 + 2500);
+  assert.equal(monthStats(saved, '2026-11').income, 0);
+  assert.equal(monthStats(saved, '2026-11').spent, 0);
+});
+
+test('a Cashew transfer note must name both legs in the right direction, and the category alone suggests nothing (K11)', async () => {
+  const state = createFinancialState();
+  const cases = [
+    [transferLeg('Carteira', '-25.0', transferNote('Cartão Vale', 'Carteira')), transferLeg('Cartão Vale', '25.0', transferNote('Cartão Vale', 'Carteira'))],
+    [transferLeg('Carteira', '-25.0', transferNote('Carteira', 'Outra')), transferLeg('Cartão Vale', '25.0', transferNote('Carteira', 'Outra'))],
+    [transferLeg('Carteira', '-25.0', '', 'Balance Correction'), transferLeg('Cartão Vale', '25.0', '', 'Balance Correction')],
+    [transferLeg('Carteira', '-25.0', 'Carteira → Cartão Vale'), transferLeg('Cartão Vale', '25.0', 'Carteira → Cartão Vale')]
+  ];
+  for (const rows of cases) {
+    const preview = previewImportFile(state, await exportFile(rows), k_accountOptions);
+    assert.deepEqual(preview.rows.map(row => row.transaction.type), [undefined, undefined]);
+  }
+});
