@@ -149,3 +149,22 @@ test('a paid Cashew scheduled entry needs a classification and then imports like
   const unpaid = (await cashewFile(k_betaHeader, beta)).rows[3];
   assert.match(unpaid.error, /amount unpaid/i);
 });
+
+test('Cashew budget and objective are shown read-only and category styling is never imported (K07)', async () => {
+  const styled = {
+    ...k_cafe, color: '0xff4caf50', icon: 'coffee.png', emoji: '☕', budget: 'Orçamento mensal', objective: 'Férias'
+  };
+  const state = createFinancialState();
+  for (const file of [await cashewFile(k_publishedHeader, [publishedRow(styled)]), await cashewFile(k_betaHeader, [betaRow(styled)])]) {
+    const preview = previewImportFile(state, file, { accounts: { 'Conta Poupança': 'everyday' } });
+    assert.deepEqual(preview.rows[0].bank.sourceDetails, { budget: 'Orçamento mensal', objective: 'Férias' });
+    const reviewed = reviseTransactionImport(state, preview, 0, { type: 'expense', category: 'groceries' });
+    const saved = applyTransactionImport(state, reviewed, {}, () => 'styled-cafe');
+    assert.deepEqual(saved.categories, state.categories);
+    assert.deepEqual(saved.accounts, state.accounts);
+    assert.deepEqual(saved.plans, state.plans);
+    assert.deepEqual(saved.events, state.events);
+    assert.equal(saved.transactions[0].note, 'Pão de açúcar');
+    assert.deepEqual(Object.keys(saved.transactions[0]).filter(key => /budget|objective|emoji|icon|color/i.test(key)), []);
+  }
+});

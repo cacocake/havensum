@@ -23,6 +23,12 @@ function sourceWarning(row) {
   return undefined;
 }
 
+// K07: budget and objective names are read-only source information.
+function sourceDetails(row) {
+  const details = Object.fromEntries(['budget', 'objective'].filter(name => row[name]).map(name => [name, row[name]]));
+  return Object.keys(details).length > 0 ? details : undefined;
+}
+
 export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] } = {}) {
   const names = new Set(data.rows.map(row => row.account).filter(Boolean));
   const usedIds = new Set(state.accounts.map(account => String(account.id)));
@@ -51,6 +57,7 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
         statementName: data.name, category: row.category, direction: row.movement?.direction,
         valueDate: row.movement?.date, amount: row.movement?.amount,
         specialType: row.specialType, sourceWarning: sourceWarning(row),
+        sourceDetails: sourceDetails(row),
         scheduledNote: k_scheduledTypes.has(specialType) ? k_scheduledNote : undefined,
         error: row.error ?? specialTypeError ?? (!row.account || matching.length > 1 || !account
           ? 'Map this Cashew account or approve creating it.' : undefined)

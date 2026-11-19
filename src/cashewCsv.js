@@ -91,7 +91,8 @@ export function readCashewCsv(rows) {
     const row = {
       sourceRow: headerIndex + index + 2, account: field('account').trim(), title: field('title'), note: field('note'),
       income: field('income'), specialType, timestamp: field('date').trim(),
-      category: [field('category name'), field('subcategory name')].filter(Boolean).join(' / ')
+      category: [field('category name'), field('subcategory name')].filter(Boolean).join(' / '),
+      budget: field('budget').trim(), objective: field('objective').trim()
     };
     try {
       if (record.slice(headers.length).some(Boolean)) {
