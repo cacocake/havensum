@@ -2,6 +2,7 @@ import { categoryPath } from './csvExchange.js';
 import { isRecordIdentifier } from './recordIdentity.js';
 import { movementFingerprint } from './movementFingerprint.js';
 import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
+import { hasLoanLink } from './expectedBills.js';
 
 const k_cashewSource = 'cashew';
 const k_lendingType = 'credit';
@@ -13,9 +14,11 @@ const k_borrowingMessages = Object.freeze({
   proceeds: 'Record borrowed money as loan proceeds: an unlinked balance adjustment.',
   repayment: 'Record a borrowing repayment as an expense in the loan category.'
 });
-const k_scheduledNote = 'From a scheduled Cashew entry exported as paid. Unverified against a real export.';
-const k_balanceCorrectionCategory = 'balance correction';
-const k_readOnlySourceFields = ['budget', 'objective'];
+const k_objectiveLoanNote = 'This Cashew objective may be a loan. Pick the Havensum loan to record proceeds or a repayment, or classify it normally.';
+const k_scheduledNote = 'From a scheduled Cashew entry exported as paid.';
+const k_transferNoteHeading = 'Transferred Balance';
+const k_transferRouteSeparator = '→';
+const k_readOnlySourceFields = ['budget', 'objective', 'extra'];
 const k_newAccountDefaults = { openingBalance: 0, tag: 'Personal', icon: 'Wallet', color: '#91A4CE' };
 
 function sourceWarning(row) {
@@ -32,21 +35,46 @@ function sourceWarning(row) {
   return undefined;
 }
 
-// K07: budget and objective names are read-only source information.
+// K07/K10: budget, objective and extra are read-only source information.
 function sourceDetails(row) {
   const details = Object.fromEntries(k_readOnlySourceFields.filter(name => row[name]).map(name => [name, row[name]]));
   return Object.keys(details).length > 0 ? details : undefined;
 }
 
+// K11: Cashew notes a transfer leg as `Transferred Balance` followed by
+// `from → to` source account names, in any app language.
+function transferRoute(note) {
+  const [heading = '', route = '', ...rest] = note.split(/\r?\n/);
+  if (heading.trim() !== k_transferNoteHeading || rest.some(line => line.trim())) {
+    return undefined;
+  }
+  const accounts = route.split(k_transferRouteSeparator);
+  if (accounts.length !== 2) {
+    return undefined;
+  }
+  const [from, to] = accounts.map(account => account.trim());
+  return from && to ? { from, to } : undefined;
+}
+
 function isTransferLeg(row, draft) {
-  return Boolean(row.movement) && !draft.bank.error && !draft.bank.loanRequired && draft.transaction.account !== undefined
-    && row.category.trim().toLowerCase() === k_balanceCorrectionCategory;
+  if (!row.movement || draft.bank.error || draft.bank.loanRequired || draft.transaction.account === undefined) {
+    return false;
+  }
+  const route = transferRoute(row.note);
+  if (!route) {
+    return false;
+  }
+  const ownAccount = row.movement.direction === 'debit' ? route.from : route.to;
+  return ownAccount === row.account;
 }
 
 function oppositeLegs(rows, drafts, index) {
   const leg = rows[index];
+  const route = transferRoute(leg.note);
   return rows.flatMap((candidate, candidateIndex) => {
-    const isOpposite = isTransferLeg(candidate, drafts[candidateIndex])
+    const candidateRoute = isTransferLeg(candidate, drafts[candidateIndex]) ? transferRoute(candidate.note) : undefined;
+    const isOpposite = candidateRoute !== undefined
+      && candidateRoute.from === route.from && candidateRoute.to === route.to
       && candidate.movement.direction !== leg.movement.direction
       && candidate.movement.amount === leg.movement.amount
       && candidate.timestamp === leg.timestamp
@@ -56,7 +84,7 @@ function oppositeLegs(rows, drafts, index) {
   });
 }
 
-// K05: Cashew writes a transfer as two Balance Correction rows. Suggest a
+// K05/K11: Cashew writes a transfer as two noted legs. Suggest a
 // pair only when each leg has exactly one opposite leg; the owner can change it.
 function markSuggestedTransferPairs(rows, drafts) {
   const pairs = [];
@@ -98,6 +126,7 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
     const categories = state.categories.filter(category => categoryPath(state.categories, category.id) === row.category);
     const specialType = row.specialType.trim().toLowerCase().split('.').at(-1);
     const specialTypeError = specialType === k_lendingType ? k_lendingMessage : undefined;
+    const isObjectiveLoanCandidate = specialType !== k_borrowingType && Boolean(row.objective);
     return {
       bank: {
         profile: data.cashew.profile, sourceRow: row.sourceRow, statementNumber: 1,
@@ -106,6 +135,8 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
         specialType: row.specialType, sourceWarning: sourceWarning(row),
         sourceDetails: sourceDetails(row),
         loanRequired: specialType === k_borrowingType ? true : undefined,
+        loanOptional: isObjectiveLoanCandidate ? true : undefined,
+        objectiveNote: isObjectiveLoanCandidate ? k_objectiveLoanNote : undefined,
         scheduledNote: k_scheduledTypes.has(specialType) ? k_scheduledNote : undefined,
         error: row.error ?? specialTypeError ?? (!row.account || matching.length > 1 || !account
           ? 'Map this Cashew account or approve creating it.' : undefined)
@@ -125,8 +156,11 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
 
 // K02/K03: a Cashew borrowing row needs an existing Havensum loan. A credit is
 // loan proceeds (an unlinked balance adjustment); a debit is a repayment expense.
+// K12: a row with an objective may be a loan; once a loan is chosen the same
+// sign rule applies.
 export function validateCashewLoanDraft(state, bank, transaction) {
-  if (!bank.loanRequired) {
+  const isLoanEntry = bank.loanRequired || (bank.loanOptional && hasLoanLink(transaction));
+  if (!isLoanEntry) {
     return;
   }
   if (!state.loans.some(loan => loan.id === transaction.loanId)) {

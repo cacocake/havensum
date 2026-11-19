@@ -87,9 +87,9 @@ Reuse the Real Bank adapter if the second layout matches. Otherwise create a dis
 **Owner answers (19 November 2026, in chat; recorded as K01–K08 in DECISIONS.md):**
 1. **Borrowing/lending:** a `debt` row is importable only after picking an existing Havensum loan in review; positive = loan proceeds (unlinked balance adjustment tagged with the loan), negative = loan repayment expense tagged with the loan. `credit` (lent) rows stay blocked.
 2. **Scheduled entries:** treated as paid when `amount unpaid` is blank or 0 (v1 exports only paid rows); still need a classification; review shows they came from a scheduled entry.
-3. **Transfers:** a unique opposite `Balance Correction` row with the same amount and timestamp in another account is preselected as a suggested pair; the owner confirms or changes it.
+3. **Transfers:** a unique opposite `Balance Correction` row with the same amount and timestamp in another account is preselected as a suggested pair; the owner confirms or changes it. (Category rule superseded by K11: legs are recognised by their `Transferred Balance` note.)
 4. **Paybacks:** manual link only, as today.
-5. **Metadata:** ignore color/icon/emoji; show budget/objective read-only in review, never create records; non-zero `amount unpaid` or any `extra` stays a row error.
+5. **Metadata:** ignore color/icon/emoji; show budget/objective read-only in review, never create records; non-zero `amount unpaid` or any `extra` stays a row error. (`extra` superseded by K10: shown read-only.)
 6. **Classification:** ordinary rows still need an explicit choice; nothing prefilled from the sign.
 
 Ordinary EUR rows from v6.7.5+524 are already verified. Check real transfer and payback rows where available. Agree how to handle borrowing, lending, scheduled entries, and populated metadata before widening support. Test both layouts, accents, integer-cent handling, matches after renames and layout changes, account creation only on confirmation, and original-expense links. Unverified entries retain their review status.
@@ -141,6 +141,10 @@ Let the owner move a recurring planned cost's month from a chosen year onward. E
 2. **First year:** this year or a later year. Past years are locked.
 3. **Expenses already linked to the old month in a moved year:** their links stay as recorded and are flagged for review (the existing "This planned cost moved" list). The move dialog says how many. They are not evidence until relinked by hand.
 4. **A move from this year** (asked after review): both the old and the new month must be this month or later; otherwise the move starts next year.
+
+### IMPORT-2 follow-up · Match the owner's real Cashew test export
+
+**Status (19 November 2026):** Done, reviewed and merged into `develop` from `codex/cashew-real-export` (started from `f5e71d5`); see its handoff note at the end. The owner supplied a small test export (v2 layout with `amount unpaid` and `extra`; kept out of Git as private runtime data). It showed recurrence text in `extra`, a localized transfer category with a `Transferred Balance` note, and loans as objectives on ordinary rows. Owner answers K10–K12 in DECISIONS.md. Synthetic fixtures mirror its structure.
 
 ### FORECAST-2 follow-up · Readable year-amount merge conflicts (F20)
 
@@ -442,7 +446,7 @@ The implementation note below records how these were built; it stores only per-y
 ## Session handoff — IMPORT-2 · Extend Cashew verification (19 November 2026)
 
 - **Scope:** synthetic rows mirroring the published Cashew export (owner choice K01). Owner answers K01–K09 are in DECISIONS.md; behaviour and known limits are in the IMPORT-2 section of docs/CASHEW_IMPORT_RESEARCH.md. Nothing beyond the ordinary EUR rows from v6.7.5+524 is verified against a real export; no exact Cashew compatibility is claimed.
-- **Implemented:** both layouts read Dart double amounts to integer cents (v1 previously rejected float tails; comma and zero-padded amounts are now row errors in both layouts — a deliberate tightening); paid scheduled entries import after classification (K04); budget/objective shown read-only (K07); a unique opposite Balance Correction pair is preselected as a transfer and import confirms it (K05/K09); `debt` rows import only against a chosen Havensum loan, as proceeds or a repayment in the loan category (K02/K03), and are never transfer legs; lending stays blocked; editing imported proceeds keeps the loan tag. Coverage added for accents, renames on both sides, same-file payback links and malformed cells.
+- **Implemented:** both layouts read Dart double amounts to integer cents (v1 previously rejected float tails; comma and zero-padded amounts are now row errors in both layouts — a deliberate tightening); paid scheduled entries import after classification (K04); budget/objective shown read-only (K07); a unique opposite Balance Correction pair is preselected as a transfer and import confirms it (K05/K09) (recognised by the transfer note since K11); `debt` rows import only against a chosen Havensum loan, as proceeds or a repayment in the loan category (K02/K03), and are never transfer legs; lending stays blocked; editing imported proceeds keeps the loan tag. Coverage added for accents, renames on both sides, same-file payback links and malformed cells.
 - **Checks:** `npm run test:coverage` (449 pass on the tree merged with develop `5b2164d`; all files 96.65% lines), `npm run test:browser` (417 pass), `npm run build`, `npm run check:android` (Hermes export = compilation only).
 - **Review:** separate read-only Claude review found 1 blocking (debt credit usable as a transfer leg) and 4 should-fix items; all fixed test-first, the owner answered the pair-confirmation question (K09), and the re-review found nothing actionable.
 - **Still needs the owner:** a small sanitized Cashew export of their version with a transfer pair, a payback, a scheduled entry, a borrowing row and populated budget/objective, plus the expected Havensum result, to move these cases from synthetic to verified.
@@ -456,3 +460,12 @@ The implementation note below records how these were built; it stores only per-y
 - **Review:** a separate read-only Claude review found nothing blocking. Its should-fix item (test the components' real transition settings, not just the curve) and its nits (the current module-mock option, doc wording, a note on Reanimated's internal paths) were fixed before merging, and a focused re-review of those fixes found nothing blocking.
 - **Version:** `versionCode` raised to 2, because version code 1 is already on the owner's phone.
 - **Not verified:** that the app now starts on the phone. That needs the owner's rebuild (version code 2) and the first ANDROID-2 check. Other runtime-only native errors can't be ruled out until then.
+
+## Session handoff — IMPORT-2 follow-up: the owner's real Cashew test export (19 November 2026)
+
+- **Input:** a small test export from the owner's Cashew app (newer layout; version not stated). Kept out of Git and review inputs as private runtime data; `tests/cashewExportShape.test.js` uses synthetic rows with the same structure.
+- **Owner answers:** K10 (`extra` shown read-only, never blocks), K11 (transfer legs recognised by the `Transferred Balance` / `from → to` note, category ignored), K12 (a row with an objective may be recorded against a chosen Havensum loan by its sign, otherwise classified normally).
+- **Result on the real file:** the transfer pair is suggested; paid scheduled rows await a classification; unpaid ones stay row errors; objective rows offer an optional loan; ordinary and payback rows await a classification.
+- **Checks:** `npm run test:coverage`, `npm run test:browser`, `npm run build`, `npm run check:android` on the tree merged with develop: 499 unit tests (thresholds met) and 435 browser tests pass. Hermes export is compilation only.
+- **Review:** separate read-only Claude review: nothing blocking; two should-fix test gaps and doc/style nits fixed; re-review found one stale doc passage, now corrected.
+- **Still unverified:** older `debt`/`credit` type rows (K02), the published v1 layout beyond ordinary rows, and which sign means what for a lending objective in Cashew. No exact Cashew compatibility is claimed.

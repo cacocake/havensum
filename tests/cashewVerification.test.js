@@ -170,9 +170,11 @@ test('Cashew budget and objective are shown read-only and category styling is ne
   }
 });
 
-function balanceCorrection(account, amount, date = '2026-11-12 23:40:00.123') {
+function balanceCorrection(account, amount, date = '2026-11-12 23:40:00.123', route = 'Carteira → Poupança') {
   const income = String(!amount.startsWith('-'));
-  return publishedRow({ account, amount, income, date, title: 'Transfer', 'category name': 'Balance Correction' });
+  return publishedRow({
+    account, amount, income, date, title: 'Transfer', note: `Transferred Balance\n${route}`, 'category name': 'Balance Correction'
+  });
 }
 
 test('a unique opposite Balance Correction row is preselected as a suggested transfer the owner can change (K05)', async () => {
@@ -200,10 +202,10 @@ test('a unique opposite Balance Correction row is preselected as a suggested tra
 });
 
 test('Cashew suggests no transfer when the opposite Balance Correction row is ambiguous or differs (K05)', async () => {
-  const options = { accounts: { Carteira: 'everyday', Poupança: 'shared', Outra: 'shared' } };
+  const options = { accounts: { Carteira: 'everyday', Poupança: 'shared' } };
   const state = createFinancialState();
   const cases = [
-    [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Poupança', '10.0'), balanceCorrection('Outra', '10.0')],
+    [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Poupança', '10.0'), balanceCorrection('Poupança', '10.0')],
     [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Poupança', '10.0', '2026-11-12 23:41:00.123')],
     [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Poupança', '10.01')],
     [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Carteira', '10.0')],
@@ -304,7 +306,7 @@ test('a Cashew borrowing credit is never suggested or accepted as a transfer leg
   const state = createFinancialState({ loans: [k_carLoan] });
   const borrowedLeg = publishedRow({
     account: 'Poupança', amount: '36.4', income: 'true', title: 'Transfer', date: '2026-11-12 23:40:00.123',
-    type: 'TransactionSpecialType.debt', 'category name': 'Balance Correction'
+    type: 'TransactionSpecialType.debt', note: 'Transferred Balance\nCarteira → Poupança', 'category name': 'Balance Correction'
   });
   const file = await cashewFile(k_publishedHeader, [balanceCorrection('Carteira', '-36.4'), borrowedLeg]);
   const preview = previewImportFile(state, file, { accounts: { Carteira: 'everyday', Poupança: 'shared' } });
