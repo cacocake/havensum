@@ -4,6 +4,7 @@ import { shouldSyncForTrigger, sharedFileStatusView, createSyncScheduler, create
 import * as webStorage from '../src/storage.web.js';
 import { createBinding } from '../src/sharedFileBinding.js';
 import { installBrowserStorage } from './helpers/browserStorage.js';
+import { SavedStateChangedError } from '../src/persistedState.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 
 const k_automaticTriggers = [k_syncTriggers.start, k_syncTriggers.resume, k_syncTriggers.edit];
@@ -186,6 +187,7 @@ test('an edit during the save that collides with a synced change is not decided:
   installBrowserStorage(context);
   const snapshot = createFinancialState({ transactions: [createTransaction({ amount: 1000 })] });
   const snapshotBinding = createBinding('file-1', { revision: 'rev-1', snapshots: [] });
+  await webStorage.writeState(snapshot);
   await webStorage.writeStateWithSharedFileBinding(snapshot, snapshotBinding);
   let appLedger = snapshot;
   const editedDuringSave = { ...snapshot, transactions: [createTransaction({ amount: 2000 })] };
@@ -231,4 +233,19 @@ test('if the link cannot be saved, the ledger is put back so neither is saved al
   await assert.rejects(webStorage.writeStateWithSharedFileBinding(synced, createBinding('file-1', { revision: 'rev-2', snapshots: [] })), /Quota/);
   assert.equal(storage.getItem('melo-state-v1'), savedBefore);
   assert.equal(await webStorage.readSharedFileBinding(), null);
+});
+
+test('a sync save never overwrites a ledger another tab saved, and a later restore still sees this tab as current', async context => {
+  const storage = installBrowserStorage(context);
+  const snapshot = createFinancialState();
+  await webStorage.writeState(snapshot);
+  const synced = { ...snapshot, transactions: [createTransaction({ id: 'from-partner' })] };
+  await webStorage.writeStateWithSharedFileBinding(synced, createBinding('file-1', { revision: 'rev-2', snapshots: [] }));
+  assert.equal(await webStorage.isSavedStateUnchanged(), true);
+
+  const otherTabLedger = JSON.stringify({ ...synced, transactions: [createTransaction({ id: 'other-tab' })] });
+  storage.setItem('melo-state-v1', otherTabLedger);
+  await assert.rejects(webStorage.writeStateWithSharedFileBinding(synced, createBinding('file-1', { revision: 'rev-3', snapshots: [] })), SavedStateChangedError);
+  assert.equal(storage.getItem('melo-state-v1'), otherTabLedger);
+  assert.equal((await webStorage.readSharedFileBinding()).lastSeenRevision, 'rev-2');
 });

@@ -206,17 +206,23 @@ export function createPersistedStorage(getStorage) {
       const encodedRecord = JSON.stringify(record);
       return enqueue(() => getStorage().setItem(key, encodedRecord));
     },
-    // Saves a ledger and a related record together. AsyncStorage's multiSet
-    // writes both in one batch; with plain getItem/setItem, a failed second
-    // write puts the ledger back, so neither is saved alone.
+    // Saves a ledger and a related record together, only over the ledger
+    // bytes this storage instance last read or saved (another tab's newer
+    // save is never overwritten). AsyncStorage's multiSet writes both in one
+    // batch; with plain getItem/setItem, a failed second write puts the
+    // ledger back, so neither is saved alone.
     writeWithRecord(key, state, recordKey, record) {
       const encodedState = JSON.stringify(migrateState(state));
       const encodedRecord = JSON.stringify(record);
       return enqueue(async () => {
         const storage = getStorage();
+        if (!await _isUnchangedSinceLastAccess(storage, key)) {
+          throw new SavedStateChangedError(k_savedStateChangedMessage);
+        }
         await readPersistedState(storage, key, JSON.parse);
         if (typeof storage.multiSet === 'function') {
           await storage.multiSet([[key, encodedState], [recordKey, encodedRecord]]);
+          _lastKnownBytes.set(key, encodedState);
           return;
         }
         const previousState = await storage.getItem(key);
@@ -227,6 +233,7 @@ export function createPersistedStorage(getStorage) {
           await restoreValue(storage, key, previousState);
           throw error;
         }
+        _lastKnownBytes.set(key, encodedState);
       });
     },
     // Raw saved bytes, read after any queued save so a pending write is included.

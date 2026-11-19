@@ -213,6 +213,7 @@ test('native storage keeps the shared-file link and join recovery copies like th
   await writeSharedFileJoinRecovery(previous);
   assert.deepEqual(await readSharedFileJoinRecovery(), previous);
   const synced = createFinancialState({ theme: 'light' });
+  await writeState(createFinancialState());
   await writeStateWithSharedFileBinding(synced, createBinding('file-native', { revision: 'rev-2', snapshots: [] }));
   assert.deepEqual(await readState(), synced);
   assert.equal((await readSharedFileBinding()).lastSeenRevision, 'rev-2');

@@ -1,7 +1,6 @@
 import { mergeThreeWay } from './engine.js';
 import { sharedLedgerOf } from './sharedFileDocument.js';
-
-const k_wholeRecordField = '$record';
+import { k_mergeConflictFields } from './mergeReview.js';
 
 // References the ledger validation requires to resolve. A record deleted on one
 // side while the other side started using it must be reviewed, not merged into
@@ -47,7 +46,7 @@ function reviewDeletedReferences(base, local, remote, result, conflicts) {
           restoredAny = true;
           const alreadyOffered = conflicts.some(conflict => conflict.collection === target && conflict.id === id);
           if (!alreadyOffered) {
-            conflicts.push({ collection: target, id, field: k_wholeRecordField, base: findRecord(base, target, id), local: localRecord, remote: remoteRecord });
+            conflicts.push({ collection: target, id, field: k_mergeConflictFields.record, base: findRecord(base, target, id), local: localRecord, remote: remoteRecord });
           }
         }
       }
