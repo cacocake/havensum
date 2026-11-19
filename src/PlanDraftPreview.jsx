@@ -1,16 +1,12 @@
 import React, { useContext, useMemo } from 'react';
 import { View } from 'react-native';
 import { Theme, T, H, Row, Button } from './ui.jsx';
-import { euro } from './money.js';
+import { euro, signedEuro } from './money.js';
 import { expectedSavings } from './expectedSavings.js';
 import { localCalendarDate, monthKeyOf } from './calendar.js';
 import { k_monthsPerYear } from './domainConstants.js';
 
 const k_monthNameOptions = { month: 'short' };
-
-function signedEuro(amount) {
-  return `${amount >= 0 ? '+' : '−'}${euro(Math.abs(amount))}`;
-}
 
 function monthName(month) {
   return monthDate(month).toLocaleString('en', k_monthNameOptions);

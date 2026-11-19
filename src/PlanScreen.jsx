@@ -5,18 +5,19 @@ import {Theme,T,H,Row,Button,Badge,Card,Empty,TileIcon} from './ui.jsx';
 import Icon from './Icon';
 import {Squish} from './Playful.jsx';
 import {Meter} from './Motion';
-import {euro,reportingMonthStats,driftAlerts} from './engine.js';
+import {euro,driftAlerts} from './engine.js';
+import {signedEuro} from './money.js';
+import YearOutlook from './YearOutlook.jsx';
 import {planInsights} from './planInsights.js';
 import ExpectedCosts from './ExpectedCosts.jsx';
 import OutlookSettings from './OutlookSettings.jsx';
 import MonthComparison from './MonthComparison.jsx';
-import { k_planRevisionStartKinds, latestPlan, planRevisionStart, planRevisions, plannedMonth, selectedPlan } from './planArchive.js';
+import { k_planRevisionStartKinds, latestPlan, planRevisionStart, planRevisions, selectedPlan } from './planArchive.js';
 import { localCalendarDate, monthOf, yearOfMonth } from './calendar.js';
 import { planInvitationYear } from './planInvitation.js';
 import { readPlanInvitationDeferral, writePlanInvitationDeferral } from './storage';
 import { k_defaultHistoryWindow } from './domainConstants.js';
 const dateName=m=>new Date(m+'-01T12:00:00').toLocaleString('en',{month:'long',year:'numeric'});
-const signed=n=>(n>=0?'+':'−')+euro(Math.abs(n));
 export default function PlanScreen(){
  const {state,month,setMonth,setModal,openActivity,notify}=useApp(),c=useContext(Theme),[tab,setTab]=useState('This month');
  const year=yearOfMonth(month),isPastYear=planRevisionStart(year,month,localCalendarDate()).kind===k_planRevisionStartKinds.readOnly;
@@ -37,7 +38,7 @@ export default function PlanScreen(){
   {forecast?<Card style={{padding:23,backgroundColor:c.cream,borderColor:'transparent',overflow:'hidden'}}>
    <Row style={{justifyContent:'space-between',gap:10,marginBottom:13}}><Badge color={ink.forecast}>{info.period==='past'?'RECORDED RESULT':forecast.partial?'PARTIAL ESTIMATE':'EXPECTED SAVINGS'}</Badge><Icon name={info.period==='past'?'Check':'ChartNoAxesCombined'} size={23} color={ink.forecast}/></Row>
    <T style={{fontSize:14,color:c.sub}}>{info.period==='past'?'Recorded savings':'Expected savings'}</T>
-   <H testID="expected-savings-amount" size={32} style={{marginTop:6,color:forecast.balance<0?c.negative:ink.forecast}}>{signed(forecast.balance)}</H>
+   <H testID="expected-savings-amount" size={32} style={{marginTop:6,color:forecast.balance<0?c.negative:ink.forecast}}>{signedEuro(forecast.balance)}</H>
    {plan&&<Row style={{gap:7,marginTop:12,flexWrap:'wrap'}}><Icon name={positive?'ArrowUpRight':'ArrowDownRight'} size={19} color={positive?c.positive:c.negative}/><T style={{color:positive?c.positive:c.negative,fontWeight:'600'}}>{variance===0?'Matches planned savings':`${euro(Math.abs(variance))} ${positive?'above':'below'} planned savings`}</T></Row>}
    <T style={{color:c.sub,fontSize:12,marginTop:11}}>{info.period==='past'?'Income minus received net expenses. Late linked paybacks can update this result.':`${dateName(month)} · ${forecast.partial?'Partial estimate: history has not been confirmed complete.':'Estimate from confirmed history.'} Based on ${forecast.historyMonths.length} historical months, recorded activity and independent obligations.`}</T>
   </Card>:<Card style={{backgroundColor:c.cream,borderColor:'transparent'}}><Icon name="CalendarRange" size={29} color={ink.plan}/><H size={27} style={{marginTop:12}}>Not enough history</H><T style={{color:c.sub,marginTop:10,marginBottom:18}}>Record activity or add known income and obligations to estimate savings. A frozen target is optional.</T><Button onPress={revise}>Build this year’s plan</Button></Card>}
@@ -52,7 +53,7 @@ export default function PlanScreen(){
   {tab==='Averages'&&<View style={{gap:18}}><Card style={{padding:20}}><H size={25}>Your real monthly averages</H><T style={{fontSize:12,color:c.sub,marginTop:8}}>{info.count?`${info.count} recorded months in ${dateName(info.history[0])}–${dateName(info.history.at(-1))}. ${info.partial?'Unconfirmed history: partial estimate.':'Owner-confirmed complete months.'}`:'No completed months with entries in this history window.'}</T>
     {[['Income',info.averages.income],['Net spending',info.averages.spent],['Savings',info.averages.balance]].map(([label,value])=><Row key={label} style={{justifyContent:'space-between',gap:12,marginTop:19}}><T>{label}</T><H size={25} style={{color:ink.actual}}>{value==null?'—':euro(value)}</H></Row>)}<T style={{fontSize:12,color:c.sub,marginTop:20}}>Only confirmed months are used when available, including months with no activity. Otherwise recorded history supports a partial estimate.</T>
    </Card><Card style={{padding:19}}><H size={22}>Average spending by category</H><T style={{fontSize:12,color:c.sub,marginTop:8,marginBottom:10}}>Observed history, including occasional costs. The plan uses fixed baselines, variable averages and a separate cushion.</T>{info.categories.filter(cat=>cat.average>0).map(cat=><Row key={cat.id} style={{gap:11,paddingVertical:14,borderBottomWidth:1,borderColor:c.line}}><TileIcon name={cat.icon} color={cat.color} size={35}/><View style={{flex:1}}><T>{cat.name}</T><T style={{color:c.sub,fontSize:12}}>{cat.kind}</T></View><T style={{color:ink.actual,fontWeight:'600'}}>{euro(cat.average)}</T></Row>)}{!info.count&&<Empty title="Averages need history" description="Record or import completed months to build a useful baseline."/>}</Card></View>}
-  {tab==='Year ahead'&&<Card style={{padding:19}}><H size={25}>{year}, month by month</H><T style={{color:c.sub,fontSize:12,marginTop:8,marginBottom:15}}>Purple is planned savings. Blue is recorded savings. Select a month to see its forecast and breakdown.</T>{Array.from({length:12},(_,i)=>{const m=`${year}-${String(i+1).padStart(2,'0')}`,p=plannedMonth(state,m,planRevisionId),a=reportingMonthStats(state,m),has=state.transactions.some(t=>t.date.startsWith(m));return <Squish key={m} accessibilityLabel={`View ${dateName(m)} plan`} onPress={()=>{setMonth(m);setTab('This month')}} style={{padding:14,minHeight:85,marginBottom:8,borderRadius:17,borderWidth:1,borderColor:month===m?ink.plan:c.line,backgroundColor:month===m?c.soft:'transparent'}}><Row style={{justifyContent:'space-between',gap:12}}><H size={20}>{new Date(year,i,1).toLocaleString('en',{month:'long'})}</H><Icon name="ChevronRight" size={16} color={c.sub}/></Row><Row style={{gap:15,marginTop:9}}><View style={{flex:1}}><T style={{fontSize:12,color:ink.plan}}>Plan</T><T style={{color:ink.plan,fontWeight:'600'}}>{p?signed(p.balance):'Not set'}</T></View><View style={{flex:1}}><T style={{fontSize:12,color:ink.actual}}>Recorded</T><T style={{color:ink.actual,fontWeight:'600'}}>{has?signed(a.balance):'—'}</T></View></Row></Squish>})}</Card>}
+  {tab==='Year ahead'&&<YearOutlook year={year} selectedMonth={month} planRevisionId={planRevisionId} ink={ink} onSelectMonth={selected=>{setMonth(selected);setTab('This month')}}/>}
  </View>;
 }
 

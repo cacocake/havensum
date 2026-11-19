@@ -1,12 +1,10 @@
 import { monthStats } from './ledger.js';
 import { monthKeyOf, monthOf, k_calendarDateLength } from './calendar.js';
-import { k_reportingPeriods } from './domainConstants.js';
+import { k_monthsPerYear, k_reportingPeriods } from './domainConstants.js';
 import { expectedSavings } from './expectedSavings.js';
 import { plannedMonth } from './planArchive.js';
 import { hasRecordedFinancialActivity } from './reportingHistory.js';
 import { yearOutlookDrivers } from './yearOutlookDrivers.js';
-
-const k_monthsPerYear = 12;
 
 function totalsOf(income, expense) {
   return { income, expense, balance: income - expense };
