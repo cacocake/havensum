@@ -254,3 +254,15 @@ test('a correction draft refuses an invalid rate or month but allows past starts
   assert.throws(() => correctedSchedule([], { since: '2026-01', rate: -1 }), InterestScheduleError);
   assert.deepEqual(correctedSchedule([{ since: '2026-01', rate: 12 }], { since: '2026-01', rate: 3 }), [{ since: '2026-01', rate: 3 }]);
 });
+
+test('a correction changes only its own account, and a removed account cannot be reviewed', () => {
+  const state = postedSavingsState();
+  state.accounts.push({ id: 'other-savings', name: 'Other', tag: 'Savings', openingBalance: 50000, interestSchedule: [{ since: '2026-01', rate: 12 }] });
+  const draft = { currentMonth: '2026-03', schedule: [{ since: '2026-01', rate: 6 }] };
+
+  const corrected = applyInterestCorrection(state, 'savings', interestCorrectionReview(state, 'savings', draft), draft);
+
+  assert.equal(corrected.accounts[1], state.accounts[1]);
+  assert.equal(corrected.transactions.filter(transaction => transaction.account === 'other-savings').length, 0);
+  assert.throws(() => interestCorrectionReview(state, 'missing', draft), /no longer available/);
+});

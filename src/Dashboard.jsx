@@ -37,6 +37,16 @@ function paybackSummary(paybacks){
  }
  return summary;
 }
+// A signed amount: outflows and a downward interest correction show a minus.
+function rowAmountLabel(transaction, accountId) {
+  if (transaction.type === 'transfer') {
+    const direction = transaction.toAccount === accountId ? '+' : '−';
+    return `${accountId ? direction : ''}${euro(transaction.amount)}`;
+  }
+  const incoming = transaction.type === 'income' || transaction.type === 'reimbursement';
+  return incoming ? signedEuro(transaction.amount) : `−${euro(transaction.amount)}`;
+}
+
 export function TransactionRow({tx,last=false,wide=false,accountId=null}){
  const {state,today,setModal}=useApp(),c=useContext(Theme),cat=categorySettings(state.categories,tx.category),incoming=tx.type==='income'||tx.type==='reimbursement',transfer=tx.type==='transfer',received=transfer&&accountId===tx.toAccount;
  const linked=state.transactions.find(x=>x.id===tx.linkedId),paybacks=expensePaybacks(state.transactions,tx.id,today),account=state.accounts.find(a=>a.id===tx.account);
@@ -49,7 +59,7 @@ export function TransactionRow({tx,last=false,wide=false,accountId=null}){
     <T numberOfLines={1} style={{fontSize:11,color:c.sub,marginTop:3}}>{linked?`Payback · ${linked.date.slice(0,7)} expense`:transfer?`${account?.name} → ${state.accounts.find(a=>a.id===tx.toAccount)?.name}`:`${cat.name} · ${account?.name||''}`}{paybackSummary(paybacks)}</T>
    </View>
    {wide&&<View style={{width:90}}><Badge>{tx.kind||cat.kind}</Badge></View>}
-   <View style={{alignItems:'flex-end',maxWidth:112,flexShrink:0}}><T numberOfLines={1} adjustsFontSizeToFit style={{fontSize:14,fontWeight:'700',color:incoming||received?c.positive:c.text}}>{transfer?(accountId?(received?'+':'−'):''):incoming?'+':'−'}{euro(tx.amount)}</T><T style={{fontSize:10,color:c.muted,marginTop:3}}>{new Date(tx.date+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</T>{scheduled&&<Row style={{gap:3,marginTop:3}}><Icon name="CalendarDays" size={11} color={c.sub}/><T style={{fontSize:10,color:c.sub,fontWeight:'600'}}>Scheduled</T></Row>}</View>
+   <View style={{alignItems:'flex-end',maxWidth:112,flexShrink:0}}><T numberOfLines={1} adjustsFontSizeToFit style={{fontSize:14,fontWeight:'700',color:(incoming&&tx.amount>0)||received?c.positive:c.text}}>{rowAmountLabel(tx,accountId)}</T><T style={{fontSize:10,color:c.muted,marginTop:3}}>{new Date(tx.date+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</T>{scheduled&&<Row style={{gap:3,marginTop:3}}><Icon name="CalendarDays" size={11} color={c.sub}/><T style={{fontSize:10,color:c.sub,fontWeight:'600'}}>Scheduled</T></Row>}</View>
   </Row>
  </Squish>;
 }

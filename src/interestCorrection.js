@@ -1,6 +1,7 @@
 import { accountBalance } from './ledger.js';
 import { monthOf, nextMonth } from './calendar.js';
 import { sumCents } from './money.js';
+import { shortMonthLabel } from './monthLabels.js';
 import { firstInterestMonth, interestRateForMonth } from './interestSchedule.js';
 import { appInterestEntry, interestPostingDate, monthlyInterestAmount } from './savingsInterest.js';
 import {
@@ -40,6 +41,13 @@ function correctedAppInterest(computed, hasBankInterest, choice) {
   return 0;
 }
 
+// Draft choices replace stored ones for the same month.
+function mergedChoices(storedChoices, draftChoices) {
+  const draftMonths = new Set(draftChoices.map(choice => choice.month));
+  return [...storedChoices.filter(choice => !draftMonths.has(choice.month)), ...draftChoices]
+    .sort((first, second) => first.month.localeCompare(second.month));
+}
+
 function choiceFor(choices, month) {
   return choices.find(choice => choice.month === month)?.choice ?? null;
 }
@@ -50,12 +58,16 @@ function choiceFor(choices, month) {
 // change or need a bank-interest choice are listed. Nothing is written.
 export function interestCorrectionReview(state, accountId, { currentMonth, schedule, choices } = {}) {
   const account = state.accounts.find(candidate => candidate.id === accountId);
+  if (!account) {
+    throw new Error('The savings account is no longer available.');
+  }
   const draftAccount = {
     ...account,
     interestSchedule: schedule ?? account.interestSchedule ?? [],
-    interestBankChoices: choices ?? account.interestBankChoices ?? []
+    interestBankChoices: mergedChoices(account.interestBankChoices ?? [], choices ?? [])
   };
   const months = [];
+  const bankInterestMonths = [];
   const startMonth = firstReviewedMonth(state, draftAccount);
   let correctedTransactions = state.transactions.filter(transaction => !isAppOrCorrectionInterest(transaction, accountId));
   for (let month = startMonth; month && month < currentMonth; month = nextMonth(month)) {
@@ -70,6 +82,9 @@ export function interestCorrectionReview(state, accountId, { currentMonth, sched
     const computedOnRecordedHistory = monthlyInterestAmount(closingBalanceWithoutOwnInterest(state, state.transactions, accountId, month), rate);
     const directCorrection = correctedAppInterest(computedOnRecordedHistory, hasBankInterest, choice);
     const difference = corrected - recorded;
+    if (hasBankInterest && (recorded !== 0 || computed > 0 || choice)) {
+      bankInterestMonths.push({ month, bank, appInterest: computed, recorded, choice, needsChoice });
+    }
     if (corrected !== 0) {
       correctedTransactions = [...correctedTransactions, appInterestEntry(accountId, month, corrected)];
     }
@@ -81,7 +96,11 @@ export function interestCorrectionReview(state, accountId, { currentMonth, sched
       compoundingEffect: difference !== 0 && directCorrection === recorded
     });
   }
-  return { accountId, currentMonth, months, total: sumCents(months.map(month => month.difference)) };
+  return {
+    accountId, currentMonth, months, bankInterestMonths,
+    total: sumCents(months.map(month => month.difference)),
+    needsChoice: months.some(month => month.needsChoice)
+  };
 }
 
 export class StaleInterestCorrectionError extends Error {
@@ -98,10 +117,6 @@ export class InterestChoiceRequiredError extends Error {
 
 const k_correctionTitle = 'Interest correction';
 
-function monthName(month) {
-  return new Date(`${month}-01T12:00:00`).toLocaleString('en', { month: 'long', year: 'numeric' });
-}
-
 function correctionEntry(state, accountId, month, amount) {
   const sequence = state.transactions.filter(transaction => transaction.account === accountId
     && isInterestCorrection(transaction) && transaction.correctsInterestMonth === month).length + 1;
@@ -109,7 +124,7 @@ function correctionEntry(state, accountId, month, amount) {
     ...appInterestEntry(accountId, month, amount),
     id: interestCorrectionId(accountId, month, sequence),
     title: k_correctionTitle,
-    note: `Reviewed correction of ${monthName(month)} interest`,
+    note: `Reviewed correction of ${shortMonthLabel(month)} interest`,
     correctsInterestMonth: month
   };
 }
@@ -124,12 +139,6 @@ function entryForMonth(state, accountId, reviewedMonth) {
   return correctionEntry(state, accountId, reviewedMonth.month, reviewedMonth.difference);
 }
 
-function mergedChoices(storedChoices, draftChoices) {
-  const draftMonths = new Set(draftChoices.map(choice => choice.month));
-  return [...storedChoices.filter(choice => !draftMonths.has(choice.month)), ...draftChoices]
-    .sort((first, second) => first.month.localeCompare(second.month));
-}
-
 function sameReview(first, second) {
   return JSON.stringify(first.months) === JSON.stringify(second.months) && first.currentMonth === second.currentMonth;
 }
@@ -141,7 +150,7 @@ export function applyInterestCorrection(state, accountId, review, draft) {
   if (!sameReview(review, currentReview)) {
     throw new StaleInterestCorrectionError();
   }
-  if (currentReview.months.some(month => month.needsChoice)) {
+  if (currentReview.needsChoice) {
     throw new InterestChoiceRequiredError();
   }
   const accounts = state.accounts.map(account => {
