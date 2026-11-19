@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**Next implementation ticket: PLAN-4.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**Next implementation ticket: SAVINGS-1.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -49,7 +49,7 @@ Use integer EUR cents. Cash follows its transaction date, including for early pa
 
 ### PLAN-4 · Offer the interview and verify rollover
 
-**Status:** Queued. **Depends on:** PLAN-3.
+**Status:** Done, reviewed and merged into `develop` from `codex/plan-invitation` (implementation `d6326c5`, review fixes `46d5a5e`). See the PLAN-4 handoff note below. **Depends on:** PLAN-3.
 
 - In Year Plan, offer the existing interview on first use and when the current calendar year has no plan. **Later** suppresses the invitation for that calendar year on the installation. Keep manual entry and future-year selection available. Approval removes the invitation once that year has a plan.
 - Opening, dismissing, deferring, or restarting the interview changes no financial records. Cover a fresh ledger, January rollover, a prebuilt new-year plan, deferral across reload, and manual entry after deferral.
@@ -172,3 +172,11 @@ Start with units and a manually entered EUR price if requested. For automatic pr
 ## Bug fix — intermittent backup-review payback test (19 November 2026)
 
 `paybackTasks.spec.js` "backup review identifies the expense and payback task…" failed about one run in five, also on `develop`. The test seeded storage from the running page, so the app's queued startup save could overwrite the seeded ledger. It now seeds through an init script before the reloaded app starts (branch `codex/bug-backup-review-flake`, `0eeba43`; 30/30 repeated runs pass; read-only Claude review approved). Test-only change. Related known limitation, not fixed: the app never re-reads storage, so with two tabs open the last save wins.
+
+## Session handoff — PLAN-4 (19 November 2026, Claude cloud session)
+
+- **Implementation:** `src/planInvitation.js` invites the owner when the current calendar year has no approved plan (first use included) unless that year was deferred. Year Plan shows a card built from the shared React Native components with **Start the interview** (switches to the current month and opens the existing interview) and **Later**. Later is stored per installation under `havensum-plan-invitation-deferral-v1`, outside the shared ledger, and applies only to that calendar year. Approving a plan for the year removes the card. Manual entry and other years stay available. Opening, cancelling, restarting or deferring changes no financial records.
+- **Review fixes:** absence checks now first assert visible Year Plan content; opening, cancelling and restarting the interview are shown to leave the ledger bytes unchanged; a failed Later save still hides the card for the session with a plain message; the card is bounds-checked at 320/396/1280 px; deferral parsing is shared.
+- **Owner questions (non-blocking):** (1) A real first launch loads example data that already has a 2026 plan, so a new user is not invited in 2026 until clearing it, and a Later tapped on example data stays after clearing. Should example data invite or defer at all? (2) In the web preview (`?demo=1`) Later is not saved and the card returns on revisiting Year Plan. (3) Start switches the app's selected month to the current month, and it stays there after Cancel. (4) Pre-existing: the app's starting month uses the UTC date while the invitation uses the local date, so just after local midnight on 1 January east of UTC the header can still show December.
+- **Checks (`46d5a5e`; the merge commit only moves a comment):** `npm run test:coverage` 299/299 with thresholds met, `npm run test:browser` 270/270, `npm run build`, `npm run check:android` (Hermes compilation only; no device test).
+- **Review:** separate read-only Claude review and a focused re-review; all actionable findings fixed; no blocking defects remained.

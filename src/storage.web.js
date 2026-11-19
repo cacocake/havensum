@@ -1,5 +1,5 @@
-import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey, k_mergeRecoveryStorageKey } from './storageKeys.js';
-import { parseMergeBaseline } from './storageSerialization.js';
+import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey, k_mergeRecoveryStorageKey, k_planInvitationDeferralKey } from './storageKeys.js';
+import { parseMergeBaseline, parseStoredYear } from './storageSerialization.js';
 import { createPersistedStorage } from './persistedState.js';
 
 const k_persistedStorage = createPersistedStorage(() => localStorage);
@@ -71,4 +71,19 @@ export async function readMergeRecovery() {
     return null;
   }
   return k_persistedStorage.read(k_mergeRecoveryStorageKey);
+}
+
+// The calendar year whose planning invitation was deferred with Later.
+export async function readPlanInvitationDeferral() {
+  if (isDemoSession()) {
+    return null;
+  }
+  return parseStoredYear(localStorage.getItem(k_planInvitationDeferralKey));
+}
+
+export async function writePlanInvitationDeferral(year) {
+  if (isDemoSession()) {
+    return;
+  }
+  localStorage.setItem(k_planInvitationDeferralKey, String(year));
 }

@@ -12,3 +12,10 @@ export function parseMergeBaseline(encodedBaseline) {
     throw error;
   }
 }
+
+const k_yearPattern = /^\d{4}$/;
+
+// A saved per-installation year preference, or null when absent or malformed.
+export function parseStoredYear(storedValue) {
+  return storedValue !== null && k_yearPattern.test(storedValue) ? Number(storedValue) : null;
+}
