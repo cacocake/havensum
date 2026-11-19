@@ -10,14 +10,14 @@ import {planInsights} from './planInsights.js';
 import ExpectedCosts from './ExpectedCosts.jsx';
 import OutlookSettings from './OutlookSettings.jsx';
 import MonthComparison from './MonthComparison.jsx';
-import { latestPlan, planRevisions, plannedMonth, selectedPlan } from './planArchive.js';
-import { yearOfMonth } from './calendar.js';
+import { k_planRevisionStartKinds, latestPlan, planRevisionStart, planRevisions, plannedMonth, selectedPlan } from './planArchive.js';
+import { localCalendarDate, yearOfMonth } from './calendar.js';
 import { k_defaultHistoryWindow } from './domainConstants.js';
 const dateName=m=>new Date(m+'-01T12:00:00').toLocaleString('en',{month:'long',year:'numeric'});
 const signed=n=>(n>=0?'+':'−')+euro(Math.abs(n));
 export default function PlanScreen(){
  const {state,month,setMonth,setModal,openActivity,notify}=useApp(),c=useContext(Theme),[tab,setTab]=useState('This month');
- const year=yearOfMonth(month);
+ const year=yearOfMonth(month),isPastYear=planRevisionStart(year,month,localCalendarDate()).kind===k_planRevisionStartKinds.readOnly;
  const [revisionSelection,setRevisionSelection]=useState({year:null,id:null});
  // A chosen earlier revision applies only to its own year; other years show their latest snapshot.
  const planRevisionId=revisionSelection.year===year?revisionSelection.id:null;
@@ -25,7 +25,7 @@ export default function PlanScreen(){
  const viewingEarlierRevision=Boolean(shownPlan)&&shownPlan.id!==latestPlan(state,year)?.id;
  const info=planInsights(state,month,undefined,{planRevisionId}),{plan,actual,forecast}=info,alerts=driftAlerts(state,month);
  const ink={plan:c.dark?'#CDB9F2':'#7861A3',actual:c.dark?'#9EC5EB':'#39739D',forecast:c.dark?'#F2CB89':'#97601D'};
- const revise=()=>year<new Date().getFullYear()?notify('Past years stay frozen. Choose this year or a future year.'):setModal({type:'plan'});
+ const revise=()=>isPastYear?notify('Past years stay frozen. Choose this year or a future year.'):setModal({type:'plan'});
  const variance=forecast?.variance||0,positive=variance>=0;
  const tabs=['This month','Averages','Year ahead'];
  return <View style={{gap:19}}>
@@ -44,7 +44,7 @@ export default function PlanScreen(){
    <MonthComparison actual={actual} plan={plan} prediction={forecast} ink={ink}/>
    {plan&&<Card style={{padding:19}}><Row style={{justifyContent:'space-between',gap:10}}><H size={22} style={{flex:1}}>Spending against plan</H><Icon name="ChartNoAxesCombined" size={21} color={ink.actual}/></Row><Row style={{justifyContent:'space-between',gap:10,marginTop:15,marginBottom:12}}><T style={{color:ink.actual}}>{euro(actual.spent)} recorded</T><T style={{color:ink.plan}}>{euro(plan.expense)} plan</T></Row><Meter value={plan.expense>0?actual.spent/plan.expense:actual.spent?1:0} color={actual.spent>plan.expense?c.negative:ink.actual} track={c.soft}/><T style={{fontSize:12,color:c.sub,marginTop:13}}>{actual.spent>plan.expense?`${euro(actual.spent-plan.expense)} over the full-month plan`:`${euro(plan.expense-actual.spent)} left in the full-month plan`}</T><Button kind="soft" style={{marginTop:16}} onPress={()=>openActivity({type:'expense'})}>Inspect this month’s expenses</Button></Card>}
    {forecast&&info.period!=='past'&&<ExpectedCosts prediction={forecast} month={month}/>}
-   <Card style={{padding:19,borderColor:ink.plan}}><Row style={{gap:9}}><Icon name="LockKeyhole" size={18} color={ink.plan}/><H size={21}>Your frozen plan</H></Row><T style={{fontSize:12,color:c.sub,marginTop:10,marginBottom:16}}>{shownPlan?`${year} · revision ${shownPlan.revision} · ${shownPlan.createdAt?.slice(0,10)||'date not recorded'}.`:`No approved plan for ${year}.`} Only an approved revision changes future months.</T>{viewingEarlierRevision&&<Badge color={ink.plan} style={{marginBottom:12}}>EARLIER REVISION · READ-ONLY</Badge>}<PlanRevisionPicker revisions={planRevisions(state,year)} shownId={shownPlan?.id} onSelect={id=>setRevisionSelection({year,id})} color={ink.plan}/>{shownPlan&&<T style={{fontSize:12,color:c.sub,marginBottom:16}}>{shownPlan.window||k_defaultHistoryWindow}-month variable history · fixed tolerance ±{euro(shownPlan.tolerance??200)} · review at {Math.round((shownPlan.drift??.3)*100)}% drift for 2 months.</T>}{year<new Date().getFullYear()?<T style={{fontSize:12,color:c.sub}}>Past years stay read-only.</T>:<Button kind="outline" icon="SlidersHorizontal" onPress={revise}>{latestPlan(state,year)?'Revise remaining year':'Build a plan'}</Button>}{alerts.length>0&&<T style={{color:c.accentText,fontSize:12,marginTop:12}}>Review suggested: {alerts.map(a=>a.category).join(', ')}. No changes have been applied.</T>}</Card>
+   <Card style={{padding:19,borderColor:ink.plan}}><Row style={{gap:9}}><Icon name="LockKeyhole" size={18} color={ink.plan}/><H size={21}>Your frozen plan</H></Row><T style={{fontSize:12,color:c.sub,marginTop:10,marginBottom:16}}>{shownPlan?`${year} · revision ${shownPlan.revision} · ${shownPlan.createdAt?.slice(0,10)||'date not recorded'}.`:`No approved plan for ${year}.`} Only an approved revision changes future months.</T>{viewingEarlierRevision&&<Badge color={ink.plan} style={{marginBottom:12}}>EARLIER REVISION · READ-ONLY</Badge>}<PlanRevisionPicker revisions={planRevisions(state,year)} shownId={shownPlan?.id} onSelect={id=>setRevisionSelection({year,id})} color={ink.plan}/>{shownPlan&&<T style={{fontSize:12,color:c.sub,marginBottom:16}}>{shownPlan.window||k_defaultHistoryWindow}-month variable history · fixed tolerance ±{euro(shownPlan.tolerance??200)} · review at {Math.round((shownPlan.drift??.3)*100)}% drift for 2 months.</T>}{isPastYear?<T style={{fontSize:12,color:c.sub}}>Past years stay read-only.</T>:<Button kind="outline" icon="SlidersHorizontal" onPress={revise}>{latestPlan(state,year)?'Revise remaining year':'Build a plan'}</Button>}{alerts.length>0&&<T style={{color:c.accentText,fontSize:12,marginTop:12}}>Review suggested: {alerts.map(a=>a.category).join(', ')}. No changes have been applied.</T>}</Card>
   </View>}
   {tab==='Averages'&&<View style={{gap:18}}><Card style={{padding:20}}><H size={25}>Your real monthly averages</H><T style={{fontSize:12,color:c.sub,marginTop:8}}>{info.count?`${info.count} recorded months in ${dateName(info.history[0])}–${dateName(info.history.at(-1))}. ${info.partial?'Unconfirmed history: partial estimate.':'Owner-confirmed complete months.'}`:'No completed months with entries in this history window.'}</T>
     {[['Income',info.averages.income],['Net spending',info.averages.spent],['Savings',info.averages.balance]].map(([label,value])=><Row key={label} style={{justifyContent:'space-between',gap:12,marginTop:19}}><T>{label}</T><H size={25} style={{color:ink.actual}}>{value==null?'—':euro(value)}</H></Row>)}<T style={{fontSize:12,color:c.sub,marginTop:20}}>Only confirmed months are used when available, including months with no activity. Otherwise recorded history supports a partial estimate.</T>

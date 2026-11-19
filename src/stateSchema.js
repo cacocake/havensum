@@ -75,8 +75,11 @@ function validatePlanArchive(plans) {
   for (const [yearKey, revisions] of Object.entries(plans)) {
     requireValid(k_yearKeyPattern.test(yearKey), 'plan archive year');
     requireValid(Array.isArray(revisions) && revisions.length > 0, 'plan archive revisions');
+    let previousRevisionNumber = 0;
     for (const revision of revisions) {
       validatePlan(revision);
+      requireValid(Number.isSafeInteger(revision.revision) && revision.revision > previousRevisionNumber, 'plan revision numbers must increase');
+      previousRevisionNumber = revision.revision;
       requireValid(revision !== null && revision.year === Number(yearKey), 'plan revision year');
       requireValid(isIdentifier(revision.id) && !snapshotIds.has(revision.id), 'plan revision ID');
       snapshotIds.add(revision.id);

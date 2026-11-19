@@ -57,10 +57,22 @@ function copyPlanData(plan) {
 
 export class ReadOnlyPlanYearError extends Error {}
 
-// Appends an approved snapshot. Earlier snapshots and other years stay intact.
-export function approvePlanRevision(state, revision, { id, today }) {
+export class HistoricalPlanMonthError extends Error {}
+
+function monthsBefore(months, firstMonth) {
+  return Object.fromEntries(Object.entries(months ?? {}).filter(([month]) => month < firstMonth).sort(([first], [second]) => first.localeCompare(second)));
+}
+
+// Appends an approved snapshot. Earlier snapshots and other years stay intact,
+// and months before the revision start must match the latest approved snapshot.
+export function approvePlanRevision(state, revision, { id, fromMonth, today }) {
   if (planRevisionStart(revision.year, `${revision.year}-01`, today).kind === k_planRevisionStartKinds.readOnly) {
     throw new ReadOnlyPlanYearError(`${revision.year} is now a past year. Its plans are read-only.`);
+  }
+  const firstRevisedMonth = `${revision.year}-${String(fromMonth).padStart(2, '0')}`;
+  const carriedMonths = monthsBefore(latestPlan(state, revision.year)?.months, firstRevisedMonth);
+  if (JSON.stringify(monthsBefore(revision.months, firstRevisedMonth)) !== JSON.stringify(carriedMonths)) {
+    throw new HistoricalPlanMonthError('A revision cannot change earlier months of the approved plan.');
   }
   const yearKey = String(revision.year);
   const approvedRevision = { ...copyPlanData(revision), id };

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { createFinancialState, createTransaction } from '../helpers/financialFixtures.js';
+import { createFinancialState, createTransaction, expectedMigratedLedger } from '../helpers/financialFixtures.js';
 import { openMoreSection } from '../helpers/userFlows.js';
 import { readFile } from 'node:fs/promises';
 
@@ -55,7 +55,7 @@ test('legacy startup preserves the original ledger and links across repeated app
     state: JSON.parse(localStorage.getItem('melo-state-v1')),
     recovery: localStorage.getItem('melo-state-v1:recovery:v1')
   }));
-  expect(stored.state).toEqual({ ...state, version: 2 });
+  expect(stored.state).toEqual(expectedMigratedLedger(state));
   expect(stored.recovery).toBe(originalBytes);
 });
 
@@ -92,7 +92,8 @@ test('a newly initialized ledger exports the current schema version', async ({ p
   await page.getByRole('button', { name: 'Full JSON backup', exact: true }).click();
   const download = await downloading;
   const backup = JSON.parse(await readFile(await download.path(), 'utf8'));
-  expect(backup.version).toBe(2);
+  expect(backup.version).toBe(3);
+  expect(backup.plans['2026']).toHaveLength(1);
 });
 
 test('backup review rejects future schemas before offering a merge', async ({ page }) => {

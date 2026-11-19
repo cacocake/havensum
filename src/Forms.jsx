@@ -280,6 +280,7 @@ export function PlanForm({onClose}){
    }
    if (start.fromMonth !== from) {
      setFrom(start.fromMonth);
+     setLoanChangeFrom(previous => String(Math.max(Number(previous), start.fromMonth)));
      setError(k_planStartMovedMessage);
      return;
    }
@@ -288,7 +289,15 @@ export function PlanForm({onClose}){
      ? { ...event, id: createEntityId(k_entityIdPrefixes.event) }
      : event);
    const revisionId = createEntityId(k_entityIdPrefixes.plan);
-   setState(currentState => approvePlanRevision({ ...currentState, events }, approvedRevision, { id: revisionId, today }));
+   const approval = { id: revisionId, fromMonth: from, today };
+   try {
+     // Check against the ledger this preview was built from so a rejection is shown here.
+     approvePlanRevision({ ...state, events }, approvedRevision, approval);
+   } catch (approvalError) {
+     setError(approvalError.message);
+     return;
+   }
+   setState(currentState => approvePlanRevision({ ...currentState, events }, approvedRevision, approval));
    const firstRevisedMonthName = from === 1 ? 'January' : new Date(year, from - 1, 1).toLocaleString('en', { month: 'long' });
    notify(`Plan frozen · ${firstRevisedMonthName} onwards`);
    onClose();

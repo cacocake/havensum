@@ -46,7 +46,7 @@ test('freezing a second year after loading a legacy ledger keeps the first year 
 
   const loadedState = await readState();
   const nextYearPlan = buildPlan(loadedState, { year: 2027, income: 220000, cushion: 0 });
-  await writeState(approvePlanRevision(loadedState, nextYearPlan, { id: 'plan-2027-first', today: k_today }));
+  await writeState(approvePlanRevision(loadedState, nextYearPlan, { id: 'plan-2027-first', fromMonth: 1, today: k_today }));
   const reloadedState = await readState();
 
   const { id, ...firstYearPlan } = latestPlan(reloadedState, 2026);
@@ -75,7 +75,7 @@ test('a same-year revision keeps earlier months exactly, including months that w
   const juneBefore = structuredClone(latestPlan(loadedState, 2026).months['2026-06']);
 
   const revision = buildPlan(loadedState, { year: 2026, fromMonth: 11, income: 250000, cushion: 0 });
-  const revisedState = approvePlanRevision(loadedState, revision, { id: 'plan-2026-november', today: k_today });
+  const revisedState = approvePlanRevision(loadedState, revision, { id: 'plan-2026-november', fromMonth: 11, today: k_today });
   const revisedPlan = latestPlan(revisedState, 2026);
 
   assert.deepEqual(Object.keys(revisedPlan.months).sort(), ['2026-06', '2026-11', '2026-12']);
@@ -97,14 +97,14 @@ test('a December draft saved in January is blocked because its year is now read-
   const decemberDraft = buildPlan(state, { year: 2026, fromMonth: 12, income: 100000, cushion: 0 });
 
   assert.deepEqual(planRevisionStart(2026, '2026-12', '2027-01-02'), { kind: 'readOnly' });
-  assert.throws(() => approvePlanRevision(state, decemberDraft, { id: 'late', today: '2027-01-02' }), ReadOnlyPlanYearError);
+  assert.throws(() => approvePlanRevision(state, decemberDraft, { id: 'late', fromMonth: 12, today: '2027-01-02' }), ReadOnlyPlanYearError);
   assert.deepEqual(state.plans, {});
 });
 
 test('a selected year without a plan reports no target while other years keep theirs', () => {
   const state = createFinancialState();
-  const firstYear = approvePlanRevision(state, buildPlan(state, { year: 2026, fromMonth: 11, income: 100000, cushion: 0 }), { id: 'plan-2026', today: k_today });
-  const bothYears = approvePlanRevision(firstYear, buildPlan(firstYear, { year: 2027, income: 120000, cushion: 0 }), { id: 'plan-2027', today: k_today });
+  const firstYear = approvePlanRevision(state, buildPlan(state, { year: 2026, fromMonth: 11, income: 100000, cushion: 0 }), { id: 'plan-2026', fromMonth: 11, today: k_today });
+  const bothYears = approvePlanRevision(firstYear, buildPlan(firstYear, { year: 2027, income: 120000, cushion: 0 }), { id: 'plan-2027', fromMonth: 1, today: k_today });
 
   assert.equal(latestPlan(firstYear, 2027), null);
   assert.equal(plannedMonth(firstYear, '2027-01'), null);
@@ -142,7 +142,7 @@ test('an older single-plan backup contributes its year without deleting years it
   const merged = mergeThreeWay(base, local, remote, { remotePlanYears: representedPlanYears(legacyBackup) });
 
   assert.deepEqual(merged.result.plans[2027], local.plans[2027]);
-  assert.deepEqual(merged.result.plans[2026], remote.plans[2026]);
+  assert.deepEqual(merged.result.plans[2026], [...base.plans[2026], remote.plans[2026][0]]);
   assert.deepEqual(merged.conflicts, []);
 });
 
@@ -216,9 +216,57 @@ test('approving a target-only revision leaves Expected savings unchanged', () =>
     outlook: { completeMonths: ['2026-10'], incomeChanges: [{ since: '2026-11', amount: 200000 }] }
   });
   const prediction = expectedSavings(state, '2026-12', k_today);
-  const firstYear = approvePlanRevision(state, buildPlan(state, { year: 2026, fromMonth: 11, income: 100000, cushion: 0 }), { id: 'plan-a', today: k_today });
-  const revised = approvePlanRevision(firstYear, buildPlan(firstYear, { year: 2026, fromMonth: 12, income: 900000, cushion: 50000, overrides: { groceries: 1 } }), { id: 'plan-b', today: k_today });
+  const firstYear = approvePlanRevision(state, buildPlan(state, { year: 2026, fromMonth: 11, income: 100000, cushion: 0 }), { id: 'plan-a', fromMonth: 11, today: k_today });
+  const revised = approvePlanRevision(firstYear, buildPlan(firstYear, { year: 2026, fromMonth: 12, income: 900000, cushion: 50000, overrides: { groceries: 1 } }), { id: 'plan-b', fromMonth: 12, today: k_today });
 
   assert.deepEqual(expectedSavings(revised, '2026-12', k_today), prediction);
   assert.notDeepEqual(plannedMonth(revised, '2026-12'), plannedMonth(firstYear, '2026-12'));
+});
+
+test('merging the same backup again after the baseline moved keeps every local revision', () => {
+  const first = snapshot('plan-2026-a', 2026, 1, 100);
+  const second = snapshot('plan-2026-b', 2026, 2, 200);
+  const remote = createFinancialState({ plans: { 2026: [first] } });
+  const local = createFinancialState({ plans: { 2026: [first, second] } });
+  const merged = mergeThreeWay(remote, local, remote);
+  const repeated = mergeThreeWay(merged.result, merged.result, remote);
+
+  assert.deepEqual(repeated.result.plans, { 2026: [first, second] });
+  assert.deepEqual(repeated.conflicts, []);
+});
+
+test('a revision from an older backup is appended without dropping earlier local revisions', () => {
+  const first = snapshot('plan-2026-a', 2026, 1, 100);
+  const base = createFinancialState({ plans: { 2026: [first] } });
+  const { id: discardedId, ...legacyPlan } = snapshot('not-in-legacy-data', 2026, 2, 900);
+  const legacyBackup = createFinancialState({ version: k_legacyVersion, plan: legacyPlan });
+  const remote = migrateState(legacyBackup);
+
+  const merged = mergeThreeWay(base, base, remote, { remotePlanYears: representedPlanYears(legacyBackup) });
+
+  assert.deepEqual(merged.result.plans[2026], [first, remote.plans[2026][0]]);
+  assert.deepEqual(merged.conflicts, []);
+  const repeated = mergeThreeWay(merged.result, merged.result, remote, { remotePlanYears: representedPlanYears(legacyBackup) });
+  assert.deepEqual(repeated.result.plans, merged.result.plans);
+});
+
+test('approval rejects a revision that changes months before its start', () => {
+  const state = createFinancialState();
+  const firstYear = approvePlanRevision(state, buildPlan(state, { year: 2026, fromMonth: 11, income: 100000, cushion: 0 }), { id: 'plan-a', fromMonth: 11, today: k_today });
+  const tampered = buildPlan(firstYear, { year: 2026, fromMonth: 12, income: 200000, cushion: 0 });
+  tampered.months['2026-11'].income = 1;
+
+  assert.throws(() => approvePlanRevision(firstYear, tampered, { id: 'plan-b', fromMonth: 12, today: k_today }), /earlier months/);
+  const added = buildPlan(firstYear, { year: 2026, fromMonth: 12, income: 200000, cushion: 0 });
+  added.months['2026-10'] = added.months['2026-12'];
+  assert.throws(() => approvePlanRevision(firstYear, added, { id: 'plan-c', fromMonth: 12, today: k_today }), /earlier months/);
+});
+
+test('revision numbers must be positive and increase within a year', async context => {
+  installBrowserStorage(context);
+  const state = createFinancialState();
+  const first = snapshot('plan-2026-a', 2026, 1, 100);
+  for (const revisions of [[{ ...first, revision: 0 }], [first, snapshot('plan-2026-b', 2026, 1, 200)]]) {
+    await assert.rejects(writeState({ ...state, plans: { 2026: revisions } }), SyntaxError);
+  }
 });
