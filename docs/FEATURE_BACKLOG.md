@@ -114,7 +114,7 @@ In the *Correct past interest* review (`src/interestCorrection.js`, `src/interes
 
 ### BUG-2 · Account-form past start for a legacy rate
 
-**Owner decision (19 November 2026, L08):** the account form's past start month for an unscheduled legacy rate gets the same earliest-month limit as corrections. **Status:** In progress on `codex/bug-2-account-form-past-start` (started 19 November 2026, Claude cloud session). **Depends on:** LEDGER-2a (merged).
+**Owner decision (19 November 2026, L08):** the account form's past start month for an unscheduled legacy rate gets the same earliest-month limit as corrections. **Status:** Done, reviewed and merged into `develop` from `codex/bug-2-account-form-past-start` (implementation `a124a61`; review fixes `9edb458`, `ba3ca1a`). See the BUG-2 handoff note at the end. **Depends on:** LEDGER-2a (merged).
 
 `AccountForm.jsx` lets an unscheduled legacy rate take any past start month (`scheduleWithPeriod(..., { allowPastStart: true })`), and startup then posts app interest for every completed month since then. A mistyped year (for example `1026-01`) would post thousands of entries. Add a failing regression first, then refuse a start before `earliestCorrectableMonth` (`src/interestCorrection.js`) with the shared `correctableStartText` message (`src/interestSchedule.js`). Cover a mistyped year, an account with only an opening balance (current month only), and a legacy rate whose valid past start still works.
 
@@ -543,3 +543,29 @@ The implementation note below records how these were built; it stores only per-y
   - A refusal caused by this tab's own later edit (old "stale" notice) has no browser test, because the modal preview blocks edits; the rule is unit-tested.
   - If another tab removes the ledger key entirely, the notice asks for an app reload but a retry is allowed.
   - The reload does not reopen the missing-category review automatically; its button is shown.
+
+## Session handoff — BUG-2 · Account-form past start for a legacy rate (19 November 2026, Claude cloud session)
+
+- **Fixed (L08):** the account form's past start month for an unscheduled legacy rate can no longer be earlier than `earliestCorrectableMonth` (`src/interestCorrection.js`). Before, a mistyped year such as `1026-01` was saved, and startup then posted app interest for every completed month since.
+  - `scheduleWithPeriod` (`src/interestSchedule.js`) takes a `correctableBound` for the legacy past start and refuses earlier months with the shared `correctableStartText` message.
+  - Without a bound, a legacy past start may start from the current month only, so a future caller cannot reopen the unlimited path.
+  - `src/AccountForm.jsx` computes the bound (`legacyRateCorrectableBound`) for both Save and Add rate period. `src/InterestScheduleEditor.jsx` shows the same earliest-month hint as the correction dialog while the legacy rate has no start.
+  - An account with only an opening balance may start the legacy rate from the current month only. Once a schedule exists, the existing current-or-future rule is unchanged.
+- **Tests:**
+  - Browser (`tests/browser/interestSchedule.spec.js`, all three viewports):
+    - a mistyped year on an account with only an opening balance is refused, posts nothing and keeps the hint inside the narrow dialog;
+    - a legacy rate funded by a transfer in on 2026-10-01 refuses 2026-09 and still accepts 2026-10, posting October's interest.
+  - Unit (`tests/interestSchedule.test.js`): the bound, the opening-balance-only case, the schedule rule and the unbounded fallback.
+- **Changed test:** the existing browser test "an unscheduled legacy rate earns nothing until its start month is chosen" started a past rate on an account with only an opening balance, which L08 now limits to the current month. It now records the money on its date with a transfer in, as LEDGER-2a did. The expected interest (949 cents) is unchanged.
+- **Checks (tree merged with develop `9d393e1`, BUG-1):**
+  - `npm run test:coverage`: 522/522 (96.85% lines, 94.72% branches);
+  - `npm run test:browser`: 468/468;
+  - `npm run build`;
+  - `npm run check:android` (Hermes compilation only; no device test).
+- **Review:** a separate read-only Claude review found nothing blocking.
+  - Should-fix, fixed in `9edb458`: a past start without a bound was still unlimited and asserted by tests; a dense ternary in the form.
+  - Nits fixed in the same commit: gate the hint on a legacy rate; fund the account with a transfer in the browser test.
+  - A re-review found nothing blocking. Its test nit (pin the current-month fallback) was fixed in `ba3ca1a`.
+  - Not changed: memoizing the bound (the correction dialog computes it the same way) and splitting the combined unit test.
+- **Process note:** the first failing browser regression was run and seen failing before the fix, but both landed in one commit (`a124a61`).
+- **Not done / owner:** nothing needed. A stored schedule that already starts in a mistyped year (saved before this fix, or from a backup) is not limited here. Fixing it would be a separate owner question; nothing was asked.
