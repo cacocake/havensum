@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**Next implementation ticket: FORECAST-2 discovery** (FORECAST-1 is merged). PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**FORECAST-2 discovery is done and blocked on owner decisions** (branch `codex/forecast-comparable-costs`, open and unmerged; see its handoff note at the end). No other ticket is unblocked. PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -108,7 +108,7 @@ Design a reviewed, explicit correction flow after agreement. Show the affected c
 
 ### FORECAST-2 · Learn from comparable completed costs
 
-**Depends on:** FORECAST-1. **Status:** Discovery before implementation.
+**Depends on:** FORECAST-1. **Status:** Discovery done on `codex/forecast-comparable-costs` (open, unmerged). Implementation is blocked on the owner questions in the FORECAST-2 handoff note below.
 
 Check whether completed events and linked actuals improve predictions over a simple baseline. Domestic and international trips are examples of comparable expenses. Test sparse history, outliers, incomplete and partially paid events, moved events, refunds, and reimbursements. Decide what makes events comparable and what evidence the UI can expose. Avoid inferring trip type from free text alone.
 
@@ -222,3 +222,22 @@ Start with units and a manually entered EUR price if requested. For automatic pr
 - **Not done (style nit):** the long inline-style JSX rows in `YearOutlook.jsx` mirror the old screen and were not restructured.
 - **Checks (`337f638`):** `npm run test:coverage` 345/345 with thresholds met, `npm run test:browser` 333/333, `npm run build`, `npm run check:android` (Hermes compilation only; no device test). **`c88a45e`:** `npm run test:coverage` 346/346, the five affected browser specs (93/93), build and Hermes.
 - **Review:** separate read-only Claude review (no blocking defects; should-fix items fixed test-first), a focused re-review of the fixes (no blocking defects), and a final re-review of the nit commit.
+
+## Session handoff — FORECAST-2 discovery (19 November 2026, Claude cloud session)
+
+- **Branch:** `codex/forecast-comparable-costs`, open and unmerged; nothing pushed to `develop`. Discovery only: `src/comparableCosts.js` is not imported by the app and nothing reaches the UI, the ledger or approved snapshots. `tests/comparableCosts.test.js` holds the synthetic evidence.
+- **What the data supports today.** A named cost is `{ id, name, month, amount, year? }`. Payments link to one occurrence (`plannedCost: { eventId, month }`) and paybacks link to payments. The H09 complete-month confirmation exists. There is no field that says what kind of cost an event is. The owner's earlier estimate for a cost is not kept: editing the amount overwrites it, and frozen plans store only each month's total of named costs.
+- **Measured actual of an occurrence** (`plannedCostOccurrences`): the linked payments net of linked paybacks, using only entries dated by the evaluation date, so a backtest sees only what was known then. It counts as evidence (*completed*) only when (a) the owner has confirmed its month complete, (b) no payment is still linked to a moved month, (c) no linked payment has an open or partly received payback task, and (d) at least one payment is linked. A confirmed month without linked payments is reported as *no payments*, not as a €0 cost. Unlinked spending in the same category never counts.
+- **Comparable rule tested:** only occurrences of the same recurring cost (same event ID) are compared. Names, payment categories and free text are not used, so one-off trips (each a separate event with a year) have no comparables yet.
+- **Estimate tested** (`comparableCostEstimate`): with at least two completed occurrences, the median in whole cents plus the lowest-to-highest range and the occurrences used. With fewer, there is no estimate and the owner enters an amount.
+- **Synthetic backtest** (each December predicted from what was known on 1 December, against the stored amount as the baseline): (1) if the stored amount is consistently low (€300 against €380–€450), the median's errors are €55/€10/€15 against €150/€120/€100; (2) if the stored amount is already accurate, the median is slightly worse (€10/€20/€0 against €10/€10/€0); (3) one unusual €1,200 year moves the median by €5, but it would move an average by €202.50; (4) for a cost that rises steadily, the median lags (€60 off, against €90 for the stored amount and €30 for the latest year alone).
+- **Conclusion:** comparing past occurrences helps only when the owner's amount is off, and it can hurt slightly when the amount is accurate. Synthetic data cannot show which case applies to your costs, so the comparison should be an optional suggestion beside your amount with its occurrences visible, never a replacement. Real benefit can only be measured on your own history, on your device. No estimate UI was built because the questions below decide its behaviour.
+- **Owner questions (blocking implementation):**
+  1. **Comparability for one-off costs.** Should named costs get an explicit group that you choose and can edit (for example *Domestic trip* or *International trip*), stored with the cost? Or should only repeats of the same recurring cost be compared? A group field is a schema change (validation, backups, merge and migration).
+  2. **When an occurrence counts.** Is (a)–(d) above right? In particular, should a confirmed month with no linked payments mean "skipped" (excluded, current behaviour) or a real €0?
+  3. **Payments after the occurrence.** Validation only lets a payment link to its own month or a later one. A trip settled after it happened (for example on a later card bill) can't be linked, so its measured actual comes out low. Should a payment be linkable to an earlier occurrence?
+  4. **Accepting an estimate for a recurring cost.** A recurring cost has one amount for every year (PLAN-3's start-year question is still open), so accepting a suggestion would also change this year's forecast and other years. Should the accepted amount apply only to the draft year (a per-year amount), or from that year onwards?
+  5. **Evidence threshold and estimator.** Is it acceptable to show a median and range from two completed occurrences, or should it need more? Should older years count equally, or only the last few?
+  6. **Real-data check.** Do you want a local, read-only "how past estimates compared" view so you can judge the benefit on your own data before suggestions appear in the interview?
+- **Checks:** `npm run test:coverage` 362/362 with thresholds met (`comparableCosts.js` 100% lines). Each status guard was checked by removing it and seeing a test fail. The browser suite, build and Hermes check were not run, because no app code imports the module and nothing will be integrated until the questions are answered.
+- **Review:** see the review line added after the Claude review below.
