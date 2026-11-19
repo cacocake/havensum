@@ -130,7 +130,11 @@ Let the owner move a recurring planned cost's month from a chosen year onward. E
 
 ### ANDROID-1 · Installable package
 
-**Needs:** App ID, target runtime and device support, and owner-controlled signing setup.
+**Needs:** App ID, target runtime and device support, and owner-controlled signing setup. **Status:** Configured, reviewed and merged into `develop` from `codex/android-installable-package` (owner answers A01–A08 in DECISIONS.md, steps in [docs/ANDROID_BUILD.md](ANDROID_BUILD.md)). **Still open:** no package has been built yet. The first `assembleRelease` runs on the owner's PC with the owner's upload keystore, then gets recorded below. See the ANDROID-1 handoff note.
+
+| Source commit | Version name / code | Type | Build date | Signing certificate SHA-256 | Installed on |
+| --- | --- | --- | --- | --- | --- |
+| *(none built yet)* | | | | | |
 
 Produce an installable Android build. Record source commit, build profile, and signing ownership. Keep credentials and compiled artifacts out of Git. A Hermes bundle is only a compilation check.
 
@@ -325,6 +329,39 @@ The implementation note below records how these were built; it stores only per-y
 - **Review:** separate read-only Claude review (one blocking product gap: moving into or away from a month already past this year, answered by the owner as F18; should-fix items for the preview summary, the review count, redundant moves and a render guard), a focused re-review of the fixes (no blocking defects; boundary tests and two nits added) and a final re-review of the last commit (no findings).
 - **Accepted nits:** the success notice is shown even if a concurrent change makes the functional state update a no-op (the existing PlanForm pattern); first years are capped at five years after the first allowed year; if the date rolls over while the dialog is open, confirming shows the past-month error instead of re-clamping; a field-level merge could in theory pair `year` from one device with `monthFromYear` from the other (same pre-existing exposure as `yearAmounts`; no UI makes a recurring cost one-off).
 - **Owner questions (non-blocking):** none new.
+
+## Session handoff — ANDROID-1 (19 November 2026, Claude cloud session)
+
+- **Owner answers** (DECISIONS.md A01–A08):
+  - Application ID `com.havensum.app`.
+  - Android 7.0+ (API 24) portrait phones, targeting SDK 36.
+  - First delivery is a sideloadable release APK; the Play AAB path stays configured.
+  - The owner builds on their own PC with local Gradle and keeps the upload keystore. There is no EAS, Expo account or cloud-held key.
+  - Android Auto Backup is off.
+- **Configuration:**
+  - `app.json` sets the package, `versionCode 1`, `allowBackup: false` and three removed permissions (legacy storage read/write, overlay).
+  - `plugins/withHavensumReleaseSigning.cjs` signs release builds from four `HAVENSUM_UPLOAD_*` properties in the owner's user Gradle properties. A release build fails without them; there is no debug-key fallback.
+  - `eas.json` reads the version from `app.json` (`appVersionSource: local`); it is unused.
+  - `.gitignore` covers `/android/`, APK/AAB and keystore files.
+  - The build, signing, install and version steps are in [docs/ANDROID_BUILD.md](ANDROID_BUILD.md).
+- **Build profile and signing ownership:**
+  - Release APK via `assembleRelease` (AAB via `bundleRelease` later).
+  - Signed with the owner's upload keystore, held only by the owner.
+  - The first package ships as version code 1. Each later package that reaches a phone gets a version code raised by 1 in a `develop` commit first.
+- **Not built here:** the container has no Android SDK, and its network blocks `dl.google.com` (Android SDK and Google Maven) and `api.expo.dev`. No APK, installation or device test exists yet. The first `assembleRelease` and the missing-key guard are unverified until the owner's PC build. Record that build in the ANDROID-1 table above.
+- **Checks** (merged with develop at 75a8108):
+  - `npm run test:coverage` 434/434, thresholds met.
+  - `npm run test:browser`.
+  - `npm run build`.
+  - `npm run check:android` (Hermes compilation only).
+  - `tests/androidPackage.test.js` runs `expo prebuild` offline and checks the generated application ID, version code, backup, removed permissions, release signing, guard and repeatability.
+- **Review:** a separate read-only Claude review found no blocking defects, and its should-fix items were fixed in `7784250`: Windows Gradle commands, a debug/release signature-clash warning, a portable test, and a ticket status with a build record. A re-review (no blocking defects) prompted `e175ca7`, which keeps the keystore outside the checkout, corrects the password advice and the `npm run android` wording, removes a duplicated plugin message, makes test cleanup safe, and corrects the backlog status. A final re-review found no blocking defects; its two nits (this line, and cleanup tolerating a missing link) were fixed in `ee85ae0`. A full review of the whole branch found no blocking defects; its build-guide fixes (cmd-safe commands, commands run from the repository root, Windows tool paths, the first version code, EAS incompatibility) were applied in `065dfab`, whose focused re-review found no blocking defects; its three wording nits were fixed in the closing commit.
+- **Owner questions (non-blocking):**
+  1. Should debug builds get a separate ID (`com.havensum.app.debug`) so a development build can sit beside the real app on the same phone? For now the guide warns against installing a development build on the phone that holds your data.
+  2. The Expo `slug` is still `melo-money`. Local builds don't use it; rename it only if EAS is adopted later.
+  3. `package.json` has a duplicate `expo-crypto` dependency key (pre-existing). It is harmless; `expo prebuild` removes it when it rewrites the file.
+- **Device check for ANDROID-2:** prebuild warns that `userInterfaceStyle: automatic` needs `expo-system-ui` on Android. Check dark mode and the system bars on the phone.
+- **Unverified on Windows:** the prebuild test's Windows changes (Expo CLI through `node`, a junction for `node_modules`) were not run on Windows.
 
 ## Session handoff — DRIVE-1 (19 November 2026, Claude cloud session)
 
