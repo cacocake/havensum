@@ -4,6 +4,8 @@ import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey, k_
 import { parseMergeBaseline, parseStoredYear } from './storageSerialization.js';
 import { createPersistedStorage } from './persistedState.js';
 
+export { SavedStateChangedError } from './persistedState.js';
+
 const k_persistedStorage = createPersistedStorage(() => AsyncStorage);
 
 export async function readSavedLedgerCopy() {
@@ -20,6 +22,16 @@ export async function readState() {
 
 export async function writeState(state) {
   await k_persistedStorage.write(k_stateStorageKey, state);
+}
+
+// Whether the saved ledger is still the one this app last read or saved.
+export async function isSavedStateUnchanged() {
+  return k_persistedStorage.isUnchangedSinceLastAccess(k_stateStorageKey);
+}
+
+// Replaces the saved ledger only if nothing else saved over it.
+export async function writeStateIfUnchanged(state) {
+  await k_persistedStorage.writeIfUnchanged(k_stateStorageKey, state);
 }
 
 export async function readSnapshot() {

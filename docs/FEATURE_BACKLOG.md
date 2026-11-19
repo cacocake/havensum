@@ -382,7 +382,7 @@ The implementation note below records how these were built; it stores only per-y
   5. In the import row editor a negative correction row cannot be edited (it can be imported or skipped).
 - **Checks (merged tree with ANDROID-1, DRIVE-1 and L02):** `npm run test:coverage` 475/475 with thresholds met (96.6% lines, 94.6% branches), `npm run test:browser` 426/426 on the final run (earlier runs hit only the BUG-1 flake below), `npm run build`, `npm run check:android` (Hermes compilation only; no device test).
 - **Review:** separate read-only Claude review (two blocking defects: an unscheduled legacy rate and a re-dated app entry each produced an unsaveable ledger; four should-fix items: backup/workbook round trips, repeated correction numbers, startup posting over corrected months, a typed rate ignored by Apply), then two focused re-reviews (two should-fix leftovers fixed in `870e6a0`); the last found no blocking or should-fix issues. All fixes were test-first.
-- **Bug found between tasks (BUG-1, not fixed here):** the browser test `fullRestore.spec.js` "a ledger saved by another tab after the preview makes the preview stale" fails intermittently on `develop` itself (all three viewports in one full run of `e53517f`; about 2% of repeated runs, more under load). When it fails, the restore dialog closes without the stale-preview notice. The likely cause is that the app's own save of its in-memory ledger lands after the simulated other-tab write, so the bytes match the preview again. This is unconfirmed. It needs its own `codex/` bug branch from `develop`: first decide whether the app or the test is at fault, then add a failing regression and fix it. The LEDGER-2 merge passes everything else.
+- **Bug found between tasks (BUG-1, not fixed here; since fixed, see "Bug fix — BUG-1" below):** the browser test `fullRestore.spec.js` "a ledger saved by another tab after the preview makes the preview stale" fails intermittently on `develop` itself (all three viewports in one full run of `e53517f`; about 2% of repeated runs, more under load). When it fails, the restore dialog closes without the stale-preview notice. The likely cause is that the app's own save of its in-memory ledger lands after the simulated other-tab write, so the bytes match the preview again. This is unconfirmed. It needs its own `codex/` bug branch from `develop`: first decide whether the app or the test is at fault, then add a failing regression and fix it. The LEDGER-2 merge passes everything else.
 - **Not done (nits):** a correction cancelling an app entry re-dated into the next month is still dated in its own month, so that month's end balance dips until the re-dated entry's date; the review is not bounded in time (queued as LEDGER-2a); an older app build would report a ledger holding a negative correction as unreadable rather than as a newer version (all devices should run the same build).
 
 ## Session handoff — ANDROID-1 (19 November 2026, Claude cloud session)
@@ -511,3 +511,35 @@ The implementation note below records how these were built; it stores only per-y
 - **Owner answers (L08):** no extra lookback floor; a mistyped entry date is fixed by editing or deleting that entry. An account with only an opening balance is correctable from the current month only. The account form's legacy past start gets the same limit, queued as **BUG-2**.
 - **Checks (tree merged with develop `278466c`):** `npm run test:coverage` 514/514 with thresholds met (96.9% lines, 94.8% branches); `npm run build`; `npm run check:android` (Hermes compilation only, no device test). `npm run test:browser`: 450/453. The three failures are the known BUG-1 flake (`fullRestore.spec.js` "makes the preview stale", all viewports in one run); the same test passed 9/9 when rerun alone. The pre-merge run of this branch had 440/441 with the same flake.
 - **Review:** a separate read-only Claude review found nothing blocking. It raised two should-fix items: the hint named the current month as the account's first entry, and a mistyped entry year reopens the slow path (an owner question, answered in L08). It also raised nits: `toAccount` on non-transfers, style, and hand-written bounds in tests. All were fixed test-first in `90460b2`. A re-review found nothing blocking or should-fix; it left two optional nits (argument shape of `correctableStartText`, a default wording when no current month is passed), not changed.
+
+## Bug fix — BUG-1 · Flaky stale-preview full-restore test (19 November 2026, Claude cloud session)
+
+- **Status:** done and reviewed on `codex/bug-1-stale-restore-flake`, merged into `develop` by the no-fast-forward merge that follows this record (commits `124a81b`, `7b91fc7`, `2cfa345`, `3fe4232`, `098ef47`, plus the final test and decision commit).
+- **Root cause (confirmed, a product defect):** the preview captured the saved ledger bytes only after `await file.text()`. If another tab or window saved during that window, its bytes became the preview's baseline. The confirm-time check then passed, and the restore overwrote the other tab's save. The pre-restore copy held this tab's stale in-memory ledger, so the other tab's save was lost. The test flaked because its simulated other-tab write ran right after `setFiles` resolved, sometimes before the preview read storage. The earlier guess (this tab's own save landing late) was wrong.
+- **Evidence:** a temporary diagnostic (not committed) delayed the file read and logged every ledger read and write. The other-tab write at 1500 ms preceded the preview's read at 1881 ms. The restore then went ahead, and the recovery copy held the light-theme ledger while the other tab had saved the dark one. Natural reproduction did not recur here: 0 of about 700 repeated runs, including under CPU load.
+- **Fix:**
+  - `src/persistedState.js` remembers the bytes each storage instance last read or saved per key.
+  - The restore checks them before writing the pre-restore copy, and again in the same queued step as the final save (`writeIfUnchanged` / `writeStateIfUnchanged`, with `SavedStateChangedError` re-exported through `./storage`).
+  - A failed save leaves the remembered bytes unchanged, so a restore after a failed save behaves as before.
+  - `isRestorePreviewCurrent` is unchanged.
+- **Owner decisions:** R01 (the refusing tab reloads the ledger saved elsewhere and says so; choosing the backup again can then proceed) and R02 (that reload keeps no copy of the refusing tab's unsaved edits), in DECISIONS.md.
+- **Tests:**
+  - Browser: the original test now waits for the preview before the other tab's save. New tests cover a save while the backup is read, a save between the check and the final save, an unreadable save from the other tab, and a refusal followed by a successful restore over the reloaded ledger.
+  - Unit (storage): guarded save refused after another tab saved since this instance last saved or read, refused over data never read, allowed after a failed save, allowed on a fresh install and after a legacy migration.
+- **Checks (merged tree with the latest `develop`, `bfdd415`):**
+  - `npm run test:coverage` 505/505 (96.75% lines, 94.74% branches);
+  - `npm run test:browser` 444/444, and 447/447 after the last test commit;
+  - `npm run build`;
+  - `npm run check:android` (Hermes compilation only; no device test);
+  - stress: all other-tab tests 180/180 with `--repeat-each 15 --workers 6`.
+  - after merging the latest `develop` (`361138a`, LEDGER-2a and the F20 follow-up): `npm run test:coverage` 520/520 (96.84% lines, 94.71% branches), `npm run test:browser` 465/465, `npm run build`, `npm run check:android`.
+- **Review:**
+  - Three separate read-only Claude reviews.
+  - Round 1 found a false refusal after a failed save and a window between the check and the final save. Both were fixed (`7b91fc7`).
+  - Round 2 found the stuck refusal, which the owner resolved as R01 (`098ef47`), plus style nits that were fixed (`3fe4232`).
+  - Round 3 found no correctness defect. Its medium point became R02. Its test gap on the reload-failed path was closed.
+- **Known limits (not changed):**
+  - App's ordinary save on every state change still overwrites other tabs; this predates BUG-1.
+  - A refusal caused by this tab's own later edit (old "stale" notice) has no browser test, because the modal preview blocks edits; the rule is unit-tested.
+  - If another tab removes the ledger key entirely, the notice asks for an app reload but a retry is allowed.
+  - The reload does not reopen the missing-category review automatically; its button is shown.
