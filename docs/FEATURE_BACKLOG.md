@@ -76,7 +76,7 @@ Provide a distinct full-ledger restore with file validation, preview, explicit r
 
 **Needs:** A sanitized export and expected rows from the other owner, plus real matching transfer legs when available.
 
-**Owner question (19 November 2026):** asked whether the other owner's bank uses the same export layout, the owner replied "I'm confused, my bank doesn't need to import anything." Asked to confirm (multiple choice) whether IMPORT-1 can be closed as not needed, the owner chose **Close as not needed**. **Status:** Closed as not needed by the owner; no second bank profile will be built.
+**Owner question (19 November 2026):** asked whether the other owner's bank uses the same export layout, the owner replied "I'm confused, my bank doesn't need to import anything." Asked to confirm (multiple choice) whether IMPORT-1 can be closed as not needed, the owner chose **Close as not needed**. **Status:** Closed — not needed (owner, 19 November 2026). Both owners use the same bank and export layout, so the verified Real Bank adapter covers it (tests/realBankImport.test.js covers overlapping exports, identical purchases, refunds and pairing two legs into one neutral transfer); no second bank profile will be built.
 
 Reuse the Real Bank adapter if the second layout matches. Otherwise create a distinct verified profile. Verify original headers and accents, date and amount conventions, confirmed value-date handling, signs, fees, refunds, ambiguous transfer labels, and the chosen date for transfer legs that differ. Test repeated and overlapping exports, scoped matching, identical legitimate purchases, and pairing two reviewed legs into one neutral transfer. Use only synthetic or carefully sanitized fixtures in Git.
 
