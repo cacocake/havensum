@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readInvalidSnapshotCopy, readState, writeState, readSnapshot, writeSnapshot } from '../src/storage.web.js';
+import { readInvalidSnapshotCopy, readState, writeState, readSnapshot, writeSnapshot, isSavedStateUnchanged, writeStateIfUnchanged } from '../src/storage.web.js';
+import { SavedStateChangedError } from '../src/persistedState.js';
 import { installBrowserStorage } from './helpers/browserStorage.js';
 import { createFinancialState, createTransaction, expectedMigratedLedger } from './helpers/financialFixtures.js';
 import { buildPlan } from '../src/engine.js';
@@ -343,4 +344,45 @@ test('storage access denial is reported distinctly and leaves the saved ledger i
   await assert.rejects(readState(), { name: 'SecurityError' });
   unavailableRead.mock.restore();
   assert.deepEqual(await readState(), state);
+});
+
+test('a ledger another tab saved after this tab last saved cannot be replaced by a guarded save', async context => {
+  const storage = installBrowserStorage(context);
+  await writeState(createFinancialState());
+  const savedByAnotherTab = JSON.stringify(createFinancialState({ theme: 'dark' }));
+  storage.setItem('melo-state-v1', savedByAnotherTab);
+
+  assert.equal(await isSavedStateUnchanged(), false);
+  await assert.rejects(writeStateIfUnchanged(createFinancialState({ accounts: [] })), SavedStateChangedError);
+  assert.equal(storage.getItem('melo-state-v1'), savedByAnotherTab);
+});
+
+test('a ledger another tab saved after this tab read it cannot be replaced by a guarded save', async context => {
+  const storage = installBrowserStorage(context);
+  storage.setItem('melo-state-v1', JSON.stringify(createFinancialState()));
+  await readState();
+  const savedByAnotherTab = JSON.stringify(createFinancialState({ theme: 'dark' }));
+  storage.setItem('melo-state-v1', savedByAnotherTab);
+
+  await assert.rejects(writeStateIfUnchanged(createFinancialState({ accounts: [] })), SavedStateChangedError);
+  assert.equal(storage.getItem('melo-state-v1'), savedByAnotherTab);
+});
+
+test('a guarded save replaces the ledger this tab last read or saved, even after a failed save', async context => {
+  const storage = installBrowserStorage(context);
+  storage.setItem('melo-state-v1', JSON.stringify(createFinancialState()));
+  await readState();
+  const saved = createFinancialState({ theme: 'dark' });
+  await writeState(saved);
+  const saveItem = storage.setItem;
+  storage.setItem = () => {
+    throw Error('Storage quota exceeded');
+  };
+  await assert.rejects(writeState(createFinancialState({ transactions: [createTransaction()] })), /quota/);
+  storage.setItem = saveItem;
+
+  assert.equal(await isSavedStateUnchanged(), true);
+  const replacement = createFinancialState({ accounts: [] });
+  await writeStateIfUnchanged(replacement);
+  assert.deepEqual(await readState(), replacement);
 });

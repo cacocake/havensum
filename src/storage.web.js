@@ -26,6 +26,19 @@ export async function writeState(state) {
   await k_persistedStorage.write(k_stateStorageKey, state);
 }
 
+// Whether the saved ledger is still the one this tab last read or saved.
+export async function isSavedStateUnchanged() {
+  return isDemoSession() ? false : k_persistedStorage.isUnchangedSinceLastAccess(k_stateStorageKey);
+}
+
+// Replaces the saved ledger only if no other tab or window saved over it.
+export async function writeStateIfUnchanged(state) {
+  if (isDemoSession()) {
+    return;
+  }
+  await k_persistedStorage.writeIfUnchanged(k_stateStorageKey, state);
+}
+
 export async function readSnapshot() {
   if (isDemoSession()) {
     return null;

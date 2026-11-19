@@ -7,7 +7,8 @@ import { applyCategoryReviewEdits, categoryReviewRows } from './categoryReview.j
 import { isRestorePreviewCurrent, prepareFullRestore, restoreSummary } from './fullRestore.js';
 import { validateState } from './stateSchema.js';
 import { chooseFile, downloadJSON } from './files';
-import { isDemoSession, readRestoreRecovery, readSavedLedgerCopy, writeRestoreRecovery, writeState } from './storage';
+import { isDemoSession, isSavedStateUnchanged, readRestoreRecovery, writeRestoreRecovery, writeStateIfUnchanged } from './storage';
+import { SavedStateChangedError } from './persistedState.js';
 import { prepareLoadedLedger } from './startupLedger.js';
 import { currentLocalMonth } from './calendar.js';
 
@@ -56,16 +57,20 @@ function RestorePreview({ preview, onCancel, onRestored }) {
   }
 
   async function isStillCurrent() {
-    // Another tab or window may have saved since the preview was made.
-    return isRestorePreviewCurrent(preview, state, await readSavedLedgerCopy());
+    // Another tab or window may have saved since this tab last read or saved.
+    return isRestorePreviewCurrent(preview, state) && await isSavedStateUnchanged();
+  }
+
+  function refuseStalePreview() {
+    notify(k_restoreOutcomeMessages.stale);
+    onCancel();
   }
 
   async function replaceLedger() {
     setBusy(true);
     try {
       if (!await isStillCurrent()) {
-        notify(k_restoreOutcomeMessages.stale);
-        onCancel();
+        refuseStalePreview();
         return;
       }
       const reviewedState = validateState(applyCategoryReviewEdits(preview.restoredState, reviewRows, categoryEdits));
@@ -77,8 +82,12 @@ function RestorePreview({ preview, onCancel, onRestored }) {
         return;
       }
       try {
-        await writeState(restoredState);
-      } catch {
+        await writeStateIfUnchanged(restoredState);
+      } catch (saveError) {
+        if (saveError instanceof SavedStateChangedError) {
+          refuseStalePreview();
+          return;
+        }
         setError(k_restoreOutcomeMessages.saveFailed);
         return;
       }

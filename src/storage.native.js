@@ -22,6 +22,14 @@ export async function writeState(state) {
   await k_persistedStorage.write(k_stateStorageKey, state);
 }
 
+export async function isSavedStateUnchanged() {
+  return k_persistedStorage.isUnchangedSinceLastAccess(k_stateStorageKey);
+}
+
+export async function writeStateIfUnchanged(state) {
+  await k_persistedStorage.writeIfUnchanged(k_stateStorageKey, state);
+}
+
 export async function readSnapshot() {
   return k_persistedStorage.read(k_snapshotStorageKey, parseMergeBaseline);
 }

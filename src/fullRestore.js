@@ -78,12 +78,7 @@ export function prepareFullRestore(fileText, currentState = null) {
 }
 
 // A preview only applies to the ledger it was compared with. Without a
-// recorded basis it is never treated as current. The saved ledger must also
-// still be that ledger: another tab or window may have saved a different one,
-// even before the preview was made, and a restore must not replace it.
-export function isRestorePreviewCurrent(preview, currentState, savedLedgerBytes) {
-  if (preview.basis === null) {
-    return false;
-  }
-  return preview.basis === JSON.stringify(currentState) && savedLedgerBytes === preview.basis;
+// recorded basis it is never treated as current.
+export function isRestorePreviewCurrent(preview, currentState) {
+  return preview.basis === JSON.stringify(currentState);
 }
