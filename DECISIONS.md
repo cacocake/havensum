@@ -34,11 +34,11 @@ As of 17 November 2026. Latest requirements in docs/HAVENSUM_REQUIREMENTS.md sup
 | F01 | Requirement | Explicit yearly initiation interview and a frozen plan | Ordinary entries must not keep moving the target |
 | F02 | Requirement | Remaining-year revisions preserve past months | Approved plans are archived per year as immutable revisions (schema v3, PLAN-1). Past years are read-only |
 | F03 | Requirement | Manual overrides win and are visibly marked | The owner's knowledge outranks a computed estimate |
-| F04 | Requirement | Variable rolling average; default six months | Current estimator uses completed recorded months; missing-history semantics need strengthening |
-| F05 | Requirement | Occasional spending feeds a cushion rather than the average | Current implementation separates it but uses a manually entered cushion; automatic estimation is incomplete |
+| F04 | Requirement | Variable rolling average; default six months | PLAN-2: completed months before the first planned month; confirmed complete months (including zeros) win, otherwise a labelled partial estimate from recorded months |
+| F05 | Requirement | Occasional spending feeds a cushion rather than the average | PLAN-2 suggests an editable cushion from average net occasional spending, excluding named-event payments |
 | F06 | Working default / open | ±€2 fixed tolerance, 30% variable drift, two prior months | These operate today; final defaults were left open. No automatic recalculation |
 | F07 | Working choice / open | Cushion is its own monthly plan line | Keeps it visible; owner originally left its presentation open |
-| F08 | Working choice | Fixed baseline = latest non-zero category/behaviour total | A prototype approximation, not recurring-contract recognition; see HANDOFF caveats |
+| F08 | Working choice | Fixed plan lines total observed bills (account + category + normalized title) at their latest amount, minus explicit cancellations | PLAN-2. Still observed-history inference, not contract recognition: a renamed bill counts as a new bill until the old one is cancelled |
 | F09 | Working choice | Interview is a three-step form launched manually | Automatic first-launch/annual prompting and interview completion state are not implemented |
 | F11 | Owner approved, implemented | An early payment explicitly linked to a specific event occurrence counts toward spending in the event month | Cash follows each payment date. Linked payments reduce that occurrence's remaining amount. The frozen plan keeps the original estimate. When a cost moves, its linked payments require review. |
 

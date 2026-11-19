@@ -64,6 +64,7 @@ test('events for a different year never enter the frozen snapshot', () => {
 
 function createDriftState(behavior, amounts, overrides = {}) {
   return createFinancialState({
+    outlook: { completeMonths: ['2026-11', '2026-12'] },
     transactions: amounts.map((amount, index) => createTransaction({
       id: `completed-month-${index}`, amount, kind: behavior,
       date: index === 0 ? '2026-12-01' : '2026-11-01'
@@ -105,6 +106,16 @@ test('current-month activity cannot itself trigger a completed-month drift alert
   state.transactions.push(createTransaction({ id: 'current-month', date: '2027-01-01', amount: 999999 }));
 
   assert.deepEqual(driftAlerts(state, '2027-01'), []);
+});
+
+test('drift suggestions wait until the relevant completed months are confirmed complete', () => {
+  const fixedState = createDriftState('Fixed', [10201]);
+  fixedState.outlook.completeMonths = ['2026-11'];
+  const variableState = createDriftState('Variable', [13001, 13001]);
+  variableState.outlook.completeMonths = ['2026-12'];
+
+  assert.deepEqual(driftAlerts(fixedState, '2027-01'), []);
+  assert.deepEqual(driftAlerts(variableState, '2027-01'), []);
 });
 
 test('editing one month of a returned plan cannot rewrite another month of that snapshot', () => {

@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**Next implementation ticket: PLAN-2.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**Next implementation ticket: PLAN-3.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -31,7 +31,7 @@ Use integer EUR cents. Cash follows its transaction date, including for early pa
 
 ### PLAN-2 · Improve annual draft estimates
 
-**Status:** Queued. **Depends on:** PLAN-1.
+**Status:** Done, reviewed and merged into `develop` from `codex/plan-draft-estimates` (implementation `9d14d6a`, review fixes `1ed718a`, `7ed3b0e`). See the PLAN-2 handoff note below. **Depends on:** PLAN-1.
 
 - Use the selected 3-, 6-, or 12-month lookback before the first month being planned, limited to completed calendar months. Reuse the existing confirmed months and bill cancellations in the independent outlook settings. Prefer owner-confirmed complete months, including confirmed zeros. When none are confirmed, use recorded months for a labeled partial estimate. Show which months contributed. With no usable history, show that and allow manual amounts.
 - Suggest fixed costs per observed bill using account, category, and normalized title. Show the latest observed amount and apply explicit cancellations from their effective month. A missed payment leaves the bill expected. Roll bill suggestions into the plan lines and keep loans distinct. Calculate variable costs from net actuals using category inheritance and transaction overrides.
@@ -152,3 +152,11 @@ Start with units and a manually entered EUR price if requested. For automatic pr
 - **Checks (final commit):** `npm run test:coverage` 272/272 with thresholds met, `npm run test:browser` 228/228, `npm run build` and `npm run check:android` (Hermes compilation only) all pass. Browser tests ran against the preinstalled Chromium because the pinned Playwright browser download was blocked by the sandbox network policy.
 - **Review:** a separate read-only Claude review found two merge defects that could drop approved revisions, an unguarded earlier-month rewrite path and a silent save failure. All were fixed test-first in `ecf9d2b`. A re-review found an un-appliable merge for out-of-order legacy snapshots and a migration lockout for plans without a revision number; both fixed test-first in `82fb948`/`24ad7c3`. The final re-review reported no blocking defects.
 - **Recorded, not changed (owner input welcome):** (a) the merge recovery copy is a single slot, so a later merge replaces the previous pre-merge copy; (b) after a same-year conflict is resolved, the rejected history survives only in that recovery copy; (c) a new year no longer inherits income/loan changes, tolerance and drift from another year's plan. That carry-forward belongs to PLAN-3.
+
+## Session handoff — PLAN-2 (19 November 2026, Claude cloud session)
+
+- **Implementation:** `src/planDraftEstimates.js` builds draft evidence from completed calendar months before the first planned month (shared `completedHistory` with the outlook). Confirmed complete months win, including zeros; otherwise recorded months give a labelled partial estimate. Fixed lines total observed bills at their latest amount with per-bill cancellations applied per plan month; variable lines use net averages honouring inheritance and transaction overrides; loans, transfers and named-event payments stay out. The interview shows contributing months, a cushion suggestion (prefilled for a year's first plan) and the bills behind each fixed line. Drift suggestions need the relevant months confirmed complete. Snapshots record `evidence` and `suggestedCushion`.
+- **Review fixes:** the first review found that a bill cancellation and loan- or event-linked expenses produced false drift alerts, and that a switch to gross bill amounts broke develop's net-spending drift contract. Plan bills are net of received linked paybacks again, drift measures spending on the same basis as the plan line, and payments for past events without a line in the new plan count as occasional history.
+- **Owner questions (non-blocking; current behaviour follows existing conventions):** (1) plan bill targets are net of received paybacks while Expected savings uses each bill's latest gross amount. Should they match? (2) Planning next year in November with a 3-month window uses Aug–Oct, the same anchoring as Expected savings, rather than only October. (3) Drift suggestions now need owner-confirmed complete months, so a ledger that never confirms months gets none. (4) The bill list in the interview shows statuses for the first planned month only.
+- **Checks (on `1ed718a`; `7ed3b0e` only removes an unused import and was rechecked with the Node suite):** `npm run test:coverage` 289/289 with thresholds met, `npm run test:browser` 234/234, `npm run build` and `npm run check:android` (Hermes compilation only).
+- **Review:** separate read-only Claude review, then a focused re-review that confirmed every actionable finding fixed and passed the review gate.

@@ -1,12 +1,11 @@
-import { categorySettings, netExpenses, hasCategoryParent } from './ledger.js';
-import { previousMonths } from './calendar.js';
-import { hasRecordedFinancialActivity } from './reportingHistory.js';
+import { categorySettings, hasCategoryParent } from './ledger.js';
+import { localCalendarDate, previousMonths, yearOfMonth } from './calendar.js';
 import { latestPlan } from './planArchive.js';
-import { yearOfMonth } from './calendar.js';
+import { billsDueInMonth, lineSpending, planDraftEstimates } from './planDraftEstimates.js';
 import { k_defaultHistoryWindow, k_monthsPerYear, k_spendingBehaviors, k_systemCategoryIds } from './domainConstants.js';
 
 const k_defaultPlanIncome = 245000;
-const k_defaultPlanCushion = 12000;
+export const k_defaultPlanCushion = 12000;
 const k_defaultFixedTolerance = 200;
 const k_defaultVariableDrift = 0.3;
 const k_completedMonthsForDrift = 2;
@@ -22,53 +21,40 @@ export function buildPlan(state, {
   cushion = k_defaultPlanCushion,
   window = k_defaultHistoryWindow,
   overrides = {},
+  today = localCalendarDate(),
+  estimates = planDraftEstimates(state, { year, fromMonth, window, today }),
   incomeChanges = latestPlan(state, year)?.incomeChanges || [],
   loanChanges = latestPlan(state, year)?.loanChanges || []
 }) {
   const approvedPlan = latestPlan(state, year);
-  const revisionMonth = `${year}-${String(fromMonth).padStart(2, '0')}`;
-  const history = previousMonths(revisionMonth, window);
-  const recordedMonthCount = history.filter(month => hasRecordedFinancialActivity(state.transactions, month)).length;
-  const rootCategories = state.categories.filter(category => !hasCategoryParent(category));
-  const lines = rootCategories.flatMap(category => {
+  const rootCategories = state.categories.filter(category => !hasCategoryParent(category) && category.id !== k_systemCategoryIds.loan);
+  const lineTemplates = rootCategories.flatMap(category => {
     const settings = categorySettings(state.categories, category.id);
-    const belongsToCategory = transaction => {
-      const resolvedCategory = categorySettings(state.categories, transaction.category);
-      return resolvedCategory.id === category.id || resolvedCategory.parentId === category.id;
-    };
-    const historyExpenses = history.map(month => netExpenses(state.transactions, month).filter(belongsToCategory));
-    const behaviors = new Set([settings.kind]);
-    for (const expense of historyExpenses.flat()) {
-      behaviors.add(expense.kind || categorySettings(state.categories, expense.category).kind);
+    const behaviors = new Set([settings.kind, ...estimates.behaviorsFor(category.id)]);
+    if (estimates.bills.some(bill => bill.category === category.id)) {
+      behaviors.add(k_spendingBehaviors.fixed);
     }
-
     return [...behaviors].filter(behavior => behavior !== k_spendingBehaviors.occasional).map(behavior => {
-      const totals = historyExpenses.map(expenses => expenses
-        .filter(expense => (expense.kind || categorySettings(state.categories, expense.category).kind) === behavior)
-        .reduce((total, expense) => total + expense.net, 0));
-      let calculatedAmount = totals.find(total => total > 0) || 0;
-      if (behavior !== k_spendingBehaviors.fixed) {
-        calculatedAmount = Math.round(totals.reduce((total, amount) => total + amount, 0) / Math.max(1, recordedMonthCount));
-      }
       const matchesDefaultBehavior = behavior === settings.kind;
       const lineId = matchesDefaultBehavior ? category.id : `${category.id}:${behavior}`;
       const behaviorSuffix = matchesDefaultBehavior ? '' : ` · ${behavior.toLowerCase()}`;
-      return {
-        id: lineId,
-        category: category.id,
-        name: category.name + behaviorSuffix,
-        kind: behavior,
-        amount: overrides[lineId] ?? calculatedAmount,
-        override: overrides[lineId] !== undefined
-      };
+      return { id: lineId, category: category.id, name: category.name + behaviorSuffix, kind: behavior };
     });
   });
+  function linesForMonth(month) {
+    return lineTemplates.map(line => {
+      // Fixed lines total the bills still due that month; others use net averages.
+      const calculatedAmount = line.kind === k_spendingBehaviors.fixed
+        ? billsDueInMonth(estimates.bills, line.category, month).reduce((total, bill) => total + bill.amount, 0)
+        : estimates.averageFor(line.category, line.kind);
+      return { ...line, amount: overrides[line.id] ?? calculatedAmount, override: overrides[line.id] !== undefined };
+    });
+  }
 
   const carriedMonths = approvedPlan?.months ?? {};
   // Plans are JSON data. Clone carried history too, using the same operation on
   // Hermes and web, so a returned revision cannot mutate the source snapshot.
   const months = JSON.parse(JSON.stringify(carriedMonths));
-  const monthlyLines = lines.filter(line => line.category !== k_systemCategoryIds.loan);
   for (let monthNumber = fromMonth; monthNumber <= k_monthsPerYear; monthNumber += 1) {
     const month = `${year}-${String(monthNumber).padStart(2, '0')}`;
     const monthlyIncome = incomeChanges
@@ -87,27 +73,18 @@ export function buildPlan(state, {
     const event = (state.events || [])
       .filter(event => event.month === monthNumber && (!event.year || event.year === year))
       .reduce((total, event) => total + event.amount, 0);
-    const expense = monthlyLines.reduce((total, line) => total + line.amount, 0) + monthlyLoan + cushion + event;
-    const monthLines = monthlyLines.map(line => ({ ...line }));
+    const monthLines = linesForMonth(month);
+    const expense = monthLines.reduce((total, line) => total + line.amount, 0) + monthlyLoan + cushion + event;
     months[month] = { income: monthlyIncome, expense, cushion, loan: monthlyLoan, event, lines: monthLines, balance: monthlyIncome - expense };
   }
   return {
     year, incomeChanges, loanChanges, createdAt: new Date().toISOString(), window,
+    evidence: estimates.evidence, suggestedCushion: estimates.suggestedCushion,
     tolerance: approvedPlan?.tolerance ?? k_defaultFixedTolerance,
     drift: approvedPlan?.drift ?? k_defaultVariableDrift,
     months, revision: (approvedPlan?.revision || 0) + 1
   };
 }
-function spendingForLine(state, month, line) {
-  return netExpenses(state.transactions, month)
-    .filter(expense => {
-      const category = categorySettings(state.categories, expense.category);
-      const belongsToCategory = category.id === line.category || category.parentId === line.category;
-      return belongsToCategory && (expense.kind || category.kind) === line.kind;
-    })
-    .reduce((total, expense) => total + expense.net, 0);
-}
-
 export function driftAlerts(state, month) {
   const approvedPlan = latestPlan(state, yearOfMonth(month));
   const plannedMonth = approvedPlan?.months[month];
@@ -116,22 +93,25 @@ export function driftAlerts(state, month) {
   }
   const alerts = [];
   const completedMonths = previousMonths(month, k_completedMonthsForDrift);
+  const confirmedMonths = new Set(state.outlook?.completeMonths || []);
+  const isConfirmed = completedMonth => confirmedMonths.has(completedMonth);
   const fixedTolerance = approvedPlan.tolerance ?? k_defaultFixedTolerance;
   const variableDrift = approvedPlan.drift ?? k_defaultVariableDrift;
 
   for (const line of plannedMonth.lines) {
-    const latestSpending = spendingForLine(state, completedMonths[0], line);
+    const latestSpending = lineSpending(state, completedMonths[0], line, month);
     if (line.kind === k_spendingBehaviors.fixed) {
-      if (latestSpending > 0 && Math.abs(latestSpending - line.amount) > fixedTolerance) {
+      if (isConfirmed(completedMonths[0]) && latestSpending > 0 && Math.abs(latestSpending - line.amount) > fixedTolerance) {
         alerts.push({ category: line.name, reason: k_driftReasons.fixed });
       }
       continue;
     }
-    if (line.kind !== k_spendingBehaviors.variable || line.amount <= 0) {
+    // Missing or unconfirmed history must not look like a drift.
+    if (line.kind !== k_spendingBehaviors.variable || line.amount <= 0 || !completedMonths.every(isConfirmed)) {
       continue;
     }
     const outsideBandForBothMonths = completedMonths.every(completedMonth => (
-      Math.abs(spendingForLine(state, completedMonth, line) - line.amount) / line.amount > variableDrift
+      Math.abs(lineSpending(state, completedMonth, line, month) - line.amount) / line.amount > variableDrift
     ));
     if (outsideBandForBothMonths) {
       alerts.push({ category: line.name, reason: k_driftReasons.variable });

@@ -57,6 +57,13 @@ function validatePlan(plan) {
       }
     }
   }
+  if (plan.suggestedCushion !== undefined) {
+    validateCentFields(plan, ['suggestedCushion']);
+  }
+  if (plan.evidence !== undefined) {
+    requireValid(isRecord(plan.evidence) && Array.isArray(plan.evidence.months)
+      && plan.evidence.months.every(month => k_monthPattern.test(month)) && typeof plan.evidence.partial === 'boolean', 'plan evidence');
+  }
   for (const [month, plannedMonth] of Object.entries(plan.months)) {
     requireValid(k_monthPattern.test(month) && Number(month.slice(0, 4)) === plan.year, 'plan month key');
     requireValid(isRecord(plannedMonth), 'planned month');
