@@ -320,6 +320,7 @@ export default function ImportDialog({ data, onClose }) {
               )}
               {row.bank?.sourceWarning && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.sourceWarning}</T>}
               {row.bank?.scheduledNote && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.scheduledNote}</T>}
+              {row.bank?.objectiveNote && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.objectiveNote}</T>}
               {isSuggestedTransferActive(review, row) && (
                 <T style={{ fontSize: 12, color: colors.sub }}>Suggested transfer with row {row.bank.suggestedCounterpartRow} · check or change it before importing</T>
               )}

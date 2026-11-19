@@ -13,6 +13,7 @@ const k_borrowingMessages = Object.freeze({
   proceeds: 'Record borrowed money as loan proceeds: an unlinked balance adjustment.',
   repayment: 'Record a borrowing repayment as an expense in the loan category.'
 });
+const k_objectiveLoanNote = 'This Cashew objective may be a loan. Pick the Havensum loan to record proceeds or a repayment, or classify it normally.';
 const k_scheduledNote = 'From a scheduled Cashew entry exported as paid. Unverified against a real export.';
 const k_transferNoteHeading = 'Transferred Balance';
 const k_transferRouteSeparator = '→';
@@ -132,6 +133,8 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
         specialType: row.specialType, sourceWarning: sourceWarning(row),
         sourceDetails: sourceDetails(row),
         loanRequired: specialType === k_borrowingType ? true : undefined,
+        loanOptional: specialType !== k_borrowingType && row.objective ? true : undefined,
+        objectiveNote: specialType !== k_borrowingType && row.objective ? k_objectiveLoanNote : undefined,
         scheduledNote: k_scheduledTypes.has(specialType) ? k_scheduledNote : undefined,
         error: row.error ?? specialTypeError ?? (!row.account || matching.length > 1 || !account
           ? 'Map this Cashew account or approve creating it.' : undefined)
@@ -151,8 +154,15 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
 
 // K02/K03: a Cashew borrowing row needs an existing Havensum loan. A credit is
 // loan proceeds (an unlinked balance adjustment); a debit is a repayment expense.
+function hasChosenLoan(transaction) {
+  return transaction.loanId !== undefined && transaction.loanId !== null && transaction.loanId !== '';
+}
+
+// K12: a row with an objective may be a loan; once a loan is chosen the
+// K03 sign rule applies just as for a `debt` row.
 export function validateCashewLoanDraft(state, bank, transaction) {
-  if (!bank.loanRequired) {
+  const isLoanEntry = bank.loanRequired || (bank.loanOptional && hasChosenLoan(transaction));
+  if (!isLoanEntry) {
     return;
   }
   if (!state.loans.some(loan => loan.id === transaction.loanId)) {

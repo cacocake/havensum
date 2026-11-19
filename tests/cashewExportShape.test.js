@@ -86,3 +86,51 @@ test('a Cashew transfer note must name both legs in the right direction, and the
     assert.deepEqual(preview.rows.map(row => row.transaction.type), [undefined, undefined]);
   }
 });
+
+const k_carLoan = { id: 'car', name: 'Car loan', remaining: 500000, original: 800000, payment: 18500, start: '2026-01', end: '2029-12', account: 'everyday' };
+const k_loanObjective = 'Empréstimo da família';
+
+function objectiveRow(amount, title) {
+  return exportRow({ account: 'Carteira', amount, title, 'category name': 'Comer Fora', objective: k_loanObjective, extra: k_recurrence });
+}
+
+test('a row with a Cashew objective can be recorded against a chosen Havensum loan by its sign (K12)', async () => {
+  const state = createFinancialState({ loans: [k_carLoan] });
+  const file = await exportFile([objectiveRow('300.0', 'Dinheiro recebido'), objectiveRow('-50.0', 'Prestação')]);
+  let review = previewImportFile(state, file, k_accountOptions);
+  assert.deepEqual(review.rows.map(row => row.bank.loanOptional), [true, true]);
+  assert.match(review.rows[0].bank.objectiveNote, /may be a loan/i);
+
+  const wrongShape = [
+    [0, { type: 'income', category: 'salary', loanId: 'car' }, /loan proceeds/i],
+    [1, { type: 'expense', category: 'groceries', loanId: 'car' }, /loan category/i],
+    [1, { type: 'expense', category: 'loan', loanId: 'unknown-loan' }, /choose the havensum loan/i]
+  ];
+  for (const [index, changes, message] of wrongShape) {
+    const attempt = reviseTransactionImport(state, review, index, changes);
+    assert.equal(attempt.rows[index].status, 'invalid');
+    assert.match(attempt.rows[index].error, message);
+  }
+
+  review = reviseTransactionImport(state, review, 0, { type: 'reimbursement', linkedId: null, loanId: 'car' });
+  review = reviseTransactionImport(state, review, 1, { type: 'expense', category: 'loan', loanId: 'car' });
+  let next = 0;
+  const saved = applyTransactionImport(state, review, {}, () => `objective-${next++}`);
+  assert.deepEqual(saved.transactions.map(({ type, amount, loanId }) => [type, amount, loanId]),
+    [['reimbursement', 30000, 'car'], ['expense', 5000, 'car']]);
+  assert.deepEqual(saved.loans, state.loans);
+  assert.equal(monthStats(saved, '2026-11').income, 0);
+  assert.equal(monthStats(saved, '2026-11').spent, 5000);
+  assert.equal(accountBalance(saved, 'everyday', '2026-11-30'), 100000 + 30000 - 5000);
+});
+
+test('a row with a Cashew objective and no loan picked is classified like an ordinary row (K12)', async () => {
+  const state = createFinancialState({ loans: [k_carLoan] });
+  const file = await exportFile([objectiveRow('-50.0', 'Prestação')]);
+  const preview = previewImportFile(state, file, k_accountOptions);
+  const reviewed = reviseTransactionImport(state, preview, 0, { type: 'expense', category: 'groceries' });
+  assert.equal(reviewed.rows[0].status, 'new');
+  const saved = applyTransactionImport(state, reviewed, {}, () => 'ordinary');
+  assert.equal(saved.transactions[0].loanId, undefined);
+  assert.equal(monthStats(saved, '2026-11').spent, 5000);
+});
