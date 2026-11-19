@@ -246,7 +246,8 @@ test('an earlier first rate posts ordinary interest for months that had none and
   ]);
   assert.equal(accountBalance(corrected, 'savings', '2026-02-28'), 100000 + 949 + 958 + 967 + 976);
   assert.equal(earliestCorrectableMonth(state, 'savings', '2026-03'), '2025-11');
-  assert.throws(() => correctedSchedule(state.accounts[0].interestSchedule, { since: '2025-10', rate: 12 }, { earliestMonth: '2025-11' }), InterestScheduleError);
+  const correctableBound = { earliestMonth: earliestCorrectableMonth(state, 'savings', '2026-03'), currentMonth: '2026-03' };
+  assert.throws(() => correctedSchedule(state.accounts[0].interestSchedule, { since: '2025-10', rate: 12 }, correctableBound), InterestScheduleError);
 });
 
 test('removing a past rate offsets the interest it earned', () => {
@@ -378,7 +379,7 @@ test('a mistyped far-past start year is refused instead of reviewing every month
   const draft = { currentMonth: '2026-03', schedule: [{ since: '1026-01', rate: 12 }] };
 
   assert.throws(() => interestCorrectionReview(state, 'savings', draft), error => error instanceof InterestScheduleError
-    && error.message === 'Corrected rates can start from Jan 2026, the account\'s first entry or rate period.');
+    && error.message === 'Rates can start from Jan 2026, the account\'s first entry or rate period.');
 });
 
 test('an account with no entries and no rate periods can only be corrected from the current month', () => {
@@ -388,7 +389,8 @@ test('an account with no entries and no rate periods can only be corrected from 
 
   assert.equal(earliestCorrectableMonth(state, 'savings', '2026-03'), '2026-03');
   assert.throws(() => interestCorrectionReview(state, 'savings', { currentMonth: '2026-03', schedule: [{ since: '2026-02', rate: 12 }] }),
-    error => error instanceof InterestScheduleError && error.message.includes('Mar 2026'));
+    error => error instanceof InterestScheduleError
+      && error.message === 'This account has no earlier entries or rate periods, so rates can start from Mar 2026.');
   assert.deepEqual(interestCorrectionReview(state, 'savings', { currentMonth: '2026-03', schedule: [{ since: '2026-03', rate: 12 }] }).months, []);
 });
 
@@ -405,7 +407,7 @@ test('a stored first rate earlier than the first entry still bounds the correcti
   state.accounts[0].interestSchedule = [{ since: '2025-12', rate: 12 }];
 
   assert.equal(earliestCorrectableMonth(state, 'savings', '2026-03'), '2025-12');
-  assert.throws(() => correctedSchedule([], { since: '2025-11', rate: 12 }, { earliestMonth: '2025-12' }), InterestScheduleError);
+  assert.throws(() => interestCorrectionReview(state, 'savings', { currentMonth: '2026-03', schedule: [{ since: '2025-11', rate: 12 }] }), InterestScheduleError);
   assert.doesNotThrow(() => interestCorrectionReview(state, 'savings', { currentMonth: '2026-03', schedule: [{ since: '2025-12', rate: 6 }] }));
 });
 
@@ -422,4 +424,20 @@ test('an app entry re-dated into a later month still lets a correction start fro
   delete state.accounts[0].interestSchedule;
 
   assert.equal(earliestCorrectableMonth(state, 'savings', '2026-03'), '2026-01');
+});
+
+test('a transfer out of the account or an expense on it is a recorded entry, but a stray transfer target on another type is not', () => {
+  const transferOut = createTransaction({ id: 'move-out', type: 'transfer', category: null, account: 'savings', toAccount: 'everyday', date: '2025-10-05', amount: 1000 });
+  const expense = createTransaction({ id: 'fee', type: 'expense', account: 'savings', date: '2025-09-05', amount: 100 });
+  const strayTarget = createTransaction({ id: 'converted', type: 'income', account: 'everyday', toAccount: 'savings', category: 'salary', date: '2025-01-05', amount: 100 });
+
+  assert.equal(earliestCorrectableMonth(postedSavingsState({ transactions: [transferOut] }), 'savings', '2026-03'), '2025-10');
+  assert.equal(earliestCorrectableMonth(postedSavingsState({ transactions: [expense, strayTarget] }), 'savings', '2026-03'), '2025-09');
+});
+
+test('an app entry re-dated into an earlier month moves the earliest correctable month to that date', () => {
+  const state = postedSavingsState();
+  state.transactions.find(transaction => transaction.id === 'interest-savings-2026-01').date = '2025-12-31';
+
+  assert.equal(earliestCorrectableMonth(state, 'savings', '2026-03'), '2025-12');
 });

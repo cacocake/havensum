@@ -5,7 +5,7 @@ import { useApp } from './context.js';
 import { euro, signedEuro } from './money.js';
 import { monthOf } from './calendar.js';
 import { shortMonthLabel } from './monthLabels.js';
-import { correctedSchedule, correctedScheduleWithout, interestPeriodsForDisplay, InterestScheduleError } from './interestSchedule.js';
+import { correctableStartText, correctedSchedule, correctedScheduleWithout, interestPeriodsForDisplay, InterestScheduleError } from './interestSchedule.js';
 import { k_interestBankChoices } from './interestEntries.js';
 import { applyInterestCorrection, earliestCorrectableMonth, interestCorrectionReview } from './interestCorrection.js';
 import { savingsRateLabel } from './savingsRateLabel.js';
@@ -34,13 +34,13 @@ function periodLabel(period) {
 }
 
 // L03: past rates change only here, as a draft that is reviewed before applying.
-// LEDGER-2a (L07): a rate starts no earlier than `earliestMonth`.
-function PastRates({ schedule, unscheduledRate, earliestMonth, rate, onRateChange, since, onSinceChange, onScheduleChange, onError }) {
+// LEDGER-2a (L07): a rate starts no earlier than `correctableBound.earliestMonth`.
+function PastRates({ schedule, unscheduledRate, correctableBound, rate, onRateChange, since, onSinceChange, onScheduleChange, onError }) {
   const colors = useContext(Theme);
   function setRatePeriod() {
     try {
       const enteredRate = rate.trim() ? Number(rate.replace(',', '.')) : Number.NaN;
-      onScheduleChange(correctedSchedule(schedule, { since: since.trim(), rate: enteredRate }, { earliestMonth }));
+      onScheduleChange(correctedSchedule(schedule, { since: since.trim(), rate: enteredRate }, correctableBound));
       onRateChange('');
       onSinceChange('');
       onError('');
@@ -59,7 +59,7 @@ function PastRates({ schedule, unscheduledRate, earliestMonth, rate, onRateChang
       <Field label="Corrected rate · %" value={rate} onChangeText={onRateChange} keyboardType="decimal-pad" style={k_styles.field} />
       <Field label="From month · YYYY-MM" value={since} onChangeText={onSinceChange} placeholder="e.g. 2026-01" style={k_styles.field} />
     </Row>
-    <T testID="interest-correction-earliest" style={{ ...k_styles.note, color: colors.sub }}>Rates can start from {shortMonthLabel(earliestMonth)}, the account's first entry or rate period.</T>
+    <T testID="interest-correction-earliest" style={{ ...k_styles.note, color: colors.sub }}>{correctableStartText(correctableBound.earliestMonth, correctableBound.currentMonth)}</T>
     <Button small kind="outline" icon="Plus" onPress={setRatePeriod}>Set rate from this month</Button>
   </View>;
 }
@@ -150,9 +150,14 @@ export default function InterestCorrection({ accountId, onClose }) {
   // A rate typed but not yet set would otherwise be ignored by Apply.
   const hasUnsetRate = Boolean(typedRate.trim() || typedSince.trim());
   const currentMonth = monthOf(today);
-  const earliestMonth = account ? earliestCorrectableMonth(state, accountId, currentMonth) : currentMonth;
+  const correctableBound = { earliestMonth: earliestCorrectableMonth(state, accountId, currentMonth), currentMonth };
   const draft = useMemo(() => ({ currentMonth, schedule, choices }), [currentMonth, schedule, choices]);
-  const { review, draftError } = useMemo(() => account ? reviewOfDraft(state, accountId, draft) : { review: null, draftError: '' }, [state, account, accountId, draft]);
+  const { review, draftError } = useMemo(() => {
+    if (!account) {
+      return { review: null, draftError: '' };
+    }
+    return reviewOfDraft(state, accountId, draft);
+  }, [state, account, accountId, draft]);
   // An earlier Apply error no longer describes a changed draft or ledger.
   useEffect(() => {
     setError('');
@@ -189,7 +194,7 @@ export default function InterestCorrection({ accountId, onClose }) {
       <Button icon="Check" disabled={!review || review.needsChoice || !hasChanges || hasUnsetRate} onPress={apply} style={{ flex: 1, minWidth: 160 }}>Apply corrections</Button>
     </Row>}>
     <T style={{ ...k_styles.note, color: colors.sub, marginBottom: 14 }}>Completed months are compared with what their balances and rates earn, compounding month by month. Recorded entries stay; each changed month gets one marked interest correction. To correct a past balance, record the missing entry or a balance adjustment on its date first.</T>
-    <PastRates schedule={schedule} unscheduledRate={account.unscheduledInterest} earliestMonth={earliestMonth} rate={typedRate} onRateChange={setTypedRate}
+    <PastRates schedule={schedule} unscheduledRate={account.unscheduledInterest} correctableBound={correctableBound} rate={typedRate} onRateChange={setTypedRate}
       since={typedSince} onSinceChange={setTypedSince} onScheduleChange={setSchedule} onError={setError} />
     {hasUnsetRate && <T testID="interest-correction-unset-rate" style={{ ...k_styles.note, color: colors.sub, marginBottom: 12 }}>Set the typed rate, or clear it, before applying.</T>}
     {review && <BankInterestChoices bankInterestMonths={review.bankInterestMonths} onChoose={choose} />}

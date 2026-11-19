@@ -1,5 +1,6 @@
 import { accountBalance } from './ledger.js';
 import { monthOf, nextMonth } from './calendar.js';
+import { k_transactionTypes } from './domainConstants.js';
 import { sumCents } from './money.js';
 import { shortMonthLabel } from './monthLabels.js';
 import { firstInterestMonth, interestRateForMonth, requireCorrectableStart } from './interestSchedule.js';
@@ -21,35 +22,42 @@ function isAppOrCorrectionInterest(transaction, accountId) {
     && (isAppInterestEntry(transaction, accountId) || isInterestCorrection(transaction));
 }
 
+// A transfer moves money into its target account; no other type does.
 function isAccountTransaction(transaction, accountId) {
-  return transaction.account === accountId || transaction.toAccount === accountId;
+  if (transaction.account === accountId) {
+    return true;
+  }
+  return transaction.type === k_transactionTypes.transfer && transaction.toAccount === accountId;
 }
 
-// LEDGER-2a (L07): the earliest month a correction may start in is the
-// account's first recorded entry (a transfer into it included) or its first
-// stored rate period, whichever is earlier. App interest and corrections count
-// for the month they belong to, even when re-dated. An account with neither,
-// or whose first entry is still scheduled, may start from the current month.
-export function earliestCorrectableMonth(state, accountId, currentMonth) {
-  const account = state.accounts.find(candidate => candidate.id === accountId);
-  const entryMonths = state.transactions
-    .filter(transaction => isAccountTransaction(transaction, accountId))
-    .map(transaction => monthOf(transaction.date));
-  const candidates = [currentMonth, firstInterestMonth(account ?? {}), ...entryMonths, ...recordedInterestMonths(state, accountId)].filter(Boolean).sort();
-  return candidates[0];
-}
-
+// App interest and corrections belong to the month they were earned in, even when re-dated.
 function recordedInterestMonths(state, accountId) {
   return state.transactions
     .filter(transaction => isAppOrCorrectionInterest(transaction, accountId))
     .map(interestEntryMonth);
 }
 
+function earliestOf(months) {
+  return months.filter(Boolean).sort()[0] ?? null;
+}
+
+// LEDGER-2a (L07): the earliest month a correction may start in is the
+// account's first recorded entry (a transfer into it included) or its first
+// stored rate period, whichever is earlier. An account with neither, or whose
+// first entry is still scheduled, may start from the current month.
+export function earliestCorrectableMonth(state, accountId, currentMonth) {
+  const account = state.accounts.find(candidate => candidate.id === accountId);
+  const firstStoredRateMonth = account ? firstInterestMonth(account) : null;
+  const entryDateMonths = state.transactions
+    .filter(transaction => isAccountTransaction(transaction, accountId))
+    .map(transaction => monthOf(transaction.date));
+  return earliestOf([currentMonth, firstStoredRateMonth, ...entryDateMonths, ...recordedInterestMonths(state, accountId)]);
+}
+
 // The first completed month the review looks at: the draft's first rate, or
 // an earlier month that already holds app interest or a correction.
 function firstReviewedMonth(state, draftAccount) {
-  const candidates = [firstInterestMonth(draftAccount), ...recordedInterestMonths(state, draftAccount.id)].filter(Boolean).sort();
-  return candidates[0] ?? null;
+  return earliestOf([firstInterestMonth(draftAccount), ...recordedInterestMonths(state, draftAccount.id)]);
 }
 
 function closingBalanceWithoutOwnInterest(state, transactions, accountId, month) {
@@ -93,7 +101,7 @@ export function interestCorrectionReview(state, accountId, { currentMonth, sched
   };
   const firstDraftMonth = firstInterestMonth(draftAccount);
   if (firstDraftMonth) {
-    requireCorrectableStart(firstDraftMonth, earliestCorrectableMonth(state, accountId, currentMonth));
+    requireCorrectableStart(firstDraftMonth, { earliestMonth: earliestCorrectableMonth(state, accountId, currentMonth), currentMonth });
   }
   const months = [];
   const bankInterestMonths = [];

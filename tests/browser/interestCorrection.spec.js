@@ -189,7 +189,7 @@ test('a mistyped far-past start year is refused with the earliest correctable mo
   await dialog.getByLabel('From month · YYYY-MM', { exact: true }).fill('2016-09');
   await dialog.getByRole('button', { name: 'Set rate from this month', exact: true }).click();
 
-  await expect(dialog.getByRole('alert')).toHaveText('Corrected rates can start from Sep 2026, the account\'s first entry or rate period.');
+  await expect(dialog.getByRole('alert')).toHaveText('Rates can start from Sep 2026, the account\'s first entry or rate period.');
   await expect(dialog.getByText('6% from Sep 2016, ongoing', { exact: true })).toHaveCount(0);
   await expect(dialog.getByText('12% from Sep 2026, ongoing', { exact: true })).toBeVisible();
   await expectNoPageOverflow(page);
@@ -229,7 +229,7 @@ test('a draft rate whose month falls behind the earliest correctable month at mo
   await page.goto('/');
   await openAccount(page);
   const dialog = await openCorrection(page, 'Correct past interest');
-  await expect(dialog.getByTestId('interest-correction-earliest')).toHaveText('Rates can start from Nov 2026, the account\'s first entry or rate period.');
+  await expect(dialog.getByTestId('interest-correction-earliest')).toHaveText('This account has no earlier entries or rate periods, so rates can start from Nov 2026.');
   await dialog.getByLabel('Corrected rate · %', { exact: true }).fill('12');
   await dialog.getByLabel('From month · YYYY-MM', { exact: true }).fill('2026-11');
   await dialog.getByRole('button', { name: 'Set rate from this month', exact: true }).click();
@@ -237,8 +237,8 @@ test('a draft rate whose month falls behind the earliest correctable month at mo
 
   await page.clock.runFor('03:00');
 
-  await expect(dialog.getByTestId('interest-correction-earliest')).toHaveText('Rates can start from Dec 2026, the account\'s first entry or rate period.');
-  await expect(dialog.getByRole('alert')).toHaveText('Corrected rates can start from Dec 2026, the account\'s first entry or rate period.');
+  await expect(dialog.getByTestId('interest-correction-earliest')).toHaveText('This account has no earlier entries or rate periods, so rates can start from Dec 2026.');
+  await expect(dialog.getByRole('alert')).toHaveText('This account has no earlier entries or rate periods, so rates can start from Dec 2026.');
   await expect(dialog.getByRole('button', { name: 'Apply corrections', exact: true })).toBeDisabled();
   await dialog.getByRole('button', { name: 'Remove the rate from Nov 2026', exact: true }).click();
   await expect(dialog.getByRole('alert')).toHaveCount(0);
