@@ -92,7 +92,7 @@ test('a newly initialized ledger exports the current schema version', async ({ p
   await page.getByRole('button', { name: 'Full JSON backup', exact: true }).click();
   const download = await downloading;
   const backup = JSON.parse(await readFile(await download.path(), 'utf8'));
-  expect(backup.version).toBe(3);
+  expect(backup.version).toBe(4);
   expect(backup.plans['2026']).toHaveLength(1);
 });
 

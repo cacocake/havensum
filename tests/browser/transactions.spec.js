@@ -214,7 +214,7 @@ test('an account cannot save an opening balance outside safe integer cents', asy
   await dialog.getByLabel('Opening balance · EUR', { exact: true }).fill('90071992547409.92');
   await dialog.getByRole('button', { name: 'Save account', exact: true }).click();
 
-  await expect(dialog.getByText('Enter a name, valid balance and non-negative interest rate.', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Enter a name and a valid balance.', { exact: true })).toBeVisible();
 });
 
 test('editing a savings account preserves an explicitly zero interest rate', async ({ page }) => {
@@ -229,7 +229,9 @@ test('editing a savings account preserves an explicitly zero interest rate', asy
   await page.getByRole('button', { name: 'Edit account', exact: true }).click();
   dialog = page.getByRole('dialog');
 
-  await expect(dialog.getByLabel('Effective annual interest · %', { exact: true })).toHaveValue('0');
+  await expect(dialog.getByText(/^0% from .+, ongoing$/)).toBeVisible();
+  const savedSchedule = await page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).accounts.find(account => account.name === 'Zero interest').interestSchedule);
+  expect(savedSchedule.map(period => period.rate)).toEqual([0]);
 });
 
 test('conflicting backup edits cannot apply until the owner selects the field value', async ({ page }) => {
