@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useMemo } from 'react';
 import { View } from 'react-native';
 import { Theme, T, H, Row, Button } from './ui.jsx';
 import { euro } from './money.js';
@@ -20,8 +20,12 @@ function monthName(month) {
 // for the forecast; draft target amounts never feed it.
 export default function PlanDraftPreview({ plan, state, year, fromMonth }) {
   const colors = useContext(Theme);
-  const today = localCalendarDate();
   const months = Array.from({ length: k_monthsPerYear - fromMonth + 1 }, (_, offset) => monthKeyOf(year, fromMonth + offset));
+  // The forecast only depends on the ledger and draft events, not draft targets.
+  const forecasts = useMemo(() => {
+    const today = localCalendarDate();
+    return Object.fromEntries(months.map(month => [month, expectedSavings(state, month, today)]));
+  }, [state.transactions, state.events, state.outlook, state.loans, year, fromMonth]);
   return <View testID="plan-draft-preview" style={{ marginTop: 6, marginBottom: 12 }}>
     <H size={16} style={{ marginBottom: 8 }}>Month by month</H>
     <Row style={{ gap: 8, paddingVertical: 4 }}>
@@ -30,11 +34,12 @@ export default function PlanDraftPreview({ plan, state, year, fromMonth }) {
       <T style={{ flex: 2, fontSize: 10, color: colors.muted, textAlign: 'right' }}>Expected</T>
     </Row>
     {months.map(month => {
-      const forecast = expectedSavings(state, month, today);
-      return <Row key={month} accessibilityLabel={`${month} draft preview`} style={{ gap: 8, paddingVertical: 4, borderTopWidth: 1, borderColor: colors.line }}>
+      const planned = signedEuro(plan.months[month].balance);
+      const expected = forecasts[month] ? signedEuro(forecasts[month].balance) : 'Not enough history';
+      return <Row key={month} accessible accessibilityLabel={`${monthName(month)}: planned ${planned}, expected ${expected}`} style={{ gap: 8, paddingVertical: 4, borderTopWidth: 1, borderColor: colors.line }}>
         <T style={{ flex: 1, fontSize: 12 }}>{monthName(month)}</T>
-        <T style={{ flex: 2, fontSize: 12, textAlign: 'right' }}>{signedEuro(plan.months[month].balance)}</T>
-        <T style={{ flex: 2, fontSize: 12, textAlign: 'right', color: colors.sub }}>{forecast ? signedEuro(forecast.balance) : 'Not enough history'}</T>
+        <T testID={`draft-planned-${month}`} style={{ flex: 2, fontSize: 12, textAlign: 'right' }}>{planned}</T>
+        <T testID={`draft-expected-${month}`} style={{ flex: 2, fontSize: 12, textAlign: 'right', color: colors.sub }}>{expected}</T>
       </Row>;
     })}
   </View>;
@@ -54,9 +59,10 @@ export function EarlierOverride({ override, value, onKeep, onDrop }) {
   </Row>;
 }
 
-export function CarriedAssumptionNotes({ carried, loans }) {
+export function CarriedAssumptionNotes({ carried, loans, lineIds }) {
   const colors = useContext(Theme);
   const staleOverrides = carried.overrides.filter(override => override.stale);
+  const unmatchedOverrides = carried.overrides.filter(override => !override.stale && !lineIds.includes(override.lineId));
   if (!carried.source && !staleOverrides.length) {
     return null;
   }
@@ -64,6 +70,35 @@ export function CarriedAssumptionNotes({ carried, loans }) {
   return <View testID="carried-assumption-notes" style={{ marginBottom: 10, gap: 4 }}>
     {carried.source && <T style={{ fontSize: 12, color: colors.sub }}>Assumptions start from your {carried.source.year} plan, revision {carried.source.revision}.</T>}
     {staleOverrides.map(override => <T key={override.lineId} style={{ fontSize: 12, color: colors.sub }}>Not applied: {override.name} override {euro(override.amount)}, its category no longer exists.</T>)}
+    {unmatchedOverrides.map(override => <T key={override.lineId} style={{ fontSize: 12, color: colors.sub }}>Not applied: {override.name} override {euro(override.amount)}, that plan line no longer exists.</T>)}
     {carried.staleLoanChanges.map(change => <T key={`${change.loanId}-${change.since}`} style={{ fontSize: 12, color: colors.sub }}>Not applied: {loanName(change.loanId)} payment change from {change.since}, the loan has ended or was removed.</T>)}
+  </View>;
+}
+
+function monthYearName(month) {
+  return new Date(`${month}-01T12:00:00`).toLocaleString('en', { month: 'long', year: 'numeric' });
+}
+
+// Loan payments in effect when the period starts, and carried later changes
+// in their months. Removing a carried change only affects this draft.
+export function CarriedChanges({ loans, startMonth, incomeChanges, loanChanges, onRemoveIncomeChange, onRemoveLoanChange }) {
+  const colors = useContext(Theme);
+  const startName = new Date(`${startMonth}-01T12:00:00`).toLocaleString('en', { month: 'long' });
+  const activeLoans = loans.filter(loan => loan.end >= startMonth);
+  const laterLoanChanges = loanChanges.filter(change => change.since > startMonth);
+  const loanName = loanId => loans.find(loan => loan.id === loanId)?.name ?? 'Loan';
+  return <View testID="carried-changes" style={{ gap: 6 }}>
+    {activeLoans.map(loan => {
+      const restated = loanChanges.find(change => change.loanId === loan.id && change.since === startMonth);
+      return <T key={loan.id} style={{ fontSize: 12 }}>{loan.name} · {euro(restated?.amount ?? loan.payment)}/month from {startName}</T>;
+    })}
+    {[...incomeChanges.map(change => ({ change, kind: 'income' })), ...laterLoanChanges.map(change => ({ change, kind: 'loan' }))].map(({ change, kind }) => {
+      const label = kind === 'income' ? 'Income' : loanName(change.loanId);
+      const when = monthYearName(change.since);
+      return <Row key={`${kind}-${change.loanId ?? ''}-${change.since}`} style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <T style={{ flex: 1, minWidth: 160, fontSize: 12, color: colors.sub }}>{label} {euro(change.amount)}/month from {when}</T>
+        <Button small kind="soft" accessibilityLabel={`Remove carried ${kind === 'income' ? 'income' : label} change from ${when}`} onPress={() => kind === 'income' ? onRemoveIncomeChange(change) : onRemoveLoanChange(change)}>Remove</Button>
+      </Row>;
+    })}
   </View>;
 }
