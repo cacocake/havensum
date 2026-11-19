@@ -93,7 +93,6 @@ test('an account shows no scheduled lines when nothing is dated after today', as
   await page.getByLabel('View Everyday account').first().click();
   await expect(page.getByTestId('account-balance-today')).toHaveText('€950.00');
   await expect(page.getByTestId('account-scheduled-movement')).toHaveCount(0);
-  await returnHome(page);
 });
 
 test.describe('west of UTC in the evening', () => {

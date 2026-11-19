@@ -190,7 +190,7 @@ test('review keeps a later-dated row out of today\'s balance and shows it as sch
     '2026-11-28,Concert,40.00,expense,everyday,shopping'
   ].join('\n'));
   await expect(dialog.getByText('Account balances', { exact: true })).toBeVisible({ timeout: 2500 });
-  for (const text of ['Balances as of today. Entries dated later count from their date.', 'Before €987.66', 'Projected €972.24', 'Scheduled after import −€40.00']) {
+  for (const text of ['Balances as of today. Entries dated later count from their date.', 'Before €987.66', 'Projected €972.24', 'Scheduled by this import −€40.00', '2026-11-28 · expense · Everyday · €40.00 · Scheduled']) {
     await expect(dialog.getByText(text, { exact: true })).toBeVisible();
   }
 });

@@ -15,6 +15,7 @@ import { formatReviewRowLabel, getImportBalances, getImportResults } from './imp
 import { bankTransferCounterparts } from './realBankReview.js';
 import { createEntityId } from './identifiers';
 import { k_transactionTypes } from './domainConstants.js';
+import { isScheduledEntry } from './posting.js';
 import { isDemoSession, readImportRecovery, writeImportRecovery, writeState } from './storage';
 import { chooseFile, downloadJSON, readImport } from './files';
 
@@ -86,7 +87,7 @@ function expensesForReview(state, review, choices) {
 }
 
 export default function ImportDialog({ data, onClose }) {
-  const { state, setState } = useApp();
+  const { state, setState, today } = useApp();
   const colors = useContext(Theme);
   const [mapping, setMapping] = useState(() => getImportMapping(data));
   const [unit, setUnit] = useState(data.backup ? 'cents' : 'euros');
@@ -232,7 +233,7 @@ export default function ImportDialog({ data, onClose }) {
       return { error: failure.message };
     }
   }, [state, review, choices, unresolved, results]);
-  const balances = review && !results ? getImportBalances(state, review, projection.result) : [];
+  const balances = review && !results ? getImportBalances(state, review, projection.result, today) : [];
   const reviewState = review?.pendingAccounts.length ? { ...state, accounts: [...state.accounts, ...review.pendingAccounts] } : state;
   const expenses = editingRow === null ? [] : expensesForReview(state, review, choices);
   const counterparts = editingRow !== null && review.rows[editingRow].bank?.direction === 'debit'
@@ -322,6 +323,7 @@ export default function ImportDialog({ data, onClose }) {
                   {row.transaction.date} · {row.transaction.type || row.bank?.direction} · {displayField(reviewState, 'account', row.transaction.account)}
                   {row.transaction.toAccount !== undefined && ` → ${displayField(reviewState, 'toAccount', row.transaction.toAccount)}`}
                   {' · '}{euro(row.transaction.amount)}
+                  {isScheduledEntry(row.transaction, today) && ' · Scheduled'}
                 </T>
               )}
               {row.transaction.category !== undefined && <T style={{ fontSize: 12, color: colors.sub }}>{displayField(state, 'category', row.transaction.category)}</T>}

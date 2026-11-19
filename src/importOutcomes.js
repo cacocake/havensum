@@ -7,8 +7,8 @@ export function formatReviewRowLabel(row, multipleStatements) {
     : `Row ${row.sourceRow}`;
 }
 
-// L01: balances as of today, with what later-dated entries will add once
-// they post shown separately.
+// L01: balances as of today. What the import's later-dated rows will change
+// once they post is shown separately from entries scheduled before it.
 export function getImportBalances(state, review, result, today = localCalendarDate()) {
   const affectedAccountIds = new Set();
   for (const row of review.rows) {
@@ -25,7 +25,7 @@ export function getImportBalances(state, review, result, today = localCalendarDa
     name: account.name,
     before: accountBalance(state, account.id, today),
     after: result ? accountBalance(result, account.id, today) : null,
-    scheduledAfter: result ? scheduledAccountMovement(result, account.id, today) : null
+    scheduledByImport: result ? scheduledAccountMovement(result, account.id, today) - scheduledAccountMovement(state, account.id, today) : null
   }));
 }
 

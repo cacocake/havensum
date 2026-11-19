@@ -33,7 +33,9 @@ function recordedTotals(recordedState, month, period) {
 }
 
 // Entries in any month that have not posted yet: they join Recorded on their
-// date and already feed Expected from this month on.
+// date. From the current month on, scheduled income and expenses already feed
+// Expected; a scheduled payback does not reduce it before its date (the
+// conservative payback rule), and past months expect their recorded result.
 function scheduledTotals(state, month, today) {
   const scheduled = scheduledMonthStats(state, month, today);
   if (!scheduled.count) {
