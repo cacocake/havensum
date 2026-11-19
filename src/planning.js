@@ -1,4 +1,4 @@
-import { categorySettings, netExpenses, hasCategoryParent } from './ledger.js';
+import { categorySettings, hasCategoryParent } from './ledger.js';
 import { localCalendarDate, previousMonths, yearOfMonth } from './calendar.js';
 import { latestPlan } from './planArchive.js';
 import { billsDueInMonth, lineSpending, planDraftEstimates } from './planDraftEstimates.js';
