@@ -1,6 +1,6 @@
 # Shared Drive file — access model (DRIVE-1)
 
-Status: **decided on paper, not implemented and not verified.** Havensum has no Google Drive code. Nothing here has been tested with real Google accounts. The decisions are recorded as G01–G10 in [DECISIONS.md](../DECISIONS.md). DRIVE-2 implements the transport. Before shipping, DRIVE-2 must verify every item in "What DRIVE-2 must verify".
+Status: **decided on paper; the credential-free sync core is implemented (DRIVE-2a) but no Google transport exists and nothing is verified with real accounts.** Havensum has no Google Drive API, OAuth or Picker code. Nothing here has been tested with real Google accounts. The decisions are recorded as G01–G10 in [DECISIONS.md](../DECISIONS.md). DRIVE-2 implements the transport. Before shipping, DRIVE-2 must verify every item in "What DRIVE-2 must verify".
 
 ## Decisions in brief
 
@@ -99,8 +99,21 @@ The app never silently picks a different file, re-creates the file, or overwrite
 
 - **No conditional writes.** Drive API v3 documents no `If-Match`/ETag precondition for `files.update`. Its `version`, `headRevisionId`, `md5Checksum` and `modifiedTime` support only read-compare-write, which can still race. DRIVE-2 therefore needs one of two things: a write protocol that detects a lost race after writing and recovers by re-merging, or a protocol it proves safe. It must not assume an atomic compare-and-swap.
 - **Manual edits and corruption.** Anyone with Drive access can replace the JSON. Every read goes through `validateState`/`migrateState`, as restore does. An invalid remote never overwrites local data. It produces a visible error and a downloadable copy.
-- **Baseline.** S03 (the local last-synced baseline in `melo-sync-base`) stays open. DRIVE-2 must decide how the baseline ties to a file ID and remote revision, so that a baseline from one file is never used against a different file.
+- **Baseline.** Decided in DRIVE-2a (D2A-04/D2A-05): the shared file uses its own link with the file ID, last-seen revision and incorporated snapshots, chosen by write history. `melo-sync-base` remains the manual backup-merge baseline.
 - **Privacy.** The file is plain JSON in the creator's Drive, readable by both people and by anyone they share it with. Havensum adds no encryption (G05).
+
+## Sync core (DRIVE-2a)
+
+DRIVE-2a implements and tests, against an in-memory stand-in for Drive, everything that needs no Google credentials (decisions D2A-01–D2A-09 in DECISIONS.md):
+
+- **File shape** (`sharedFileDocument.js`): `{ format: 'havensum-shared-file', formatVersion: 1, writeId, lineage, ledger }`. The ledger holds only the shared keys; every read is validated and migrated like a stored ledger, and missing categories join the shared review.
+- **Link and baselines** (`sharedFileBinding.js`, storage key `havensum-shared-file-binding-v1`): file ID, last-seen revision and the incorporated snapshots. A baseline is chosen only for the same file ID and only if the remote file's write history contains it.
+- **Protocol** (`sharedFileSync.js`): read → validate/migrate → three-way merge of shared ledgers → stop for review on any conflict, including a record deleted on one side and used on the other → validate → save the ledger and link together (write-ahead) → write → read back. A replaced write is merged again against the snapshot the newer remote descends from; at most three writes per sync. A sync stops before writing if the person edited meanwhile. Transport failures map to *Offline*, *Reconnect* (expired session) and *Paused* (lost access or missing file, G04); an unreadable remote is never merged or overwritten and its bytes stay downloadable.
+- **First join and a second file** (`sharedFileJoin.js`): adopt directly with no local entries or only example data; otherwise adopt (after a recovery copy in `havensum-shared-file-join-recovery-v1`) or merge with a review of every one-sided record and a choice for every record that differs. A second file merges into the kept file the same way and is never changed.
+- **Triggers and states** (`sharedFileStatus.js`): start, resume and edits (after a short pause) sync automatically when online; Sync now, Reconnect, and the status card texts. Create is unavailable with example data and Open comes first.
+- **Transport contract** (`sharedFileTransport.js`): `create`, `read`, `write` and typed failure reasons. DRIVE-2b implements it with Drive v3.
+
+Remaining limits: the stand-in proves the protocol, not Drive's behaviour. The link holds up to five full ledger snapshots in one storage entry; DRIVE-2b must check this against Android's AsyncStorage row limit (about 2 MB) with a realistic ledger. The review and join dialogs and the app's scheduler wiring are added with the transport in DRIVE-2b, because nothing can reach them before then; the Settings card shows "Not connected" with Open and Create disabled.
 
 ## What DRIVE-2 must verify (with real accounts)
 

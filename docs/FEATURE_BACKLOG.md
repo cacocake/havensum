@@ -76,6 +76,8 @@ Provide a distinct full-ledger restore with file validation, preview, explicit r
 
 **Needs:** A sanitized export and expected rows from the other owner, plus real matching transfer legs when available.
 
+**Owner question (19 November 2026):** asked whether the other owner's bank uses the same export layout, the owner replied "I'm confused, my bank doesn't need to import anything." Asked to confirm (multiple choice) whether IMPORT-1 can be closed as not needed, the owner chose **Close as not needed**. **Status:** Closed — not needed (owner, 19 November 2026). Both owners use the same bank and export layout, so the verified Real Bank adapter covers it (tests/realBankImport.test.js covers overlapping exports, identical purchases, refunds and pairing two legs into one neutral transfer); no second bank profile will be built.
+
 Reuse the Real Bank adapter if the second layout matches. Otherwise create a distinct verified profile. Verify original headers and accents, date and amount conventions, confirmed value-date handling, signs, fees, refunds, ambiguous transfer labels, and the chosen date for transfer legs that differ. Test repeated and overlapping exports, scoped matching, identical legitimate purchases, and pairing two reviewed legs into one neutral transfer. Use only synthetic or carefully sanitized fixtures in Git.
 
 ### IMPORT-2 · Extend Cashew verification
@@ -183,11 +185,21 @@ Test installation and upgrade, offline startup, storage recovery, file picker an
 
 Document who can find, read, and update the file and how access changes.
 
-### DRIVE-2 · Shared Drive sync
+### DRIVE-2 · Shared Drive sync (split 19 November 2026)
 
-**Depends on:** DRIVE-1 (decided). **Blocked on:** the owner's Google Cloud setup: a project with the Drive and Picker APIs, an External consent screen with only `drive.file` and both owners as test users, OAuth client IDs for Android (final package `com.havensum.app` + SHA-1 of each signing key; the upload key's SHA-1 is `5d0ec4c8ed9b8b93b3b6136aa0063e7b775ab7c6`, a public certificate fingerprint) and web (authorized JavaScript origins), a Picker API key and the project number. Both owners' accounts are needed for the two-person checks. The full list is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md#drive-2-blocker-setup-the-owner-must-provide).
+The owner approved splitting DRIVE-2 on 19 November 2026: DRIVE-2a builds and tests everything that does not need Google credentials; DRIVE-2b adds the real Google transport and the two-account verification.
 
-Use the reviewed merge engine with revision-aware writes, offline retry and recovery, and visible conflict review. Verify two devices with independent edits, same-field edits, deletion, concurrent plan revisions, interrupted writes, and stale writes. Confirm the agreed account visibility.
+### DRIVE-2a · Credential-free shared-file sync core
+
+**Depends on:** DRIVE-1 (decided). **Status:** Done, reviewed and merged into `develop` from `codex/drive-sync-core`; see the DRIVE-2a handoff at the end.
+
+Shared-file document shape without device keys (G05/G06, every top-level key classified); a baseline tied to the file ID and last-seen revision (S03), separate from `melo-sync-base`; first join (adopt after a recovery copy, or merge with a review of every one-sided record, G08) and merging a second file in (G09); Create blocked with example data (G07); the read → validate/migrate → three-way merge → review → write → verify protocol behind a small transport interface, with lost-race recovery, pause-not-delete (G04) and the sync triggers and states (G10). Tested against an in-memory stand-in for Drive only. No Google OAuth, Picker or HTTP code, and Drive is not claimed to work.
+
+### DRIVE-2b · Google Drive transport and two-account verification
+
+**Depends on:** DRIVE-2a. **Blocked on:** the owner's Google Cloud setup: a project with the Drive and Picker APIs, an External consent screen with only `drive.file` and both owners as test users, OAuth client IDs for Android (final package `com.havensum.app` + SHA-1 of each signing key; the upload key's SHA-1 is `5d0ec4c8ed9b8b93b3b6136aa0063e7b775ab7c6`, a public certificate fingerprint) and web (authorized JavaScript origins), a Picker API key and the project number. Both owners' accounts are needed for the two-person checks. The full list is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md#drive-2-blocker-setup-the-owner-must-provide).
+
+Implement the `sharedFileTransport` contract with Drive v3 (create + share as writer, read, unconditional update), Google sign-in (Android `AuthorizationClient`, web token model with Reconnect), the Picker, and the app wiring of the DRIVE-2a core (scheduler, status card actions, review and join dialogs). The wiring must pass `createSyncProgressSaver` the sync's starting link (`snapshotBinding`) and an `adoptSavedState` that installs the ledger it hands over in the app (the saved ledger, or the saved ledger merged with an edit made during the save), and save join results with `commitSharedFileJoin`. While sync is wired, the app's own autosave must use `writeStateIfUnchanged`, so an edit kept in memory after a refused write-back (another tab saved meanwhile) can never be saved under a link that claims the partner's changes. Verify two devices with independent edits, same-field edits, deletion, concurrent plan revisions, interrupted writes and stale writes, and every item in "What DRIVE-2 must verify". Confirm the agreed account visibility.
 
 ### ETF-1 / ETF-2 · Optional ETF valuation
 
@@ -449,6 +461,60 @@ The implementation note below records how these were built; it stores only per-y
   - `npm run test:browser` 402/402;
   - `npm run build`;
   - `npm run check:android` (Hermes compilation only; no device test).
+
+## Session handoff — DRIVE-2a (19 November 2026, Claude cloud session)
+
+- **Split:** the owner approved splitting DRIVE-2 into DRIVE-2a (this ticket, credential-free sync core) and DRIVE-2b (Google transport and two-account verification, still blocked on the owner's Google Cloud setup and ANDROID-1's Android client ID).
+- **Owner answers (multiple choice, recommended option first):**
+  - A device holding only example data adopts the shared file directly (recommended; D2A-01).
+  - The missing-category review list is shared (the owner chose "Share it" over the recommended "Stay on device"; D2A-02).
+  - IMPORT-1 is closed as not needed (recommended; the DRIVE-1 session relayed the same clarification: both owners use the same bank layout).
+- **Implemented (new modules):**
+  - `sharedFileDocument.js`: the file envelope and the shared/device key classification.
+  - `sharedFileBinding.js`: the file-bound link and baselines.
+  - `sharedFileRead.js` and `sharedFileSync.js`: the protocol, with write-ahead, verify and lost-race re-merge.
+  - `sharedFileMerge.js`: shared-ledger merge, review of deleted-but-used records, and the shared warning list.
+  - `sharedFileJoin.js`: first join, adopt or merge, and a second file.
+  - `sharedFileStatus.js`: triggers, scheduler, progress saver and card states.
+  - `sharedFileTransport.js`: the transport contract.
+  - `mergeReview.js`: choice handling extracted from the backup merge, now shared by both.
+  - `SharedFileStatus.jsx`: the Drive row in Settings. It honestly shows "Not connected", with Open before Create, both disabled, and Create blocked with example data.
+  - Storage: `havensum-shared-file-binding-v1` and `havensum-shared-file-join-recovery-v1`, with web/native parity and an atomic ledger+link save. `melo-sync-base` is unchanged.
+  - Decisions are D2A-01–D2A-09 in DECISIONS.md. The protocol is described in DRIVE_ACCESS_MODEL.md under "Sync core (DRIVE-2a)".
+- **Tests:**
+  - 76 node tests against an in-memory stand-in for the Drive boundary only, covering:
+    - two devices, independent and same-field edits;
+    - edit/delete and deleted-but-used records;
+    - concurrent plan revisions;
+    - lost races, overwritten verified writes, lost write replies and stopped apps;
+    - corrupted and older-schema files, lost access, deleted files, an expired session and offline;
+    - first join, adoption with recovery, a second file;
+    - the scheduler, and edits during a sync save.
+  - Native storage parity.
+  - Browser tests for the Settings row at three viewports, including 320 px.
+- **Not done (DRIVE-2b):**
+  - No Google OAuth, Picker or HTTP code. Drive is not claimed to work.
+  - The review and join dialogs and the app wiring are not built (scheduler, `createSyncProgressSaver` with `snapshotBinding` and `adoptSavedState`, and `commitSharedFileJoin`), because nothing can reach them without a transport.
+  - The Android AsyncStorage row size with five snapshots of a large ledger must be checked.
+- **Review:** a separate read-only Claude review (fresh subagent given the spec and the diff) ran on the branch and on each fix:
+  - **First pass:** two blocking findings.
+    - A lost write reply or a stopped app could let a lagging baseline revert the partner's later changes. Fixed by write-ahead link snapshots and an atomic ledger+link save.
+    - A record deleted on one side and used on the other was merged silently or broke sync. Fixed by offering it for review and refusing invalid merges.
+    - It also raised ten should-fix items and several nits, all fixed.
+  - **Four re-reviews:** they found successive should-fix items in the sync-progress saver, all fixed test-first:
+    - install the saved ledger in the app;
+    - keep an edit typed during a save;
+    - leave a collision typed during a save for review;
+    - keep that edit saved.
+  - **Final re-review of `1e0aa07`:** no blocking or should-fix findings remain.
+- **Owner gate:** the owner chose to fix BUG-1 (the flaky full-restore stale-preview test, which also failed on unmodified `develop`) before merging. DRIVE-2a waited until BUG-1 landed (`9d393e1`).
+- **Merge with `develop`:**
+  - Brought in BUG-1, BUG-2, LEDGER-2a, the IMPORT-2 follow-up, F20 and the ANDROID-1 build record.
+  - In `Screens.jsx`, kept F20's conflict cards and used the shared merge-choice module.
+  - Kept every sibling's DECISIONS and backlog sections, and carried the Android package and SHA-1 into the DRIVE-2b blocker.
+  - A merge review found that the joint ledger+link save skipped BUG-1's cross-tab check. Fixed in `f96f18c` with a regression test. The re-review found nothing blocking or should-fix.
+  - DRIVE-2b must make the app's own autosave use `writeStateIfUnchanged` while sync is wired (recorded in DRIVE-2b).
+- **Checks (final merged tree with K13):** `npm run test:coverage` 601/601 with thresholds met (97.3% lines, 95.0% branches); `npm run test:browser` 477/477; `npm run build`; `npm run check:android` (Hermes compilation only; no device test).
 
 ## Session handoff — IMPORT-2 · Extend Cashew verification (19 November 2026)
 
