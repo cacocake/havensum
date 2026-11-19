@@ -1,5 +1,5 @@
 import { test, expect } from '../helpers/browserTest.js';
-import { createFinancialState, createTransaction } from '../helpers/financialFixtures.js';
+import { createFinancialState, createTransaction, planArchiveOf } from '../helpers/financialFixtures.js';
 import { openMoreSection } from '../helpers/userFlows.js';
 
 // Owner decision L02: exported files carry the phone's local date. In New
@@ -18,10 +18,26 @@ test('backup and CSV file names use the local date when it differs from the UTC 
 
   const backupDownload = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Full JSON backup', exact: true }).click();
-  const csvDownload = page.waitForEvent('download');
   const backup = await backupDownload;
+  const csvDownload = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export transactions CSV', exact: true }).click();
   const csv = await csvDownload;
 
   expect([backup.suggestedFilename(), csv.suggestedFilename()]).toEqual(['Havensum-backup-2026-11-20.json', 'Havensum-transactions-2026-11-20.csv']);
+});
+
+test("a frozen plan's approval date is shown by the local day", async ({ page }) => {
+  const plannedMonth = { income: 200000, expense: 90000, balance: 110000, cushion: 0, loan: 0, event: 0, lines: [] };
+  const plan = { year: 2026, revision: 1, window: 3, tolerance: 200, drift: 0.3, incomeChanges: [], loanChanges: [],
+    createdAt: '2026-11-19T19:00:00.000Z', months: { '2026-12': plannedMonth } };
+  await page.clock.install({ time: new Date('2026-11-19T19:30:00Z') });
+  await page.addInitScript(state => {
+    if (!localStorage.getItem('melo-state-v1')) {
+      localStorage.setItem('melo-state-v1', JSON.stringify(state));
+    }
+  }, createFinancialState({ plans: planArchiveOf(plan) }));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
+
+  await expect(page.getByText('2026 · revision 1 · 2026-11-20.', { exact: false })).toBeVisible();
 });

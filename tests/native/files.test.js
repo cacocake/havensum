@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { Buffer } from 'node:buffer';
 import { createFinancialState, createTransaction } from '../helpers/financialFixtures.js';
+import { atLocalTimeAsync } from '../helpers/localClock.js';
 
 const g_cachedFiles = new Map();
 const g_sharedFiles = [];
@@ -130,18 +131,14 @@ test('native text import preserves UTF-8 CSV and recognizes uppercase JSON exten
 });
 
 // Owner decision L02: file names carry the phone's local date, not the UTC date.
-test('native backup and CSV file names use the local date when it differs from the UTC date', async t => {
-  const originalTimeZone = process.env.TZ;
-  process.env.TZ = 'Pacific/Auckland';
-  t.after(() => {
-    process.env.TZ = originalTimeZone;
-  });
-  // 19 November at 19:00 UTC is already 20 November in New Zealand.
-  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-19T19:00:00Z') });
+test('native backup and CSV file names use the local date when it differs from the UTC date', async () => {
   const state = createFinancialState({ transactions: [createTransaction()] });
 
-  await downloadJSON(state);
-  await exportTransactionsCsv(state);
+  // 19 November at 19:00 UTC is already 20 November in New Zealand.
+  await atLocalTimeAsync('Pacific/Auckland', '2026-11-19T19:00:00Z', async () => {
+    await downloadJSON(state);
+    await exportTransactionsCsv(state);
+  });
 
   const fileNames = g_sharedFiles.map(file => file.uri.split('/').at(-1));
   assert.deepEqual(fileNames, ['Havensum-backup-2026-11-20.json', 'Havensum-transactions-2026-11-20.csv']);

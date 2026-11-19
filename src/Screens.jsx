@@ -1,3 +1,4 @@
+import { localDateOfTimestamp } from './calendar.js';
 import { takeReviewedPaybackTask, takeReviewedTrackedExpense } from './paybackMerge.js';
 import AwaitingPaybacks from './AwaitingPaybacks.jsx';
 import React,{useContext,useState,useEffect,useRef} from 'react';
@@ -165,7 +166,7 @@ function planHistoryLines(revisions) {
   if (!revisions) {
     return ['No plan for this year'];
   }
-  return revisions.map(revision => `Revision ${revision.revision} · approved ${revision.createdAt?.slice(0, 10) ?? 'unknown date'}`);
+  return revisions.map(revision => `Revision ${revision.revision} · approved ${revision.createdAt ? localDateOfTimestamp(revision.createdAt) : 'unknown date'}`);
 }
 
 export function Settings(){

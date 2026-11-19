@@ -1,7 +1,7 @@
 // FORECAST-2: what planned costs actually came to in their completed
 // occurrences, which ones compare, and the suggested amount. Read-only: the
 // planning interview shows suggestions and nothing here writes the ledger.
-import { localCalendarDate, monthOf, yearOfMonth } from './calendar.js';
+import { localDateOfTimestamp, monthOf, yearOfMonth } from './calendar.js';
 import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
 import { hasCategoryParent, netExpenses } from './ledger.js';
 import { paybackTaskSummary } from './paybackTasks.js';
@@ -58,10 +58,11 @@ function pastOccurrenceMonths(recordedTransactions, event, evaluationDate) {
 }
 
 // Only tasks that existed by the evaluation date can hold an occurrence back.
-// createdAt is a UTC timestamp; it counts from its local calendar day (L02).
+// createdAt is stored as an exact UTC timestamp; the task counts from the
+// phone's local calendar day of that instant (L02).
 function hasOpenPayback(state, expenseId, evaluationDate) {
   return (state.paybackTasks ?? [])
-    .filter(task => task.expenseId === expenseId && localCalendarDate(new Date(task.createdAt)) <= evaluationDate)
+    .filter(task => task.expenseId === expenseId && localDateOfTimestamp(task.createdAt) <= evaluationDate)
     .some(task => k_openPaybackStatuses.has(paybackTaskSummary(state, task.id, evaluationDate).status));
 }
 

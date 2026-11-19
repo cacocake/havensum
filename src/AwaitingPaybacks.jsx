@@ -1,6 +1,7 @@
 import React, { useContext, useState } from 'react';
 import { View } from 'react-native';
 import { useApp } from './context.js';
+import { localDateOfTimestamp } from './calendar.js';
 import { Badge, Button, Card, Dialog, Field, H, Row, T, Theme } from './ui.jsx';
 import { closePaybackTask, createPaybackDraft, paybackTaskSummary, reopenPaybackTask } from './paybackTasks.js';
 import { euro } from './money.js';
@@ -51,7 +52,7 @@ export default function AwaitingPaybacks() {
         {summary.status !== 'closed' && summary.outstanding > 0 && <T>{euro(summary.outstanding)} outstanding</T>}
         {Boolean(task.person || task.dueDate) && <T style={{color:colors.sub}}>{[task.person, task.dueDate && `Due ${task.dueDate}`].filter(Boolean).join(' · ')}</T>}
         {Boolean(task.note) && <T>{task.note}</T>}
-        {task.closureHistory.map((closure, index) => <T key={index} style={{color:colors.sub}}>{closure.at.slice(0, 10)} · {closure.reason}</T>)}
+        {task.closureHistory.map((closure, index) => <T key={index} style={{color:colors.sub}}>{localDateOfTimestamp(closure.at)} · {closure.reason}</T>)}
         <Row style={{gap:8,flexWrap:'wrap'}}>
           <Button small kind="outline" onPress={() => setModal({type:'transaction-detail',id:expense.id})}>View expense</Button>
           {summary.suggestedAmount > 0 && <Button small onPress={() => openPayback(task.id)}>Record payback</Button>}
