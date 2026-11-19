@@ -95,9 +95,65 @@ test('merging an older backup with a different single rate asks before touching 
   await page.getByRole('button', { name: 'Review backup merge', exact: true }).click();
   await (await choosingFile).setFiles({ name: 'older-backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) });
   const review = page.getByRole('dialog');
-  await expect(review.getByText('Savings interest rates · reserve (an older backup holds one rate; choose which to keep)', { exact: true })).toBeVisible();
+  await expect(review.getByText('Savings interest rates · reserve (an older backup holds one rate; choosing it adds that rate as one period)', { exact: true })).toBeVisible();
   await review.getByText('THIS DEVICE', { exact: true }).click();
   await review.getByRole('button', { name: 'Apply reviewed merge', exact: true }).click();
 
   await expect.poll(async () => (await savedAccount(page)).interestSchedule).toEqual(interestSchedule);
+});
+
+test('removing the only current rate period saves the account without a schedule', async ({ page }) => {
+  const ledger = scheduledLedger();
+  ledger.accounts[0].interestSchedule = [{ since: '2026-11', rate: 3 }];
+  await openLedger(page, ledger);
+  const dialog = await editAccount(page, 'Rainy day reserve with a deliberately long name');
+  await dialog.getByRole('button', { name: 'Remove the rate from November 2026', exact: true }).click();
+  await dialog.getByLabel('Effective annual interest · %', { exact: true }).fill('');
+  await dialog.getByRole('button', { name: 'Save account', exact: true }).click();
+
+  await expect.poll(async () => (await savedAccount(page)).interestSchedule).toBeUndefined();
+});
+
+test('a new savings account cannot be backdated into years of interest', async ({ page }) => {
+  await openLedger(page, createFinancialState({ accounts: [] }));
+  await openMoreSection(page, 'Accounts');
+  await page.getByRole('button', { name: 'Add account', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Account name', { exact: true }).fill('Backdated savings');
+  await dialog.getByLabel('Account type', { exact: true }).selectOption('Savings');
+  await dialog.getByLabel('Rate starts · YYYY-MM', { exact: true }).fill('2020-01');
+  await dialog.getByRole('button', { name: 'Save account', exact: true }).click();
+
+  await expect(dialog.getByText('New rates start in the current or a future month. Earlier months keep their recorded interest.', { exact: true })).toBeVisible();
+  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).accounts, k_ledgerKey)).toEqual([]);
+});
+
+test('renaming an unscheduled legacy account keeps its rate unscheduled', async ({ page }) => {
+  const legacyLedger = createFinancialState({ version: 3, accounts: [{ id: 'imported', name: 'Imported savings', tag: 'Savings', openingBalance: 100000, interest: 12 }] });
+  await openLedger(page, legacyLedger);
+  const dialog = await editAccount(page, 'Imported savings');
+  await dialog.getByLabel('Account name', { exact: true }).fill('Imported savings, renamed');
+  await dialog.getByRole('button', { name: 'Save account', exact: true }).click();
+
+  await expect.poll(async () => (await savedAccount(page)).name).toBe('Imported savings, renamed');
+  const account = await savedAccount(page);
+  expect([account.interestSchedule, account.unscheduledInterest]).toEqual([undefined, 12]);
+});
+
+test('choosing an older backup rate during review inserts it as one period', async ({ page }) => {
+  const ledger = scheduledLedger();
+  ledger.accounts[0].interestSchedule.push({ since: '2027-01', rate: 1 });
+  await openLedger(page, ledger, { baseline: ledger });
+  const { interestSchedule, ...legacyAccount } = ledger.accounts[0];
+  const backup = createFinancialState({ version: 3, accounts: [{ ...legacyAccount, interest: 4, interestStart: '2026-05' }] });
+
+  await openMoreSection(page, 'Settings');
+  const choosingFile = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Review backup merge', exact: true }).click();
+  await (await choosingFile).setFiles({ name: 'older-backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) });
+  const review = page.getByRole('dialog');
+  await review.getByText('BACKUP FILE', { exact: true }).click();
+  await review.getByRole('button', { name: 'Apply reviewed merge', exact: true }).click();
+
+  await expect.poll(async () => (await savedAccount(page)).interestSchedule).toEqual([{ since: '2026-05', rate: 4 }, { since: '2027-01', rate: 1 }]);
 });

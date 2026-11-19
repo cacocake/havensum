@@ -1,5 +1,5 @@
 import { accountBalance } from './ledger.js';
-import { daysInMonth, formatMonth } from './calendar.js';
+import { daysInMonth, nextMonth } from './calendar.js';
 import { firstInterestMonth, interestRateForMonth } from './interestSchedule.js';
 import { k_spendingBehaviors, k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
 
@@ -12,11 +12,6 @@ const k_interestNote = 'Monthly compounding · effective annual rate';
 // Effective annual rate converted to monthly compounding.
 function monthlyRate(annualPercentage) {
   return Math.pow(1 + annualPercentage / k_percentageScale, 1 / k_monthsPerYear) - 1;
-}
-
-function nextMonth(month) {
-  const [year, monthNumber] = month.split('-').map(Number);
-  return formatMonth(new Date(year, monthNumber, 1));
 }
 
 // Posts at most one interest entry per savings account and completed month

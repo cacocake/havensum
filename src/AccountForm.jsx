@@ -2,7 +2,7 @@ import React, { useContext, useState } from 'react';
 import { Theme, T, Button, Badge, Field, Select, Dialog } from './ui.jsx';
 import { useApp } from './context.js';
 import { cents, k_centsPerEuro } from './money.js';
-import { localCalendarDate, monthOf } from './calendar.js';
+import { monthOf } from './calendar.js';
 import { InterestScheduleError, scheduleWithPeriod, scheduleWithoutPeriod } from './interestSchedule.js';
 import { savingsRateLabel } from './savingsRateLabel.js';
 import InterestScheduleEditor from './InterestScheduleEditor.jsx';
@@ -35,7 +35,8 @@ function initialRateDraft(item) {
   if (!item.interestSchedule?.length && item.unscheduledInterest !== undefined) {
     return String(item.unscheduledInterest);
   }
-  return '';
+  // An account becoming a savings account starts like a new one.
+  return item.interestSchedule?.length ? '' : String(k_defaultInterestRate);
 }
 
 export function AccountForm({ item, onClose }) {
@@ -44,10 +45,13 @@ export function AccountForm({ item, onClose }) {
   const [name, setName] = useState(item?.name || '');
   const [tag, setTag] = useState(item?.tag || k_accountTypes.personal);
   const [openingBalance, setOpeningBalance] = useState(item ? String(item.openingBalance / k_centsPerEuro) : '0');
-  const currentMonth = monthOf(localCalendarDate());
+  // Interest posts through the same UTC month the app uses at startup.
+  const currentMonth = monthOf(new Date().toISOString());
   const [schedule, setSchedule] = useState(item?.interestSchedule ?? []);
   const [interestRate, setInterestRate] = useState(initialRateDraft(item));
-  const [rateStart, setRateStart] = useState(currentMonth);
+  const isUnscheduledLegacyRate = Boolean(item) && !item.interestSchedule?.length && item.unscheduledInterest !== undefined;
+  // An unscheduled legacy rate waits for the owner to choose its real start month.
+  const [rateStart, setRateStart] = useState(isUnscheduledLegacyRate ? '' : currentMonth);
   const [ticker, setTicker] = useState(item?.ticker || '');
   const [error, setError] = useState('');
   const isDirty = useDirtyForm([name, tag, openingBalance, schedule, interestRate, rateStart, ticker]);
@@ -55,10 +59,10 @@ export function AccountForm({ item, onClose }) {
   const isInvestmentAccount = tag === k_accountTypes.investment;
 
   function scheduleWithDraftRate() {
-    if (!interestRate.trim()) {
+    if (!interestRate.trim() || (isUnscheduledLegacyRate && !rateStart.trim())) {
       return schedule;
     }
-    return scheduleWithPeriod(schedule, { since: rateStart, rate: Number(interestRate) }, currentMonth);
+    return scheduleWithPeriod(schedule, { since: rateStart.trim(), rate: Number(interestRate) }, currentMonth, { allowPastStart: isUnscheduledLegacyRate });
   }
 
   function addRatePeriod() {
@@ -74,6 +78,7 @@ export function AccountForm({ item, onClose }) {
   function removeRatePeriod(since) {
     try {
       setSchedule(scheduleWithoutPeriod(schedule, since, currentMonth));
+      setError('');
     } catch (scheduleError) {
       setError(scheduleError.message);
     }
@@ -107,6 +112,8 @@ export function AccountForm({ item, onClose }) {
     if (savedSchedule.length) {
       account.interestSchedule = savedSchedule;
       delete account.unscheduledInterest;
+    } else {
+      delete account.interestSchedule;
     }
     if (isSavingsAccount) {
       account.bank = savingsRateLabel(account, currentMonth);

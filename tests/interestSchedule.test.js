@@ -109,7 +109,7 @@ test('an older backup keeps a newer schedule when its single rate agrees, and as
 
   assert.deepEqual([agreeing.result.accounts[0].interestSchedule, agreeing.conflicts], [schedule, []]);
   assert.deepEqual(differing.result.accounts[0].interestSchedule, schedule);
-  assert.deepEqual(differing.conflicts.map(conflict => [conflict.id, conflict.field, conflict.remote]), [['savings', 'interestSchedule', [{ since: '2026-01', rate: 5 }]]]);
+  assert.deepEqual(differing.conflicts.map(conflict => [conflict.id, conflict.field, conflict.remote]), [['savings', 'interestSchedule', [{ since: '2026-01', rate: 5 }, { since: '2026-07', rate: 1 }]]]);
 });
 
 test('merging an older backup leaves the backup and both ledgers unchanged', () => {
@@ -134,7 +134,7 @@ test('new periods start in the current or a future month, replacing a period wit
 });
 
 test('the first period may start in a past month so an unscheduled legacy rate can be set up', () => {
-  assert.deepEqual(scheduleWithPeriod([], { since: '2026-03', rate: 2.5 }, '2026-11'), [{ since: '2026-03', rate: 2.5 }]);
+  assert.deepEqual(scheduleWithPeriod([], { since: '2026-03', rate: 2.5 }, '2026-11', { allowPastStart: true }), [{ since: '2026-03', rate: 2.5 }]);
 });
 
 test('only current and future periods can be removed, so recorded history keeps its rates', () => {
@@ -143,4 +143,51 @@ test('only current and future periods can be removed, so recorded history keeps 
   assert.deepEqual(scheduleWithoutPeriod(schedule, '2027-01', '2026-11'), schedule.slice(0, 2));
   assert.deepEqual(scheduleWithoutPeriod(schedule, '2026-11', '2026-11'), [schedule[0], schedule[2]]);
   assert.throws(() => scheduleWithoutPeriod(schedule, '2026-05', '2026-11'), /past/);
+});
+
+test('a past start is allowed only when setting up an unscheduled legacy rate', () => {
+  assert.throws(() => scheduleWithPeriod([], { since: '2020-01', rate: 3 }, '2026-11'), /current or a future month/);
+  assert.deepEqual(scheduleWithPeriod([], { since: '2020-01', rate: 3 }, '2026-11', { allowPastStart: true }), [{ since: '2020-01', rate: 3 }]);
+});
+
+test('an older backup leaves accounts without a schedule alone when it only carries the old 0% default', () => {
+  const base = createFinancialState();
+  const local = structuredClone(base);
+  const legacyBackup = createFinancialState({ version: 3, accounts: base.accounts.map(account => ({ ...account, interest: 0, interestStart: '2026-01', name: account.id === 'shared' ? 'Shared home' : account.name })) });
+
+  const merged = mergeThreeWay(base, local, migrateState(legacyBackup), { remoteHasInterestSchedules: false });
+
+  assert.deepEqual(merged.conflicts, []);
+  assert.deepEqual(merged.result.accounts.map(account => [account.name, account.interestSchedule]), [['Everyday', undefined], ['Shared home', undefined]]);
+});
+
+test("an older backup's positive rate for an account without a local schedule merges normally", () => {
+  const base = savingsLedger(undefined);
+  delete base.accounts[0].interestSchedule;
+  const legacyBackup = createFinancialState({ version: 3, accounts: [{ ...base.accounts[0], interest: 2, interestStart: '2026-03' }] });
+
+  const merged = mergeThreeWay(base, structuredClone(base), migrateState(legacyBackup), { remoteHasInterestSchedules: false });
+
+  assert.deepEqual([merged.conflicts, merged.result.accounts[0].interestSchedule], [[], [{ since: '2026-03', rate: 2 }]]);
+});
+
+test("choosing an older backup's differing rate inserts it as one period instead of collapsing the schedule", () => {
+  const schedule = [{ since: '2026-01', rate: 3 }, { since: '2026-07', rate: 1 }];
+  const base = savingsLedger(schedule);
+  const { interestSchedule, ...legacyAccount } = base.accounts[0];
+  const legacyBackup = createFinancialState({ version: 3, accounts: [{ ...legacyAccount, interest: 5, interestStart: '2026-01' }] });
+
+  const [conflict] = mergeThreeWay(base, structuredClone(base), migrateState(legacyBackup), { remoteHasInterestSchedules: false }).conflicts;
+
+  assert.equal(conflict.legacyRate, true);
+  assert.deepEqual(conflict.remote, [{ since: '2026-01', rate: 5 }, { since: '2026-07', rate: 1 }]);
+});
+
+test('migrated ledgers are validated, and an account cannot keep both a schedule and an unscheduled rate', async context => {
+  installBrowserStorage(context);
+  const legacyWithStraySchedule = createFinancialState({ version: 3, accounts: [{ id: 'savings', name: 'Reserve', tag: 'Savings', openingBalance: 0, interestSchedule: 'broken' }] });
+  assert.throws(() => migrateState(legacyWithStraySchedule), SyntaxError);
+  const both = savingsLedger([{ since: '2026-01', rate: 3 }]);
+  both.accounts[0].unscheduledInterest = 2;
+  await assert.rejects(writeState(both), SyntaxError);
 });

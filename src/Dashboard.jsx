@@ -10,7 +10,7 @@ import {planInsights} from './planInsights.js';
 import {euro,reportingMonthStats,accountBalance,categorySettings,monthOf} from './engine.js';
 import { plannedMonth } from './planArchive.js';
 import { savingsRateLabel } from './savingsRateLabel.js';
-import { localCalendarDate, monthOf as calendarMonthOf } from './calendar.js';
+import { monthOf as calendarMonthOf } from './calendar.js';
 
 export function AccountCard({account}){
  const {state,openAccount}=useApp(),c=useContext(Theme);
@@ -19,7 +19,7 @@ export function AccountCard({account}){
    <View style={{position:'absolute',width:100,height:100,borderRadius:38,right:-35,top:-33,backgroundColor:account.color+'18',transform:[{rotate:'22deg'}]}}/>
    <Row style={{gap:11,marginBottom:22}}><TileIcon name={account.icon} color={account.color} size={40}/><View style={{flex:1,minWidth:0}}><H size={20} numberOfLines={1}>{account.name}</H><T style={{fontSize:11,color:c.sub,marginTop:3}}>{account.tag}</T></View><Icon name="ArrowUpRight" color={c.sub} size={17}/></Row>
    <H size={29} adjustsFontSizeToFit numberOfLines={1}>{euro(accountBalance(state,account.id))}</H>
-   <T style={{fontSize:11,color:c.sub,marginTop:7}}>{account.tag==='Savings'?savingsRateLabel(account,calendarMonthOf(localCalendarDate())):account.tag==='Investment'?'Manual valuation':account.tag==='Joint'?'Hugo & Marina':'Your everyday pocket'}</T>
+   <T style={{fontSize:11,color:c.sub,marginTop:7}}>{account.tag==='Savings'?savingsRateLabel(account,calendarMonthOf(new Date().toISOString())):account.tag==='Investment'?'Manual valuation':account.tag==='Joint'?'Hugo & Marina':'Your everyday pocket'}</T>
   </Card>
  </Squish>;
 }

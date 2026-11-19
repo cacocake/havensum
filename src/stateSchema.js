@@ -124,6 +124,7 @@ function validateAccountInterest(version, account) {
   requireValid(account.interest === undefined && account.interestStart === undefined, 'current ledgers keep interest rates in a schedule');
   if (account.unscheduledInterest !== undefined) {
     requireValid(isInterestRate(account.unscheduledInterest), 'unscheduled interest rate');
+    requireValid(!account.interestSchedule?.length, 'an account keeps either a rate schedule or an unscheduled rate');
   }
   if (account.interestSchedule === undefined) {
     return;
@@ -243,7 +244,8 @@ export function migrateState(state) {
     const { plan, ...unchangedFields } = migratedState;
     migratedState = { ...unchangedFields, plans: legacyPlanArchive(plan) };
   }
-  return { ...migratedState, version: k_currentStateVersion, accounts: migratedState.accounts.map(scheduledAccount) };
+  // Fields a legacy schema did not check are validated in their migrated form.
+  return validateState({ ...migratedState, version: k_currentStateVersion, accounts: migratedState.accounts.map(scheduledAccount) });
 }
 
 export function clearMissingTransactionCategories(state) {

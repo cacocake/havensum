@@ -15,7 +15,7 @@ import {AccountCard,TransactionRow} from './Dashboard.jsx';
 import {exportExcel,downloadJSON,downloadSavedLedgerCopy,chooseFile,readImport} from './files';
 import {readInvalidSnapshotCopy,readSnapshot,writeSnapshot,writeMergeRecovery,isDemoSession} from './storage';
 import { k_planYearConflictField, representedPlanYears, takeReviewedPlanYear } from './planMerge.js';
-import { representsInterestSchedules } from './interestMerge.js';
+import { k_interestScheduleField, representsInterestSchedules } from './interestMerge.js';
 import { clearMissingTransactionCategories, migrateState, validateState } from './stateSchema.js';
 import MissingCategoryReview from './MissingCategoryReview.jsx';
 import { applyCategoryReviewEdits, categoryReviewRows } from './categoryReview.js';
@@ -26,7 +26,6 @@ const k_backupMessages = {
   missingBaseline: 'Export a backup first to establish a shared merge baseline.'
 };
 const k_mergeConflictFields = { outlook: '$outlook', record: '$record' };
-const k_interestScheduleField = 'interestSchedule';
 const k_filteredSpendingHint = 'Past and current totals use entries through today. Future months show registered entries. The list includes future-dated rows; open a movement for its breakdown.';
 export function Transactions(){
  const {state,month,search,setSearch,filters,setFilters,searchFocus}=useApp(),c=useContext(Theme),searchRef=useRef(null);
@@ -65,8 +64,11 @@ function mergeConflictTitle(conflict) {
   if (conflict.field === k_planYearConflictField) {
     return `${conflict.id} plan · revision history (the chosen side replaces this year's whole history)`;
   }
+  if (conflict.field === k_interestScheduleField && conflict.legacyRate) {
+    return `Savings interest rates · ${conflict.id} (an older backup holds one rate; choosing it adds that rate as one period)`;
+  }
   if (conflict.field === k_interestScheduleField) {
-    return `Savings interest rates · ${conflict.id} (an older backup holds one rate; choose which to keep)`;
+    return `Savings interest rates · ${conflict.id}`;
   }
   return `${conflict.collection} · ${conflict.id} · ${conflict.field === '$record' ? 'Edit vs. delete' : conflict.field}`;
 }

@@ -1,5 +1,10 @@
 const k_monthKeyLength = 7;
 const k_yearKeyLength = 4;
+const k_monthKeyPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+export function isMonthKey(value) {
+  return typeof value === 'string' && k_monthKeyPattern.test(value);
+}
 export const k_calendarDateLength = 10;
 
 export function yearOfMonth(month) {
