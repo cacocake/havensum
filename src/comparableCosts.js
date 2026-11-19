@@ -2,7 +2,7 @@
 // occurrences. Nothing here is shown in the app or written to the ledger.
 import { k_calendarDateLength, monthOf, yearOfMonth } from './calendar.js';
 import { k_transactionTypes } from './domainConstants.js';
-import { netExpenses } from './ledger.js';
+import { hasCategoryParent, netExpenses } from './ledger.js';
 import { paybackTaskSummary } from './paybackTasks.js';
 import { needsPlannedCostReview } from './plannedCosts.js';
 import { sumCents } from './money.js';
@@ -12,11 +12,14 @@ export const k_occurrenceStatus = Object.freeze({
   unconfirmed: 'unconfirmed',
   needsReview: 'needsReview',
   awaitingPayback: 'awaitingPayback',
-  noPayments: 'noPayments'
+  noPayments: 'noPayments',
+  refunded: 'refunded'
 });
 
 // Fewer completed occurrences than this give no estimate: the owner enters an amount.
-export const k_minimumComparableOccurrences = 2;
+export const k_minimumComparableOccurrences = 3;
+// Only the most recent comparable occurrences shape the estimate.
+export const k_maximumComparableOccurrences = 5;
 
 const k_openPaybackStatuses = new Set(['open', 'partial']);
 const k_halves = 2;
@@ -80,12 +83,15 @@ function occurrenceStatus(state, recordedTransactions, event, month, linkedPayme
   if (linkedPayments.some(payment => hasOpenPayback(state, payment.id, evaluationDate))) {
     return k_occurrenceStatus.awaitingPayback;
   }
+  if (!sumCents(linkedPayments.map(payment => payment.net))) {
+    return k_occurrenceStatus.refunded;
+  }
   return k_occurrenceStatus.completed;
 }
 
 // Only transactions and payback tasks dated by `evaluationDate` are used. Month
 // confirmations and the cost's current month are read as they are now.
-export function plannedCostOccurrences(state, event, evaluationDate) {
+function occurrencesWithPayments(state, event, evaluationDate) {
   const recordedTransactions = state.transactions.filter(transaction => transaction.date <= evaluationDate);
   return pastOccurrenceMonths(recordedTransactions, event, evaluationDate).map(month => {
     const linkedPayments = netExpenses(recordedTransactions, month)
@@ -94,19 +100,80 @@ export function plannedCostOccurrences(state, event, evaluationDate) {
       month,
       status: occurrenceStatus(state, recordedTransactions, event, month, linkedPayments, evaluationDate),
       actual: sumCents(linkedPayments.map(payment => payment.net)),
-      paymentIds: linkedPayments.map(payment => payment.id)
+      linkedPayments
     };
   });
 }
 
-// Only occurrences of the same recurring cost are comparable. Names, payment
-// categories and free text are not used to match different costs.
-export function comparableOccurrences(state, event, evaluationDate) {
-  if (event.year) {
-    return [];
+export function plannedCostOccurrences(state, event, evaluationDate) {
+  return occurrencesWithPayments(state, event, evaluationDate).map(({ linkedPayments, ...occurrence }) => ({
+    ...occurrence,
+    paymentIds: linkedPayments.map(payment => payment.id)
+  }));
+}
+
+// Subcategories count toward their parent. Uncategorized expenses have no category.
+function topLevelCategory(state, categoryId) {
+  const category = state.categories.find(candidate => candidate.id === categoryId);
+  if (!category) {
+    return null;
   }
-  return plannedCostOccurrences(state, event, evaluationDate)
-    .filter(occurrence => occurrence.status === k_occurrenceStatus.completed);
+  return hasCategoryParent(category) ? category.parentId : category.id;
+}
+
+// The category holding the largest net share of an occurrence's linked expenses.
+// Equal shares go to the category whose ID sorts first, so the choice is stable.
+function topCategoryOf(state, linkedPayments) {
+  const netByCategory = new Map();
+  for (const payment of linkedPayments) {
+    const categoryId = topLevelCategory(state, payment.category);
+    if (categoryId === null) {
+      continue;
+    }
+    netByCategory.set(categoryId, (netByCategory.get(categoryId) ?? 0) + payment.net);
+  }
+  const ranked = [...netByCategory].filter(([, net]) => net > 0)
+    .sort(([leftId, leftNet], [rightId, rightNet]) => rightNet - leftNet || leftId.localeCompare(rightId));
+  return ranked.length ? ranked[0][0] : null;
+}
+
+function completedOccurrences(state, event, evaluationDate) {
+  return occurrencesWithPayments(state, event, evaluationDate)
+    .filter(occurrence => occurrence.status === k_occurrenceStatus.completed)
+    .map(occurrence => ({
+      eventId: event.id,
+      name: event.name,
+      month: occurrence.month,
+      actual: occurrence.actual,
+      topCategory: topCategoryOf(state, occurrence.linkedPayments)
+    }));
+}
+
+// The category a planned cost is compared by: the owner's "like" choice (a
+// category or another planned cost), otherwise its own latest completed occurrence.
+function comparisonCategory(state, event, evaluationDate, like, ownOccurrences) {
+  if (like?.categoryId) {
+    return topLevelCategory(state, like.categoryId);
+  }
+  const likeEvent = like?.eventId === undefined ? event : state.events.find(candidate => candidate.id === like.eventId);
+  if (!likeEvent) {
+    return null;
+  }
+  const likeOccurrences = likeEvent === event ? ownOccurrences : completedOccurrences(state, likeEvent, evaluationDate);
+  return likeOccurrences.length ? likeOccurrences[likeOccurrences.length - 1].topCategory : null;
+}
+
+// Past years of the same recurring cost, plus completed occurrences of other
+// planned costs with the same top category. Names and free text are never matched.
+export function comparableOccurrences(state, event, evaluationDate, like) {
+  const ownOccurrences = event.year ? [] : completedOccurrences(state, event, evaluationDate);
+  const category = comparisonCategory(state, event, evaluationDate, like, ownOccurrences);
+  const otherOccurrences = category === null ? [] : state.events
+    .filter(candidate => candidate.id !== event.id)
+    .flatMap(candidate => completedOccurrences(state, candidate, evaluationDate))
+    .filter(occurrence => occurrence.topCategory === category);
+  return [...ownOccurrences, ...otherOccurrences]
+    .sort((left, right) => left.month.localeCompare(right.month) || String(left.eventId).localeCompare(String(right.eventId)));
 }
 
 // With an even count, the two middle amounts are averaged and a half cent rounds up.
@@ -118,7 +185,9 @@ function medianCents(sortedAmounts) {
   return Math.round((sortedAmounts[middle - 1] + sortedAmounts[middle]) / k_halves);
 }
 
-export function comparableCostEstimate(comparable) {
+// Expects occurrences in month order, as comparableOccurrences returns them.
+export function comparableCostEstimate(allComparable) {
+  const comparable = allComparable.slice(-k_maximumComparableOccurrences);
   if (comparable.length < k_minimumComparableOccurrences) {
     return { hasEnoughEvidence: false, comparable };
   }

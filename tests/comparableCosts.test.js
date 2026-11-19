@@ -145,12 +145,26 @@ function backtest({ state, event }, years) {
   });
 }
 
-test('with fewer than two completed occurrences there is no estimate and the owner enters an amount', () => {
-  const { state, event } = yearlyCelebrations(30000, { 2025: 41000 });
+test('with fewer than three completed occurrences there is no estimate and the owner enters an amount', () => {
+  const { state, event } = yearlyCelebrations(30000, { 2024: 40000, 2025: 41000 });
 
   const estimate = comparableCostEstimate(comparableOccurrences(state, event, k_today));
 
-  assert.deepEqual(estimate, { hasEnoughEvidence: false, comparable: [{ month: '2025-12', status: 'completed', actual: 41000, paymentIds: ['celebrations-2025'] }] });
+  assert.equal(estimate.hasEnoughEvidence, false);
+  assert.deepEqual(estimate.comparable, [
+    { eventId: 'celebrations', name: 'December celebrations', month: '2024-12', actual: 40000, topCategory: 'shopping' },
+    { eventId: 'celebrations', name: 'December celebrations', month: '2025-12', actual: 41000, topCategory: 'shopping' }
+  ]);
+});
+
+test('the estimate uses only the five most recent comparable occurrences', () => {
+  const { state, event } = yearlyCelebrations(30000, { 2020: 100000, 2021: 40000, 2022: 41000, 2023: 42000, 2024: 43000, 2025: 44000 });
+
+  const estimate = comparableCostEstimate(comparableOccurrences(state, event, k_today));
+
+  // 2021–2025: 400/410/420/430/440 → median 420, range 400–440. With 2020 the median would be 415.
+  assert.deepEqual({ ...estimate, comparable: estimate.comparable.map(occurrence => occurrence.month) },
+    { hasEnoughEvidence: true, estimate: 42000, low: 40000, high: 44000, comparable: ['2021-12', '2022-12', '2023-12', '2024-12', '2025-12'] });
 });
 
 test('the estimate is the median of completed occurrences with their range, skipping occurrences that are not evidence', () => {
@@ -163,36 +177,121 @@ test('the estimate is the median of completed occurrences with their range, skip
   assert.deepEqual({ ...estimate, comparable: estimate.comparable.map(occurrence => occurrence.month) },
     { hasEnoughEvidence: true, estimate: 41500, low: 38000, high: 45000, comparable: ['2022-12', '2023-12', '2024-12', '2025-12'] });
   assert.equal(withoutLatest.estimate, 41000);
+  assert.deepEqual([withoutLatest.low, withoutLatest.high], [38000, 45000]);
   assert.deepEqual(withoutLatest.comparable.map(occurrence => occurrence.month), ['2022-12', '2023-12', '2024-12']);
 });
 
-test('a one-off cost has no comparable occurrences without an explicit comparison rule', () => {
-  const lastTrip = { id: 'lisbon-2025', name: 'Lisbon weekend', month: 5, year: 2025, amount: 60000 };
-  const nextTrip = { id: 'lisbon-2026', name: 'Lisbon weekend', month: 5, year: 2026, amount: 60000 };
-  const state = createFinancialState({
-    events: [lastTrip, nextTrip],
-    outlook: { completeMonths: ['2025-05'] },
-    transactions: [createTransaction({ id: 'train', category: 'shopping', date: '2025-05-10', amount: 21000, plannedCost: { eventId: 'lisbon-2025', month: '2025-05', singleOccurrence: true } })]
-  });
+const k_tripCategories = [
+  { id: 'travel', name: 'Travel', kind: 'Occasional' },
+  { id: 'flights', name: 'Flights', parentId: 'travel' },
+  { id: 'hotels', name: 'Hotels', parentId: 'travel' }
+];
 
-  assert.deepEqual(comparableOccurrences(state, nextTrip, '2026-04-01'), []);
+function tripCost(id, year, month) {
+  return { id, name: `Trip ${id}`, year, month, amount: 50000 };
+}
+
+function tripExpense(eventId, monthKey, id, category, amount) {
+  return createTransaction({ id, category, amount, date: `${monthKey}-05`, plannedCost: { eventId, month: monthKey, singleOccurrence: true } });
+}
+
+function pastTripsState(extraTransactions = []) {
+  const events = [tripCost('lisbon', 2024, 5), tripCost('azores', 2025, 3), tripCost('porto', 2025, 9), tripCost('madeira', 2026, 12)];
+  return {
+    events,
+    nextTrip: events[3],
+    state: createFinancialState({
+      categories: [...createFinancialState().categories, ...k_tripCategories],
+      events,
+      outlook: { completeMonths: ['2024-05', '2025-03', '2025-09'] },
+      transactions: [
+        tripExpense('lisbon', '2024-05', 'lisbon-flight', 'flights', 15000),
+        tripExpense('lisbon', '2024-05', 'lisbon-hotel', 'hotels', 20000),
+        tripExpense('azores', '2025-03', 'azores-flight', 'flights', 40000),
+        tripExpense('porto', '2025-09', 'porto-hotel', 'hotels', 30000),
+        tripExpense('porto', '2025-09', 'porto-dinner', 'groceries', 5000),
+        ...extraTransactions
+      ]
+    })
+  };
+}
+
+test('planned costs whose linked expenses share a top category compare, with subcategories rolled up to their parent', () => {
+  const { state, nextTrip } = pastTripsState();
+
+  const likePorto = comparableOccurrences(state, nextTrip, k_today, { eventId: 'porto' });
+  const likeFlights = comparableOccurrences(state, nextTrip, k_today, { categoryId: 'flights' });
+
+  // Lisbon €150 + €200 and Azores €400 are all Travel; Porto's €300 hotel outweighs its €50 dinner.
+  assert.deepEqual(likePorto, [
+    { eventId: 'lisbon', name: 'Trip lisbon', month: '2024-05', actual: 35000, topCategory: 'travel' },
+    { eventId: 'azores', name: 'Trip azores', month: '2025-03', actual: 40000, topCategory: 'travel' },
+    { eventId: 'porto', name: 'Trip porto', month: '2025-09', actual: 35000, topCategory: 'travel' }
+  ]);
+  assert.deepEqual(likeFlights, likePorto);
+  assert.deepEqual(comparableCostEstimate(likePorto).estimate, 35000);
+});
+
+test('a new one-off planned cost without a like choice has nothing to compare with', () => {
+  const { state, nextTrip } = pastTripsState();
+
+  assert.deepEqual(comparableOccurrences(state, nextTrip, k_today), []);
+  assert.deepEqual(comparableOccurrences(state, nextTrip, k_today, { eventId: 'madeira' }), []);
+});
+
+test('the top category is the one with the largest share after paybacks', () => {
+  const hotelRefund = { id: 'porto-refund', type: 'reimbursement', linkedId: 'porto-hotel', amount: 28000, date: '2025-09-20', account: 'everyday', title: 'Refund' };
+  const { state, nextTrip } = pastTripsState([hotelRefund]);
+
+  const months = comparableOccurrences(state, nextTrip, k_today, { categoryId: 'travel' }).map(occurrence => occurrence.month);
+  const groceryLike = comparableOccurrences(state, nextTrip, k_today, { categoryId: 'groceries' });
+
+  // Porto is now €20 of hotel against €50 of groceries.
+  assert.deepEqual(months, ['2024-05', '2025-03']);
+  assert.deepEqual(groceryLike.map(occurrence => [occurrence.eventId, occurrence.actual]), [['porto', 7000]]);
+});
+
+test('a recurring planned cost compares with its own past years and with other costs in its top category', () => {
+  const birthday = { id: 'birthday', name: 'Big birthday', year: 2025, month: 6, amount: 20000 };
+  const { state } = yearlyCelebrations(30000, { 2023: 40000, 2024: 41000 });
+  const withBirthday = {
+    ...state,
+    events: [...state.events, birthday],
+    outlook: { completeMonths: [...state.outlook.completeMonths, '2025-06'] },
+    transactions: [...state.transactions, linkedPayment({ id: 'party', date: '2025-06-10', amount: 26000, plannedCost: { eventId: 'birthday', month: '2025-06', singleOccurrence: true } })]
+  };
+
+  const comparable = comparableOccurrences(withBirthday, k_celebrations, k_today);
+
+  assert.deepEqual(comparable.map(occurrence => [occurrence.eventId, occurrence.month]),
+    [['celebrations', '2023-12'], ['celebrations', '2024-12'], ['birthday', '2025-06']]);
+  assert.equal(comparableCostEstimate(comparable).estimate, 40000);
+});
+
+test('uncategorized expenses never match a category', () => {
+  const uncategorized = { ...createTransaction({ id: 'misc', amount: 9000, date: '2025-03-06', plannedCost: { eventId: 'azores', month: '2025-03', singleOccurrence: true } }), category: '' };
+  const { state, nextTrip } = pastTripsState([uncategorized]);
+  const onlyUncategorized = { ...state, transactions: state.transactions.filter(transaction => !transaction.id.startsWith('azores-')) };
+
+  assert.deepEqual(comparableOccurrences(onlyUncategorized, nextTrip, k_today, { eventId: 'azores' }), []);
+  assert.deepEqual(comparableOccurrences(onlyUncategorized, nextTrip, k_today, { categoryId: 'travel' }).map(occurrence => occurrence.eventId), ['lisbon', 'porto']);
 });
 
 test('backtest: when the stored amount is consistently low, past occurrences predict better', () => {
-  const results = backtest(yearlyCelebrations(30000, { 2021: 41000, 2022: 38000, 2023: 45000, 2024: 42000, 2025: 40000 }), [2023, 2024, 2025]);
+  const results = backtest(yearlyCelebrations(30000, { 2021: 41000, 2022: 38000, 2023: 45000, 2024: 42000, 2025: 40000 }), [2024, 2025]);
 
-  // Medians worked by hand: 2023 from 410/380 → 395; 2024 from 410/380/450 → 410; 2025 from 410/380/450/420 → 415.
-  assert.deepEqual(results.map(result => result.estimate), [39500, 41000, 41500]);
-  assert.deepEqual(results.map(result => result.estimateError), [5500, 1000, 1500]);
-  assert.deepEqual(results.map(result => result.baselineError), [15000, 12000, 10000]);
+  // Medians worked by hand: 2024 from 410/380/450 → 410; 2025 from 410/380/450/420 → 415.
+  assert.deepEqual(results.map(result => result.estimate), [41000, 41500]);
+  assert.deepEqual(results.map(result => result.estimateError), [1000, 1500]);
+  assert.deepEqual(results.map(result => result.baselineError), [12000, 10000]);
 });
 
 test('backtest: when the stored amount is already accurate, past occurrences add noise', () => {
-  const results = backtest(yearlyCelebrations(40000, { 2021: 36000, 2022: 44000, 2023: 39000, 2024: 41000, 2025: 40000 }), [2023, 2024, 2025]);
+  const results = backtest(yearlyCelebrations(40000, { 2021: 36000, 2022: 44000, 2023: 39000, 2024: 41000, 2025: 40000 }), [2024, 2025]);
 
-  // 2023 from 360/440 → 400; 2024 from 360/440/390 → 390; 2025 from 360/440/390/410 → 400.
-  assert.deepEqual(results.map(result => result.estimateError), [1000, 2000, 0]);
-  assert.deepEqual(results.map(result => result.baselineError), [1000, 1000, 0]);
+  // 2024 from 360/440/390 → 390; 2025 from 360/440/390/410 → 400.
+  assert.deepEqual(results.map(result => result.estimateError), [2000, 0]);
+  assert.deepEqual(results.map(result => result.baselineError), [1000, 0]);
 });
 
 test('backtest: one unusual year barely moves the median, unlike an average', () => {
@@ -214,7 +313,7 @@ test('backtest: a steadily rising cost makes the median lag behind', () => {
 });
 
 test('an even number of occurrences gives a median in whole cents', () => {
-  const { state, event } = yearlyCelebrations(30000, { 2024: 40000, 2025: 40001 });
+  const { state, event } = yearlyCelebrations(30000, { 2022: 40000, 2023: 40000, 2024: 40001, 2025: 40001 });
 
   assert.equal(comparableCostEstimate(comparableOccurrences(state, event, k_today)).estimate, 40001);
 });
@@ -283,20 +382,19 @@ test('a payment linked to another year of a recurring cost does not ask the next
   assert.deepEqual(statuses, [['2024-11', 'needsReview'], ['2025-11', 'noPayments']]);
 });
 
-// Pins current behaviour for owner question 2: a cancelled cost that was fully
-// refunded is a completed €0 occurrence and lowers the median and range.
-test('a fully refunded occurrence currently counts as a completed €0 cost', () => {
+// Owner decision F14: a cancelled cost whose expenses were fully refunded is not evidence.
+test('a fully refunded occurrence is excluded rather than counted as a €0 cost', () => {
   const state = celebrationsState({ transactions: [
     linkedPayment({ id: 'dinner', date: '2025-12-02', amount: 18000 }),
     share('full-refund', 18000, '2025-12-20')
   ] });
 
   assert.deepEqual(plannedCostOccurrences(state, k_celebrations, k_today)[0],
-    { month: '2025-12', status: 'completed', actual: 0, paymentIds: ['dinner'] });
+    { month: '2025-12', status: 'refunded', actual: 0, paymentIds: ['dinner'] });
 });
 
-// Pins current behaviour for owner question 7: a payment matched through the
-// older "Recorded expense for …" choice is not linked to an occurrence.
+// Owner decision F14: a payment matched through the older "Recorded expense
+// for …" choice is not linked to an occurrence and is not evidence.
 test('a payment matched only through the older recorded-expense choice is not counted', () => {
   const state = celebrationsState({
     outlook: { completeMonths: ['2025-12'], eventPayments: { celebrations: 'gifts' } },
@@ -306,9 +404,9 @@ test('a payment matched only through the older recorded-expense choice is not co
   assert.equal(plannedCostOccurrences(state, k_celebrations, k_today)[0].status, 'noPayments');
 });
 
-// Pins current behaviour for owner question 8: moving a recurring cost to an
-// earlier month leaves every earlier year waiting for a review that validation
-// cannot complete (a payment cannot link to a month before its date).
+// Owner decision F16 (a move applies from a chosen year) waits for a screen
+// that moves planned costs; none exists. Until then a whole-cost move leaves
+// earlier years waiting for review.
 test('moving a recurring cost to an earlier month removes the earlier years from the evidence', () => {
   const { state } = yearlyCelebrations(30000, { 2023: 40000, 2024: 41000, 2025: 42000 });
   const movedCelebrations = { ...k_celebrations, month: 11 };
@@ -318,4 +416,17 @@ test('moving a recurring cost to an earlier month removes the earlier years from
   assert.deepEqual(plannedCostOccurrences(movedState, movedCelebrations, k_today).map(occurrence => occurrence.status),
     ['needsReview', 'needsReview', 'needsReview']);
   assert.equal(comparableCostEstimate(comparableOccurrences(movedState, movedCelebrations, k_today)).hasEnoughEvidence, false);
+});
+
+test('a like choice naming a removed planned cost compares with nothing else', () => {
+  const { state, nextTrip } = pastTripsState();
+
+  assert.deepEqual(comparableOccurrences(state, nextTrip, k_today, { eventId: 'removed-trip' }), []);
+});
+
+test('equal category shares choose the category whose ID sorts first', () => {
+  const { state, nextTrip } = pastTripsState([tripExpense('azores', '2025-03', 'azores-groceries', 'groceries', 40000)]);
+
+  // Azores is now €400 of groceries and €400 of travel; "groceries" sorts before "travel".
+  assert.deepEqual(comparableOccurrences(state, nextTrip, k_today, { categoryId: 'groceries' }).map(occurrence => occurrence.eventId), ['azores']);
 });
