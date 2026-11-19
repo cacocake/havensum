@@ -154,6 +154,32 @@ test('sync progress saves the ledger and the link together, installs the saved l
   assert.deepEqual((await webStorage.readState()).transactions, synced.transactions);
 });
 
+test('an edit made while sync progress is being saved is kept and later saves in that sync are refused', async context => {
+  installBrowserStorage(context);
+  const snapshot = createFinancialState();
+  await webStorage.writeState(snapshot);
+  let appLedger = snapshot;
+  const typedDuringSave = createTransaction({ id: 'typed-during-save' });
+  const slowStorage = {
+    async writeStateWithSharedFileBinding(state, binding) {
+      appLedger = { ...appLedger, transactions: [...appLedger.transactions, typedDuringSave] };
+      await webStorage.writeStateWithSharedFileBinding(state, binding);
+    }
+  };
+  const saveProgress = createSyncProgressSaver({
+    storage: slowStorage,
+    snapshotState: snapshot,
+    readCurrentState: () => appLedger,
+    adoptSavedState: savedState => {
+      appLedger = savedState;
+    }
+  });
+  const synced = { ...snapshot, transactions: [createTransaction({ id: 'from-partner' })] };
+  await saveProgress({ state: synced, binding: createBinding('file-1', { revision: 'rev-2', snapshots: [] }) });
+  assert.deepEqual(appLedger.transactions.map(transaction => transaction.id).sort(), ['from-partner', 'typed-during-save']);
+  await assert.rejects(saveProgress({ state: synced, binding: createBinding('file-1', { revision: 'rev-3', snapshots: [] }) }), StaleLedgerError);
+});
+
 test('if the link cannot be saved, the ledger is put back so neither is saved alone', async context => {
   const storage = installBrowserStorage(context);
   const previous = createFinancialState();

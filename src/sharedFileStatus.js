@@ -1,4 +1,5 @@
-import { isSameLedger } from './sharedFileMerge.js';
+import { isSameLedger, mergeSharedLedgers } from './sharedFileMerge.js';
+import { withDeviceKeys } from './sharedFileDocument.js';
 import { k_syncStatuses } from './sharedFileRead.js';
 
 // When sync runs and what the shared-file card shows (G04, G07, G09, G10).
@@ -120,12 +121,16 @@ export class StaleLedgerError extends Error {
   }
 }
 
-// The saveProgress a sync uses. In one step it checks that the app's ledger
-// is still the one the sync started from (or last saved), saves the ledger and
-// the link together, and installs the saved ledger in the app through
-// adoptSavedState before any edit can run. Without that last step the app
-// could later save its older in-memory ledger under a link that claims the
-// partner's changes, and the next sync would delete them.
+// The saveProgress a sync uses. It checks that the app's ledger is still the
+// one the sync started from (or last saved), saves the ledger and the link
+// together, and installs the saved ledger in the app through adoptSavedState.
+// Without that step the app could later save its older in-memory ledger under
+// a link that claims the partner's changes, and the next sync would delete them.
+//
+// Saving takes time, so the person may edit meanwhile. Their edit is then
+// merged onto the saved ledger instead of being replaced (on a same-field
+// collision in that moment the edit wins, as the newest change), and later
+// saves in this sync are refused so the edit is sent by the next sync.
 export function createSyncProgressSaver({ storage, snapshotState, readCurrentState, adoptSavedState }) {
   let expectedState = snapshotState;
   return async function saveProgress({ state, binding }) {
@@ -133,7 +138,14 @@ export function createSyncProgressSaver({ storage, snapshotState, readCurrentSta
       throw new StaleLedgerError();
     }
     await storage.writeStateWithSharedFileBinding(state, binding);
-    adoptSavedState(state);
+    const currentState = readCurrentState();
+    if (isSameLedger(currentState, expectedState)) {
+      adoptSavedState(state);
+      expectedState = state;
+      return;
+    }
+    const { result } = mergeSharedLedgers(expectedState, currentState, state);
+    adoptSavedState(withDeviceKeys(result, currentState));
     expectedState = state;
   };
 }
