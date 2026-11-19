@@ -170,7 +170,7 @@ for (const [failingKey, message] of [
   });
 }
 
-test('a ledger saved by another tab after the preview makes the preview stale', async ({ page }) => {
+test('a ledger saved by another tab after the preview refuses the restore and is reloaded here', async ({ page }) => {
   await openSettings(page);
   await chooseBackupFile(page, JSON.stringify(currentBackup()));
   const dialog = page.getByRole('dialog');
@@ -208,6 +208,22 @@ test('after a refusal the other tab\'s ledger is reloaded here and the backup ca
   const preRestoreCopy = JSON.parse(await stored(page, k_restoreRecoveryKey));
   expect(preRestoreCopy.transactions.map(transaction => transaction.id)).toEqual(['device-only', 'other-tab-only']);
   expect(JSON.parse(await stored(page, k_ledgerKey)).transactions.some(transaction => transaction.id === 'other-tab-only')).toBe(false);
+});
+
+test('an unreadable ledger saved by another tab refuses the restore and asks for an app reload', async ({ page }) => {
+  await openSettings(page);
+  await chooseBackupFile(page, JSON.stringify(currentBackup()));
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByTestId('restore-summary')).toBeVisible();
+  const unreadableLedger = '{unreadable ledger';
+  await page.evaluate(({ key, bytes }) => localStorage.setItem(key, bytes), { key: k_ledgerKey, bytes: unreadableLedger });
+  await dialog.getByRole('switch', { name: "Replace this device's ledger", exact: true }).click();
+  await dialog.getByRole('button', { name: 'Restore this backup', exact: true }).click();
+
+  await expect(page.getByText('Your ledger was changed in another tab or window and could not be reloaded here. Reload the app before restoring a backup.', { exact: true })).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+  expect(await stored(page, k_ledgerKey)).toBe(unreadableLedger);
+  expect(await stored(page, k_restoreRecoveryKey)).toBeNull();
 });
 
 test('a ledger saved by another tab while the pre-restore copy is written is not replaced by the restore', async ({ page }) => {
