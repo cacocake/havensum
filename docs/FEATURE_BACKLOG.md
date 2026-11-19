@@ -108,9 +108,15 @@ Design a reviewed, explicit correction flow after agreement. Show the affected c
 
 ### LEDGER-2a · Earliest correctable month
 
-**Owner decision (19 November 2026, L07):** a correction cannot start before the account's first recorded entry or its first rate period. **Status:** In progress on `codex/ledger-2a-earliest-correctable-month` (started 19 November 2026 from `f5e71d5`). **Depends on:** LEDGER-2 (merged).
+**Owner decision (19 November 2026, L07):** a correction cannot start before the account's first recorded entry or its first rate period. **Status:** Done, reviewed and merged into `develop` from `codex/ledger-2a-earliest-correctable-month` (implementation `288dae9`; review fixes `90460b2`). Review answers recorded as L08. See the LEDGER-2a handoff note at the end. **Depends on:** LEDGER-2 (merged).
 
 In the *Correct past interest* review (`src/interestCorrection.js`, `src/interestSchedule.js` `correctedSchedule`, `src/InterestCorrection.jsx`), refuse a draft rate period whose start month is earlier than the account's first transaction month (including a transfer into the account) or its first stored rate period (whichever is earlier; an account with neither may start from the current month), with a clear message, and never loop over months before that bound. Cover a mistyped far-past year, an account with no entries, a legacy unscheduled rate, and the existing earlier-start case that must still work.
+
+### BUG-2 · Account-form past start for a legacy rate
+
+**Owner decision (19 November 2026, L08):** the account form's past start month for an unscheduled legacy rate gets the same earliest-month limit as corrections. **Status:** Queued, unblocked (bug ticket: its own `codex/` branch from `develop`). **Depends on:** LEDGER-2a (merged).
+
+`AccountForm.jsx` lets an unscheduled legacy rate take any past start month (`scheduleWithPeriod(..., { allowPastStart: true })`), and startup then posts app interest for every completed month since then. A mistyped year (for example `1026-01`) would post thousands of entries. Add a failing regression first, then refuse a start before `earliestCorrectableMonth` (`src/interestCorrection.js`) with the shared `correctableStartText` message (`src/interestSchedule.js`). Cover a mistyped year, an account with only an opening balance (current month only), and a legacy rate whose valid past start still works.
 
 ## Queued forecast improvements
 
