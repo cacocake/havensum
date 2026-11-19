@@ -96,6 +96,12 @@ Apply the agreed rule to current balances, account details, reports, forecasts, 
 
 Design a reviewed, explicit correction flow after agreement. Show the affected completed months and downstream compounding. Cover a corrected past balance, existing bank interest, duplicate prevention, cancel, and repeated application.
 
+### LEDGER-2a · Earliest correctable month
+
+**Owner decision (19 November 2026, L07):** a correction cannot start before the account's first recorded entry or its first rate period. **Status:** Queued, unblocked. **Depends on:** LEDGER-2 (merged).
+
+In the *Correct past interest* review (`src/interestCorrection.js`, `src/interestSchedule.js` `correctedSchedule`, `src/InterestCorrection.jsx`), refuse a draft rate period whose start month is earlier than the account's first transaction month or its first stored rate period (whichever is earlier; an account with neither may start from the current month), with a clear message, and never loop over months before that bound. Cover a mistyped far-past year, an account with no entries, a legacy unscheduled rate, and the existing earlier-start case that must still work.
+
 ## Queued forecast improvements
 
 ### FORECAST-1 · Full-year outlook in Year Plan
@@ -347,7 +353,7 @@ The implementation note below records how these were built; it stores only per-y
   - Corrections are the only signed entries (validation in `transactionValidation.js`); `interestBankChoices` is validated in `stateSchema.js` (additive, no version bump; see STATE_MIGRATIONS.md). Canonical CSV (`corrects_interest_month`), JSON backup rows and the workbook raw sheet keep the marker and sign; import comparison includes the marker.
   - `correctedSchedule`/`correctedScheduleWithout` allow past rate periods only for the correction draft; the normal editor still refuses them.
 - **UI (shared web/Android):** account detail shows a *Past interest* card for savings accounts (differing months and total, or months needing a bank choice) with *Correct past interest* / *Review past interest*. The dialog edits past rates as a draft, offers *Bank amount only* / *Keep both* per month, lists affected months and the total, blocks Apply while a choice or a typed-but-unset rate is pending, asks before discarding a changed draft and validates the ledger before saving. Activity rows and details show a negative correction with a minus; correction details explain it and have no Edit button.
-- **Owner questions (non-blocking; current behaviour in brackets):**
+- **Owner questions — answered 19 November 2026 (L07):** 1 keep (no Edit), 2 keep (later months previewed), 3 keep (main category only), 4 limit to the account's first entry or first rate period → LEDGER-2a. Original questions, current behaviour in brackets:
   1. Corrections cannot be edited, only superseded by reviewing again [no Edit]. The ordinary app interest entry stays editable; edits to it then show up as differences in the review. OK?
   2. While a bank-interest choice is pending, later months are previewed as if the app entry stayed [their differences change once you choose]. Acceptable, or hide later months until every choice is made?
   3. Bank interest means Interest income in the system *Interest* category itself, not its subcategories [subcategories ignored, as in the forecast]. Should a subcategory count?
