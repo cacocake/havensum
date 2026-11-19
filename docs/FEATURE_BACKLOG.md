@@ -142,6 +142,10 @@ Let the owner move a recurring planned cost's month from a chosen year onward. E
 3. **Expenses already linked to the old month in a moved year:** their links stay as recorded and are flagged for review (the existing "This planned cost moved" list). The move dialog says how many. They are not evidence until relinked by hand.
 4. **A move from this year** (asked after review): both the old and the new month must be this month or later; otherwise the move starts next year.
 
+### IMPORT-2 follow-up · Match the owner's real Cashew test export
+
+**Status (19 November 2026):** In progress on `codex/cashew-real-export` from `f5e71d5`. The owner supplied a small test export (v2 layout with `amount unpaid` and `extra`; kept out of Git as private runtime data). It showed recurrence text in `extra`, a localized transfer category with a `Transferred Balance` note, and loans as objectives on ordinary rows. Owner answers K10–K12 in DECISIONS.md. Synthetic fixtures mirror its structure.
+
 ### FORECAST-2 follow-up · Readable year-amount merge conflicts (F20)
 
 **Depends on:** FORECAST-2 (year amounts). **Status:** queued and unblocked (owner answer, 19 November 2026).
