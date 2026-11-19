@@ -274,6 +274,8 @@ test('malformed Cashew cells stay row errors or warnings and invalid account cre
   const rows = [
     publishedRow({ ...k_cafe, amount: '-1,234.56' }),
     publishedRow({ ...k_cafe, amount: '€5' }),
+    publishedRow({ ...k_cafe, amount: '1,000' }),
+    publishedRow({ ...k_cafe, amount: '-1.000' }),
     publishedRow({ ...k_cafe, income: 'yes' }) + ',unexpected',
     publishedRow({ ...k_cafe, income: '' })
   ];
@@ -281,10 +283,12 @@ test('malformed Cashew cells stay row errors or warnings and invalid account cre
   assert.equal(file.cashew.profile, 'cashew-csv-v1');
   assert.match(file.rows[0].error, /signed EUR amount/i);
   assert.match(file.rows[1].error, /signed EUR amount/i);
-  assert.match(file.rows[2].error, /extra values/i);
+  assert.match(file.rows[2].error, /signed EUR amount/i);
+  assert.match(file.rows[3].error, /signed EUR amount/i);
+  assert.match(file.rows[4].error, /extra values/i);
   const state = createFinancialState();
   const review = previewImportFile(state, file, { accounts: { 'Conta Poupança': 'everyday' } });
-  assert.match(review.rows[3].bank.sourceWarning, /income flag is missing or unrecognized/i);
+  assert.match(review.rows[5].bank.sourceWarning, /income flag is missing or unrecognized/i);
   const invalidChoices = [
     [{ sourceName: 'Conta Poupança', id: 'everyday' }],
     [{ sourceName: 'Not in this file', id: 'new-account' }],

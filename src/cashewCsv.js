@@ -12,7 +12,11 @@ const k_betaHeaders = [
   'category name', 'subcategory name', 'color', 'icon', 'emoji', 'budget', 'objective', 'extra'
 ];
 const k_profiles = [[k_cashewCsvProfile, k_headers], [k_cashewBetaProfile, k_betaHeaders]];
-const k_signedDecimalAmount = /^[+-]?(\d+)(?:[.,](\d{1,20}))?$/;
+// Dart's double.toString() writes a dot and never pads zeros beyond `.0`, so
+// a comma or a padded fraction such as `1.000` is a thousands separator.
+const k_signedDecimalAmount = /^[+-]?(\d+)(?:\.(\d{1,20}))?$/;
+const k_maximumUnpaddedDecimals = 2;
+const k_amountFormatMessage = 'Use a signed EUR amount with at most two decimals and no thousands separator.';
 const k_centsPerEuro = 100n;
 const k_floatingPointNoiseDenominator = 10_000_000_000n;
 const k_datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -32,9 +36,12 @@ function isBlankOrZero(value, fieldName) {
 function readAmount(amountText) {
   const decimal = k_signedDecimalAmount.exec(amountText);
   if (!decimal) {
-    throw Error('Use a signed EUR amount with at most two decimals and no thousands separator.');
+    throw Error(k_amountFormatMessage);
   }
   const [, whole, fraction = ''] = decimal;
+  if (fraction.length > k_maximumUnpaddedDecimals && fraction.endsWith('0')) {
+    throw Error(k_amountFormatMessage);
+  }
   const scale = 10n ** BigInt(fraction.length);
   const scaledCents = BigInt(fraction || '0') * k_centsPerEuro;
   const nearestCents = (scaledCents + scale / 2n) / scale;
