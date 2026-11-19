@@ -2,7 +2,7 @@ import { accountBalance } from './ledger.js';
 import { daysInMonth, nextMonth } from './calendar.js';
 import { firstInterestMonth, interestRateForMonth } from './interestSchedule.js';
 import { k_spendingBehaviors, k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
-import { appInterestAllowed, appInterestId } from './interestEntries.js';
+import { appInterestAllowed, appInterestId, hasInterestCorrection } from './interestEntries.js';
 
 const k_savingsTag = 'Savings';
 const k_percentageScale = 100;
@@ -41,7 +41,8 @@ export function isSavingsAccount(account) {
 
 // Posts at most one interest entry per savings account and completed month
 // before `through`. Recorded interest entries are never regenerated, and a
-// month holding bank interest waits for the owner's choice (L05).
+// month holding bank interest waits for the owner's choice (L05), and a month
+// with reviewed corrections is left as reviewed.
 export function compoundSavings(state, through) {
   const transactions = [...state.transactions];
   const transactionIds = new Set(transactions.map(transaction => transaction.id));
@@ -53,7 +54,9 @@ export function compoundSavings(state, through) {
     for (let month = startMonth; month < through; month = nextMonth(month)) {
       const id = appInterestId(account.id, month);
       const rate = interestRateForMonth(account, month);
-      if (!rate || transactionIds.has(id) || !appInterestAllowed(transactions, account, month)) {
+      // A month holding corrections was reviewed; startup never adds to it.
+      const isReviewedMonth = hasInterestCorrection(transactions, account.id, month);
+      if (!rate || transactionIds.has(id) || isReviewedMonth || !appInterestAllowed(transactions, account, month)) {
         continue;
       }
       const closingBalance = accountBalance({ ...state, transactions }, account.id, interestPostingDate(month));

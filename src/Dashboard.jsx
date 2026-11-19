@@ -14,6 +14,7 @@ import { currentLocalMonth } from './calendar.js';
 import { expensePaybacks, scheduledMonthStats } from './ledger.js';
 import { isScheduledEntry } from './posting.js';
 import { signedEuro } from './money.js';
+import { k_transactionTypes } from './domainConstants.js';
 
 export function AccountCard({account}){
  const {state,today,openAccount}=useApp(),c=useContext(Theme);
@@ -39,11 +40,11 @@ function paybackSummary(paybacks){
 }
 // A signed amount: outflows and a downward interest correction show a minus.
 function rowAmountLabel(transaction, accountId) {
-  if (transaction.type === 'transfer') {
+  if (transaction.type === k_transactionTypes.transfer) {
     const direction = transaction.toAccount === accountId ? '+' : '−';
     return `${accountId ? direction : ''}${euro(transaction.amount)}`;
   }
-  const incoming = transaction.type === 'income' || transaction.type === 'reimbursement';
+  const incoming = transaction.type === k_transactionTypes.income || transaction.type === k_transactionTypes.reimbursement;
   return incoming ? signedEuro(transaction.amount) : `−${euro(transaction.amount)}`;
 }
 

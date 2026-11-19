@@ -2,16 +2,12 @@ import { monthOf, nextMonth } from './calendar.js';
 import { compoundSavings, isSavingsAccount } from './savingsInterest.js';
 import { interestRateForMonth } from './interestSchedule.js';
 import { sumCents } from './money.js';
-import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
+import { isInterestIncome } from './interestEntries.js';
 
 // Savings accounts with a scheduled rate for `month` (0% included) estimate
 // that month's interest; their historical interest no longer informs it.
 export function scheduledInterestAccounts(state, month) {
   return (state.accounts ?? []).filter(account => isSavingsAccount(account) && interestRateForMonth(account, month) !== null);
-}
-
-function isInterestIncome(transaction) {
-  return transaction.type === k_transactionTypes.income && transaction.category === k_systemCategoryIds.interest;
 }
 
 // Interest recorded in `month` on the given accounts.

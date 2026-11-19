@@ -137,7 +137,7 @@ test('bank interest for a month the app also posted waits for a per-month choice
     createTransaction({ id: 'bank-interest-sep', type: 'income', title: 'Interest from bank', category: 'interest', account: 'reserve', date: '2026-09-30', amount: 949 })
   ]));
   await openAccount(page);
-  await expect(page.getByTestId('past-interest-summary')).toContainText('bank interest needs a choice');
+  await expect(page.getByTestId('past-interest-summary')).toContainText('1 month needs a bank-interest choice');
   const dialog = await openCorrection(page, 'Review past interest');
   await expect(dialog.getByRole('button', { name: 'Apply corrections', exact: true })).toBeDisabled();
 
@@ -156,4 +156,24 @@ test('bank interest for a month the app also posted waits for a per-month choice
     { id: 'interest-correction-reserve-2026-09-1', amount: -949 }
   ]);
   await expectNoPageOverflow(page);
+});
+
+test('a corrected rate typed but not yet set blocks Apply and asks before discarding', async ({ page }) => {
+  await openLedger(page, savingsLedger([
+    appInterest('2026-09', '2026-09-30', 949),
+    appInterest('2026-10', '2026-10-31', 958),
+    createTransaction({ id: 'missed-deposit', type: 'income', title: 'Missed deposit', category: 'salary', account: 'reserve', date: '2026-09-15', amount: 100000 })
+  ]));
+  await openAccount(page);
+  const before = await savedLedger(page);
+  const dialog = await openCorrection(page, 'Review past interest');
+  await expect(dialog.getByRole('button', { name: 'Apply corrections', exact: true })).toBeEnabled();
+
+  await dialog.getByLabel('Corrected rate · %', { exact: true }).fill('6');
+  await expect(dialog.getByRole('button', { name: 'Apply corrections', exact: true })).toBeDisabled();
+  await expect(dialog.getByTestId('interest-correction-unset-rate')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Discard changes', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
+  expect(await savedLedger(page)).toEqual(before);
 });

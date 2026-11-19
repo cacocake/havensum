@@ -5,8 +5,12 @@ import { shortMonthLabel } from './monthLabels.js';
 import { firstInterestMonth, interestRateForMonth } from './interestSchedule.js';
 import { appInterestEntry, interestPostingDate, monthlyInterestAmount } from './savingsInterest.js';
 import {
-  appInterestEntries, bankInterestEntries, interestCorrectionId, isInterestCorrection, isInterestIncome, k_interestBankChoices
+  appInterestEntries, appInterestId, bankInterestEntries, interestCorrectionId, isAccountInterestCorrection, isAppInterestEntry,
+  isInterestCorrection, isInterestIncome, k_interestBankChoices
 } from './interestEntries.js';
+
+const k_correctionTitle = 'Interest correction';
+const k_correctionSequencePattern = /-(\d+)$/;
 
 function amountsOf(transactions) {
   return sumCents(transactions.map(transaction => transaction.amount));
@@ -14,7 +18,7 @@ function amountsOf(transactions) {
 
 function isAppOrCorrectionInterest(transaction, accountId) {
   return isInterestIncome(transaction) && transaction.account === accountId
-    && appInterestEntries([transaction], accountId, monthOf(transaction.date)).length > 0;
+    && (isAppInterestEntry(transaction, accountId) || isInterestCorrection(transaction));
 }
 
 // The first completed month the review looks at: the draft's first rate, or
@@ -115,14 +119,24 @@ export class InterestChoiceRequiredError extends Error {
   }
 }
 
-const k_correctionTitle = 'Interest correction';
+
+// The next free number after the highest kept correction for the month.
+function nextCorrectionId(state, accountId, month) {
+  const transactionIds = new Set(state.transactions.map(transaction => transaction.id));
+  const usedSequences = state.transactions
+    .filter(transaction => isAccountInterestCorrection(transaction, accountId, month))
+    .map(transaction => Number(k_correctionSequencePattern.exec(String(transaction.id))?.[1] ?? 0));
+  let sequence = Math.max(0, ...usedSequences) + 1;
+  while (transactionIds.has(interestCorrectionId(accountId, month, sequence))) {
+    sequence += 1;
+  }
+  return interestCorrectionId(accountId, month, sequence);
+}
 
 function correctionEntry(state, accountId, month, amount) {
-  const sequence = state.transactions.filter(transaction => transaction.account === accountId
-    && isInterestCorrection(transaction) && transaction.correctsInterestMonth === month).length + 1;
   return {
     ...appInterestEntry(accountId, month, amount),
-    id: interestCorrectionId(accountId, month, sequence),
+    id: nextCorrectionId(state, accountId, month),
     title: k_correctionTitle,
     note: `Reviewed correction of ${shortMonthLabel(month)} interest`,
     correctsInterestMonth: month
@@ -132,7 +146,9 @@ function correctionEntry(state, accountId, month, amount) {
 // A month without app interest gets its ordinary entry; otherwise the
 // difference is a marked correction and the recorded entries stay (L04).
 function entryForMonth(state, accountId, reviewedMonth) {
-  const hasAppInterest = appInterestEntries(state.transactions, accountId, reviewedMonth.month).length > 0;
+  const appId = appInterestId(accountId, reviewedMonth.month);
+  const hasAppInterest = state.transactions.some(transaction => transaction.id === appId)
+    || appInterestEntries(state.transactions, accountId, reviewedMonth.month).length > 0;
   if (!hasAppInterest && reviewedMonth.difference > 0) {
     return appInterestEntry(accountId, reviewedMonth.month, reviewedMonth.difference);
   }
@@ -158,8 +174,12 @@ export function applyInterestCorrection(state, accountId, review, draft) {
       return account;
     }
     const correctedAccount = { ...account };
-    if (draft.schedule) {
+    if (draft.schedule?.length) {
+      // An account keeps either a schedule or an unscheduled legacy rate.
       correctedAccount.interestSchedule = draft.schedule;
+      delete correctedAccount.unscheduledInterest;
+    } else if (draft.schedule) {
+      delete correctedAccount.interestSchedule;
     }
     const choices = mergedChoices(account.interestBankChoices ?? [], draft.choices ?? []);
     if (choices.length) {

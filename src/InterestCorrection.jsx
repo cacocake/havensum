@@ -1,4 +1,4 @@
-import React, { useContext, useMemo, useRef, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { Theme, T, H, Row, Button, Badge, Field, Dialog, Divider } from './ui.jsx';
 import { useApp } from './context.js';
@@ -10,6 +10,7 @@ import { k_interestBankChoices } from './interestEntries.js';
 import { applyInterestCorrection, interestCorrectionReview } from './interestCorrection.js';
 import { savingsRateLabel } from './savingsRateLabel.js';
 import { useDirtyForm } from './useDirtyForm.js';
+import { validateState } from './stateSchema.js';
 
 const k_choiceLabels = {
   [k_interestBankChoices.bankOnly]: 'Bank amount only',
@@ -33,16 +34,14 @@ function periodLabel(period) {
 }
 
 // L03: past rates change only here, as a draft that is reviewed before applying.
-function PastRates({ schedule, onScheduleChange, onError }) {
+function PastRates({ schedule, unscheduledRate, rate, onRateChange, since, onSinceChange, onScheduleChange, onError }) {
   const colors = useContext(Theme);
-  const [rate, setRate] = useState('');
-  const [since, setSince] = useState('');
   function setRatePeriod() {
     try {
       const enteredRate = rate.trim() ? Number(rate.replace(',', '.')) : Number.NaN;
       onScheduleChange(correctedSchedule(schedule, { since: since.trim(), rate: enteredRate }));
-      setRate('');
-      setSince('');
+      onRateChange('');
+      onSinceChange('');
       onError('');
     } catch (scheduleError) {
       onError(scheduleError.message);
@@ -50,14 +49,14 @@ function PastRates({ schedule, onScheduleChange, onError }) {
   }
   return <View testID="interest-correction-rates" style={k_styles.section}>
     <H size={17}>Rates, including past months</H>
-    {!schedule.length && <T style={{ ...k_styles.note, color: colors.sub }}>No rate periods. Completed months earn no app interest.</T>}
+    {!schedule.length && <T style={{ ...k_styles.note, color: colors.sub }}>No rate periods. Completed months earn no app interest.{unscheduledRate !== undefined ? ` The saved rate ${unscheduledRate}% has no start month yet.` : ''}</T>}
     {interestPeriodsForDisplay({ interestSchedule: schedule }).map(period => <Row key={period.since} style={k_styles.wrapRow}>
       <T style={{ flex: 1, minWidth: 170, fontSize: 13 }}>{periodLabel(period)}</T>
       <Button small kind="soft" accessibilityLabel={`Remove the rate from ${shortMonthLabel(period.since)}`} onPress={() => onScheduleChange(correctedScheduleWithout(schedule, period.since))}>Remove</Button>
     </Row>)}
     <Row style={k_styles.wrapRow}>
-      <Field label="Corrected rate · %" value={rate} onChangeText={setRate} keyboardType="decimal-pad" style={k_styles.field} />
-      <Field label="From month · YYYY-MM" value={since} onChangeText={setSince} placeholder="e.g. 2026-01" style={k_styles.field} />
+      <Field label="Corrected rate · %" value={rate} onChangeText={onRateChange} keyboardType="decimal-pad" style={k_styles.field} />
+      <Field label="From month · YYYY-MM" value={since} onChangeText={onSinceChange} placeholder="e.g. 2026-01" style={k_styles.field} />
     </Row>
     <Button small kind="outline" icon="Plus" onPress={setRatePeriod}>Set rate from this month</Button>
   </View>;
@@ -126,13 +125,21 @@ export default function InterestCorrection({ accountId, onClose }) {
   const storedSchedule = account?.interestSchedule ?? [];
   const [schedule, setSchedule] = useState(storedSchedule);
   const [choices, setChoices] = useState([]);
+  const [typedRate, setTypedRate] = useState('');
+  const [typedSince, setTypedSince] = useState('');
   const [error, setError] = useState('');
   // Cancel asks before discarding a changed draft, like closing the dialog.
   const dismissRef = useRef(onClose);
-  const isDirty = useDirtyForm([schedule, choices]);
+  const isDirty = useDirtyForm([schedule, choices, typedRate, typedSince]);
+  // A rate typed but not yet set would otherwise be ignored by Apply.
+  const hasUnsetRate = Boolean(typedRate.trim() || typedSince.trim());
   const currentMonth = monthOf(today);
   const draft = useMemo(() => ({ currentMonth, schedule, choices }), [currentMonth, schedule, choices]);
   const review = useMemo(() => account ? interestCorrectionReview(state, accountId, draft) : null, [state, account, accountId, draft]);
+  // An earlier Apply error no longer describes a changed draft or ledger.
+  useEffect(() => {
+    setError('');
+  }, [state, draft]);
   if (!review) {
     return <Dialog title="Account unavailable" onClose={onClose}><T>This savings account is no longer available.</T></Dialog>;
   }
@@ -144,11 +151,14 @@ export default function InterestCorrection({ accountId, onClose }) {
 
   function apply() {
     try {
-      const correctedState = applyInterestCorrection(state, accountId, review, draft);
-      setState({
-        ...correctedState,
-        accounts: correctedState.accounts.map(candidate => candidate.id === accountId ? { ...candidate, bank: savingsRateLabel(candidate, currentMonth) } : candidate)
-      });
+      const appliedState = applyInterestCorrection(state, accountId, review, draft);
+      const correctedState = {
+        ...appliedState,
+        accounts: appliedState.accounts.map(candidate => candidate.id === accountId ? { ...candidate, bank: savingsRateLabel(candidate, currentMonth) } : candidate)
+      };
+      // Never keep a ledger in memory that could not be saved.
+      validateState(correctedState);
+      setState(correctedState);
       notify('Past interest corrected');
       onClose();
     } catch (applyError) {
@@ -159,10 +169,12 @@ export default function InterestCorrection({ accountId, onClose }) {
   return <Dialog dirty={isDirty} dismissRef={dismissRef} title="Correct past interest" subtitle={account.name} onClose={onClose}
     footer={<Row style={{ gap: 10, flexWrap: 'wrap' }}>
       <Button kind="outline" onPress={() => dismissRef.current()} style={{ flex: 1, minWidth: 120 }}>Cancel</Button>
-      <Button icon="Check" disabled={review.needsChoice || !hasChanges} onPress={apply} style={{ flex: 1, minWidth: 160 }}>Apply corrections</Button>
+      <Button icon="Check" disabled={review.needsChoice || !hasChanges || hasUnsetRate} onPress={apply} style={{ flex: 1, minWidth: 160 }}>Apply corrections</Button>
     </Row>}>
     <T style={{ ...k_styles.note, color: colors.sub, marginBottom: 14 }}>Completed months are compared with what their balances and rates earn, compounding month by month. Recorded entries stay; each changed month gets one marked interest correction. To correct a past balance, record the missing entry or a balance adjustment on its date first.</T>
-    <PastRates schedule={schedule} onScheduleChange={setSchedule} onError={setError} />
+    <PastRates schedule={schedule} unscheduledRate={account.unscheduledInterest} rate={typedRate} onRateChange={setTypedRate}
+      since={typedSince} onSinceChange={setTypedSince} onScheduleChange={setSchedule} onError={setError} />
+    {hasUnsetRate && <T testID="interest-correction-unset-rate" style={{ ...k_styles.note, color: colors.sub, marginBottom: 12 }}>Set the typed rate, or clear it, before applying.</T>}
     <BankInterestChoices bankInterestMonths={review.bankInterestMonths} onChoose={choose} />
     <Divider />
     <AffectedMonths review={review} />

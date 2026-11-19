@@ -45,9 +45,9 @@ Reviewed merge treats an older (v1–v3) backup as unable to represent a schedul
 
 ## Interest corrections and bank-interest choices (LEDGER-2, version 4, additive)
 
-No schema version change: both fields are optional and older version 4 ledgers stay valid.
+No schema version change: both fields are optional and older version 4 ledgers stay valid. An app build from before LEDGER-2 would report a ledger holding a negative correction as unreadable data rather than as a newer version; every device should run the same build.
 
-- A transaction with `correctsInterestMonth: 'YYYY-MM'` is a reviewed interest correction (id `interest-correction-<account>-<month>-<n>`). It is Interest income dated in that month and is the only entry whose integer-cent amount may be negative (non-zero). It never replaces or edits the month's app entry (`interest-<account>-<month>`) or bank entries. Canonical CSV carries it in a `corrects_interest_month` column with a signed amount; every other imported amount stays positive.
+- A transaction with `correctsInterestMonth: 'YYYY-MM'` is a reviewed interest correction (id `interest-correction-<account>-<month>-<n>`). It is Interest income dated in that month and is the only entry whose integer-cent amount may be negative (non-zero). It never replaces or edits the month's app entry (`interest-<account>-<month>`) or bank entries. Canonical CSV carries it in a `corrects_interest_month` column, and JSON backups and the workbook's raw sheet in `correctsInterestMonth`, each with a signed amount; every other imported amount stays positive. An app interest entry is recognised by its ID even if re-dated, and startup never posts app interest for a month that holds corrections.
 - An account may hold `interestBankChoices`, a list of `{ month: 'YYYY-MM', choice: 'bank' | 'both' }` with unique months. A month that holds bank interest (Interest income that is neither the app entry nor a correction) gets no app entry at startup unless its choice is `both`. Reviewed merge compares the field like any other account field.
 
 ## Full restore (BACKUP-1)

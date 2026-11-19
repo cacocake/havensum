@@ -5,6 +5,7 @@ import { applyInterestCorrection, interestCorrectionReview, StaleInterestCorrect
 import { validateState } from '../src/stateSchema.js';
 import { correctedSchedule, correctedScheduleWithout, InterestScheduleError } from '../src/interestSchedule.js';
 import { accountBalance, monthStats } from '../src/ledger.js';
+import { expectedInterest } from '../src/expectedInterest.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 
 // €1,000 at a 12% effective annual rate earns €9.49 in the first completed
@@ -265,4 +266,62 @@ test('a correction changes only its own account, and a removed account cannot be
   assert.equal(corrected.accounts[1], state.accounts[1]);
   assert.equal(corrected.transactions.filter(transaction => transaction.account === 'other-savings').length, 0);
   assert.throws(() => interestCorrectionReview(state, 'missing', draft), /no longer available/);
+});
+
+test('setting the first rate of an unscheduled legacy account through a correction leaves a valid ledger', () => {
+  const state = createSavingsState();
+  delete state.accounts[0].interestSchedule;
+  state.accounts[0].unscheduledInterest = 12;
+  const draft = { currentMonth: '2026-03', schedule: [{ since: '2026-01', rate: 12 }] };
+
+  const corrected = applyInterestCorrection(state, 'savings', interestCorrectionReview(state, 'savings', draft), draft);
+
+  assert.equal(corrected.accounts[0].unscheduledInterest, undefined);
+  assert.deepEqual(interestEntries(corrected).map(entry => entry.amount), [949, 958]);
+  assert.doesNotThrow(() => validateState(corrected));
+});
+
+test('an app entry moved to another date still counts as that month\'s app interest, never as bank interest', () => {
+  const state = postedSavingsState();
+  state.transactions.find(transaction => transaction.id === 'interest-savings-2026-01').date = '2026-02-01';
+
+  const review = interestCorrectionReview(state, 'savings', { currentMonth: '2026-03' });
+
+  assert.deepEqual(review.bankInterestMonths, []);
+  assert.equal(review.needsChoice, false);
+  const draft = { currentMonth: '2026-03', schedule: [{ since: '2026-01', rate: 6 }] };
+  const corrected = applyInterestCorrection(state, 'savings', interestCorrectionReview(state, 'savings', draft), draft);
+  assert.doesNotThrow(() => validateState(corrected));
+  assert.equal(corrected.transactions.filter(transaction => transaction.id === 'interest-savings-2026-01').length, 1);
+});
+
+test('a new correction never reuses the number of a correction kept for that month', () => {
+  const state = postedSavingsState();
+  state.transactions.push({ id: 'interest-correction-savings-2026-01-2', type: 'income', title: 'Interest correction', amount: -9, date: '2026-01-31', account: 'savings', category: 'interest', correctsInterestMonth: '2026-01' });
+  const draft = { currentMonth: '2026-03', schedule: [{ since: '2026-01', rate: 6 }] };
+
+  const corrected = applyInterestCorrection(state, 'savings', interestCorrectionReview(state, 'savings', draft), draft);
+
+  assert.doesNotThrow(() => validateState(corrected));
+  assert.ok(corrected.transactions.some(transaction => transaction.id === 'interest-correction-savings-2026-01-3'));
+});
+
+test('startup does not post a fresh app entry over a month that already holds corrections', () => {
+  const state = postedSavingsState();
+  const draft = { currentMonth: '2026-03', schedule: [{ since: '2026-01', rate: 6 }] };
+  const corrected = applyInterestCorrection(state, 'savings', interestCorrectionReview(state, 'savings', draft), draft);
+  corrected.transactions = corrected.transactions.filter(transaction => transaction.id !== 'interest-savings-2026-01');
+
+  assert.deepEqual(compoundSavings(corrected, '2026-03'), corrected);
+});
+
+test('a month waiting for a bank-interest choice expects the bank amount, and a correction that nets to zero expects nothing', () => {
+  const pending = compoundSavings(createSavingsState({ transactions: [bankInterest()] }), '2026-02');
+  assert.equal(expectedInterest(pending, '2026-01')[0].expected, 950);
+
+  const state = postedSavingsState();
+  const draft = { currentMonth: '2026-03', schedule: [{ since: '2026-01', rate: 0 }] };
+  const corrected = applyInterestCorrection(state, 'savings', interestCorrectionReview(state, 'savings', draft), draft);
+  assert.equal(expectedInterest(corrected, '2026-01')[0].expected, 0);
+  assert.equal(monthStats(corrected, '2026-01').income, 0);
 });

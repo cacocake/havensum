@@ -8,6 +8,7 @@ export const k_interestBankChoices = Object.freeze({ bankOnly: 'bank', keepBoth:
 
 const k_appInterestIdPrefix = 'interest-';
 const k_interestCorrectionIdPrefix = 'interest-correction-';
+const k_monthKeyLength = 'YYYY-MM'.length;
 
 export function appInterestId(accountId, month) {
   return `${k_appInterestIdPrefix}${accountId}-${month}`;
@@ -29,17 +30,30 @@ function isAccountInterestInMonth(transaction, accountId, month) {
   return isInterestIncome(transaction) && transaction.account === accountId && monthOf(transaction.date) === month;
 }
 
+// An app entry is recognised by its ID, even if it was later re-dated.
+export function isAppInterestEntry(transaction, accountId) {
+  const idMonth = String(transaction.id).slice(-k_monthKeyLength);
+  return transaction.account === accountId && transaction.id === appInterestId(accountId, idMonth);
+}
+
+export function isAccountInterestCorrection(transaction, accountId, month) {
+  return isInterestCorrection(transaction) && transaction.account === accountId && transaction.correctsInterestMonth === month;
+}
+
+export function hasInterestCorrection(transactions, accountId, month) {
+  return transactions.some(transaction => isAccountInterestCorrection(transaction, accountId, month));
+}
+
 // The app entry and its corrections for one account and month.
 export function appInterestEntries(transactions, accountId, month) {
   const appId = appInterestId(accountId, month);
-  return transactions.filter(transaction => isAccountInterestInMonth(transaction, accountId, month)
-    && (transaction.id === appId || isInterestCorrection(transaction)));
+  return transactions.filter(transaction => (transaction.id === appId && transaction.account === accountId)
+    || isAccountInterestCorrection(transaction, accountId, month));
 }
 
 export function bankInterestEntries(transactions, accountId, month) {
-  const appId = appInterestId(accountId, month);
   return transactions.filter(transaction => isAccountInterestInMonth(transaction, accountId, month)
-    && transaction.id !== appId && !isInterestCorrection(transaction));
+    && !isAppInterestEntry(transaction, accountId) && !isInterestCorrection(transaction));
 }
 
 export function interestBankChoice(account, month) {

@@ -1,4 +1,4 @@
-import React,{useContext} from 'react';
+import React,{useContext,useMemo} from 'react';
 import {View} from 'react-native';
 import {Theme,T,H,Row,Button,Badge,TileIcon,Card,Dialog,Divider,Empty} from './ui.jsx';
 import {useApp} from './context.js';
@@ -63,16 +63,27 @@ function AccountBalanceCard({ account }) {
   </Card>;
 }
 
+function pastInterestSummary(review) {
+  const differingMonths = review.months.filter(month => month.difference !== 0).length;
+  const choiceMonths = review.months.filter(month => month.needsChoice).length;
+  const parts = [];
+  if (differingMonths) {
+    parts.push(`${differingMonths} completed ${differingMonths === 1 ? 'month differs' : 'months differ'} from the balances and rates · ${signedEuro(review.total)}`);
+  }
+  if (choiceMonths) {
+    parts.push(`${choiceMonths} ${choiceMonths === 1 ? 'month needs' : 'months need'} a bank-interest choice`);
+  }
+  return parts.length ? parts.join(' · ') : 'Recorded interest matches the balances and rates.';
+}
+
 // LEDGER-2: completed months whose recorded interest differs from what the
 // balances and rates earn, or that wait for a bank-interest choice.
 function PastInterestCard({ account }) {
   const { state, today, setModal } = useApp();
   const colors = useContext(Theme);
-  const review = interestCorrectionReview(state, account.id, { currentMonth: monthOf(today) });
+  const review = useMemo(() => interestCorrectionReview(state, account.id, { currentMonth: monthOf(today) }), [state, account.id, today]);
   const monthCount = review.months.length;
-  const summary = monthCount
-    ? `${monthCount} completed ${monthCount === 1 ? 'month differs' : 'months differ'} from the balances and rates · ${signedEuro(review.total)}${review.needsChoice ? ' · bank interest needs a choice' : ''}`
-    : 'Recorded interest matches the balances and rates.';
+  const summary = pastInterestSummary(review);
   return <Card testID="past-interest">
     <Row style={{ gap: 10, flexWrap: 'wrap', justifyContent: 'space-between' }}>
       <View style={{ flex: 1, minWidth: 180 }}>
