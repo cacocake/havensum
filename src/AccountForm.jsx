@@ -35,8 +35,8 @@ function initialRateDraft(item) {
   if (!item.interestSchedule?.length && item.unscheduledInterest !== undefined) {
     return String(item.unscheduledInterest);
   }
-  // An account becoming a savings account starts like a new one.
-  return item.interestSchedule?.length ? '' : String(k_defaultInterestRate);
+  // Only an account becoming a savings account starts like a new one.
+  return item.tag !== k_accountTypes.savings && !item.interestSchedule?.length ? String(k_defaultInterestRate) : '';
 }
 
 export function AccountForm({ item, onClose }) {
@@ -67,7 +67,9 @@ export function AccountForm({ item, onClose }) {
 
   function addRatePeriod() {
     try {
-      setSchedule(scheduleWithDraftRate());
+      // Adding is explicit, so a missing start month is reported rather than skipped.
+      const rate = interestRate.trim() ? Number(interestRate) : Number.NaN;
+      setSchedule(scheduleWithPeriod(schedule, { since: rateStart.trim(), rate }, currentMonth, { allowPastStart: isUnscheduledLegacyRate }));
       setInterestRate('');
       setError('');
     } catch (scheduleError) {

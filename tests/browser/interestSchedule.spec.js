@@ -157,3 +157,33 @@ test('choosing an older backup rate during review inserts it as one period', asy
 
   await expect.poll(async () => (await savedAccount(page)).interestSchedule).toEqual([{ since: '2026-05', rate: 4 }, { since: '2027-01', rate: 1 }]);
 });
+
+test('renaming a savings account without any rate keeps it without a rate', async ({ page }) => {
+  await openLedger(page, createFinancialState({ accounts: [{ id: 'plain', name: 'Plain savings', tag: 'Savings', openingBalance: 100000 }] }));
+  const dialog = await editAccount(page, 'Plain savings');
+  await expect(dialog.getByLabel('Effective annual interest · %', { exact: true })).toHaveValue('');
+  await dialog.getByLabel('Account name', { exact: true }).fill('Plain savings, renamed');
+  await dialog.getByRole('button', { name: 'Save account', exact: true }).click();
+
+  await expect.poll(async () => (await savedAccount(page)).name).toBe('Plain savings, renamed');
+  expect((await savedAccount(page)).interestSchedule).toBeUndefined();
+});
+
+test('adding an unscheduled legacy rate without a start month asks for one and keeps the rate', async ({ page }) => {
+  await openLedger(page, createFinancialState({ version: 3, accounts: [{ id: 'imported', name: 'Imported savings', tag: 'Savings', openingBalance: 100000, interest: 12 }] }));
+  const dialog = await editAccount(page, 'Imported savings');
+  await dialog.getByRole('button', { name: 'Add rate period', exact: true }).click();
+
+  await expect(dialog.getByText('Choose a start month as YYYY-MM.', { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('Effective annual interest · %', { exact: true })).toHaveValue('12');
+});
+
+test('adding a period with an empty rate asks for a rate instead of adding 0%', async ({ page }) => {
+  await openLedger(page, scheduledLedger());
+  const dialog = await editAccount(page, 'Rainy day reserve with a deliberately long name');
+  await dialog.getByLabel('Rate starts · YYYY-MM', { exact: true }).fill('2027-02');
+  await dialog.getByRole('button', { name: 'Add rate period', exact: true }).click();
+
+  await expect(dialog.getByText('Enter a non-negative effective annual rate.', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('3% from May 2026, ongoing', { exact: true })).toBeVisible();
+});
