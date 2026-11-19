@@ -473,7 +473,7 @@ The implementation note below records how these were built; it stores only per-y
 
 ## Bug fix — BUG-1 · Flaky stale-preview full-restore test (19 November 2026, Claude cloud session)
 
-- **Status:** done, reviewed and merged into `develop` from `codex/bug-1-stale-restore-flake` (commits `124a81b`, `7b91fc7`, `2cfa345`, `3fe4232`, `098ef47`, plus the final test and decision commit).
+- **Status:** done and reviewed on `codex/bug-1-stale-restore-flake`, merged into `develop` by the no-fast-forward merge that follows this record (commits `124a81b`, `7b91fc7`, `2cfa345`, `3fe4232`, `098ef47`, plus the final test and decision commit).
 - **Root cause (confirmed, a product defect):** the preview captured the saved ledger bytes only after `await file.text()`. If another tab or window saved during that window, its bytes became the preview's baseline. The confirm-time check then passed, and the restore overwrote the other tab's save. The pre-restore copy held this tab's stale in-memory ledger, so the other tab's save was lost. The test flaked because its simulated other-tab write ran right after `setFiles` resolved, sometimes before the preview read storage. The earlier guess (this tab's own save landing late) was wrong.
 - **Evidence:** a temporary diagnostic (not committed) delayed the file read and logged every ledger read and write. The other-tab write at 1500 ms preceded the preview's read at 1881 ms. The restore then went ahead, and the recovery copy held the light-theme ledger while the other tab had saved the dark one. Natural reproduction did not recur here: 0 of about 700 repeated runs, including under CPU load.
 - **Fix:**
@@ -487,7 +487,7 @@ The implementation note below records how these were built; it stores only per-y
   - Unit (storage): guarded save refused after another tab saved since this instance last saved or read, refused over data never read, allowed after a failed save, allowed on a fresh install and after a legacy migration.
 - **Checks (merged tree with the latest `develop`, `bfdd415`):**
   - `npm run test:coverage` 505/505 (96.75% lines, 94.74% branches);
-  - `npm run test:browser` 444/444, plus a final run after the last test commit (see below);
+  - `npm run test:browser` 444/444, and 447/447 after the last test commit;
   - `npm run build`;
   - `npm run check:android` (Hermes compilation only; no device test);
   - stress: all other-tab tests 180/180 with `--repeat-each 15 --workers 6`.
@@ -501,4 +501,3 @@ The implementation note below records how these were built; it stores only per-y
   - A refusal caused by this tab's own later edit (old "stale" notice) has no browser test, because the modal preview blocks edits; the rule is unit-tested.
   - If another tab removes the ledger key entirely, the notice asks for an app reload but a retry is allowed.
   - The reload does not reopen the missing-category review automatically; its button is shown.
-
