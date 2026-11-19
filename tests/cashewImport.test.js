@@ -70,7 +70,10 @@ test('opposite Cashew rows become one neutral transfer, with both export legs av
   assert.equal(monthStats(saved, '2026-11').income, 0);
   assert.equal(monthStats(saved, '2026-11').spent, 0);
   const repeated = previewImportFile(saved, file, { accounts: { Wallet: 'everyday' } });
-  assert.deepEqual(repeated.rows.map(row => row.possibleMatches.map(match => match.id)),
+  assert.deepEqual(repeated.rows.map(row => row.status), ['possible', 'paired']);
+  assert.deepEqual(repeated.rows[0].possibleMatches.map(match => match.id), ['matched-cashew-transfer']);
+  const unpaired = reviseTransactionImport(saved, repeated, 0, { type: undefined });
+  assert.deepEqual(unpaired.rows.map(row => row.possibleMatches.map(match => match.id)),
     [['matched-cashew-transfer'], ['matched-cashew-transfer']]);
 });
 

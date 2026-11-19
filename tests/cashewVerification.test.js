@@ -168,3 +168,49 @@ test('Cashew budget and objective are shown read-only and category styling is ne
     assert.deepEqual(Object.keys(saved.transactions[0]).filter(key => /budget|objective|emoji|icon|color/i.test(key)), []);
   }
 });
+
+function balanceCorrection(account, amount, date = '2026-11-12 23:40:00.123') {
+  const income = String(!amount.startsWith('-'));
+  return publishedRow({ account, amount, income, date, title: 'Transfer', 'category name': 'Balance Correction' });
+}
+
+test('a unique opposite Balance Correction row is preselected as a suggested transfer the owner can change (K05)', async () => {
+  const file = await cashewFile(k_publishedHeader, [
+    balanceCorrection('Carteira', '-36.4'), publishedRow(k_cafe), balanceCorrection('Poupança', '36.4')
+  ]);
+  const state = createFinancialState();
+  const options = { accounts: { Carteira: 'everyday', Poupança: 'shared', 'Conta Poupança': 'everyday' } };
+  const preview = previewImportFile(state, file, options);
+  assert.deepEqual(preview.rows.map(row => row.status), ['new', 'invalid', 'paired']);
+  assert.equal(preview.rows[0].transaction.type, 'transfer');
+  assert.equal(preview.rows[0].transaction.toAccount, 'shared');
+  assert.equal(preview.rows[0].bank.suggestedCounterpartRow, 4);
+  assert.equal(preview.rows[2].bank.suggestedCounterpartRow, 2);
+  const saved = applyTransactionImport(state, preview, { 1: 'skip' }, () => 'suggested-transfer');
+  assert.equal(saved.transactions.length, 1);
+  assert.equal(accountBalance(saved, 'everyday', '2026-11-30'), 100000 - 3640);
+  assert.equal(accountBalance(saved, 'shared', '2026-11-30'), 50000 + 3640);
+  assert.equal(monthStats(saved, '2026-11').income, 0);
+  assert.equal(monthStats(saved, '2026-11').spent, 0);
+
+  const changed = reviseTransactionImport(state, preview, 0, { type: 'expense', category: 'groceries' });
+  assert.deepEqual(changed.rows.map(row => row.status), ['new', 'invalid', 'invalid']);
+  assert.equal(changed.rows[2].transaction.type, undefined);
+});
+
+test('Cashew suggests no transfer when the opposite Balance Correction row is ambiguous or differs (K05)', async () => {
+  const options = { accounts: { Carteira: 'everyday', Poupança: 'shared', Outra: 'shared' } };
+  const state = createFinancialState();
+  const cases = [
+    [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Poupança', '10.0'), balanceCorrection('Outra', '10.0')],
+    [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Poupança', '10.0', '2026-11-12 23:41:00.123')],
+    [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Poupança', '10.01')],
+    [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Carteira', '10.0')],
+    [balanceCorrection('Carteira', '-10.0'), publishedRow({ account: 'Poupança', amount: '10.0', income: 'true', title: 'Transfer', date: '2026-11-12 23:40:00.123', 'category name': 'Other' })]
+  ];
+  for (const rows of cases) {
+    const preview = previewImportFile(state, await cashewFile(k_publishedHeader, rows), options);
+    assert.deepEqual(preview.rows.map(row => row.transaction.type), rows.map(() => undefined));
+    assert.deepEqual(preview.rows.map(row => row.bank.suggestedCounterpartRow), rows.map(() => undefined));
+  }
+});

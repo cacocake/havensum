@@ -7,6 +7,7 @@ const k_loanTypes = new Set(['credit', 'debt']);
 const k_scheduledTypes = new Set(['upcoming', 'subscription', 'repetitive']);
 const k_reviewLoanMessage = 'Review this outside the import. Cashew borrowing and lending cannot be brought in as ordinary transactions.';
 const k_scheduledNote = 'From a scheduled Cashew entry exported as paid. Unverified against a real export.';
+const k_balanceCorrectionCategory = 'balance correction';
 const k_newAccountDefaults = { openingBalance: 0, tag: 'Personal', icon: 'Wallet', color: '#91A4CE' };
 
 function sourceWarning(row) {
@@ -27,6 +28,44 @@ function sourceWarning(row) {
 function sourceDetails(row) {
   const details = Object.fromEntries(['budget', 'objective'].filter(name => row[name]).map(name => [name, row[name]]));
   return Object.keys(details).length > 0 ? details : undefined;
+}
+
+function isTransferLeg(row, draft) {
+  return Boolean(row.movement) && !draft.bank.error && draft.transaction.account !== undefined
+    && row.category.trim().toLowerCase() === k_balanceCorrectionCategory;
+}
+
+function oppositeLegs(rows, drafts, index) {
+  const leg = rows[index];
+  return rows.flatMap((candidate, candidateIndex) => {
+    const isOpposite = isTransferLeg(candidate, drafts[candidateIndex])
+      && candidate.movement.direction !== leg.movement.direction
+      && candidate.movement.amount === leg.movement.amount
+      && candidate.timestamp === leg.timestamp
+      && candidate.account !== leg.account
+      && String(drafts[candidateIndex].transaction.account) !== String(drafts[index].transaction.account);
+    return isOpposite ? [candidateIndex] : [];
+  });
+}
+
+// K05: Cashew writes a transfer as two Balance Correction rows. Suggest a
+// pair only when each leg has exactly one opposite leg; the owner can change it.
+function suggestTransferPairs(rows, drafts) {
+  const pairs = [];
+  for (const [debitIndex, debit] of rows.entries()) {
+    if (debit.movement?.direction !== 'debit' || !isTransferLeg(debit, drafts[debitIndex])) {
+      continue;
+    }
+    const credits = oppositeLegs(rows, drafts, debitIndex);
+    if (credits.length !== 1 || oppositeLegs(rows, drafts, credits[0]).length !== 1) {
+      continue;
+    }
+    const [creditIndex] = credits;
+    drafts[debitIndex].bank.suggestedCounterpartRow = rows[creditIndex].sourceRow;
+    drafts[creditIndex].bank.suggestedCounterpartRow = debit.sourceRow;
+    pairs.push({ debitIndex, creditIndex });
+  }
+  return pairs;
 }
 
 export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] } = {}) {
@@ -71,5 +110,6 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
       }
     };
   });
-  return { drafts, pendingAccounts };
+  const suggestedTransfers = suggestTransferPairs(data.rows, drafts);
+  return { drafts, pendingAccounts, suggestedTransfers };
 }
