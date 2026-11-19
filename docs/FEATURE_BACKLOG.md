@@ -92,7 +92,7 @@ Apply the agreed rule to current balances, account details, reports, forecasts, 
 
 ### LEDGER-2 · Historical interest corrections
 
-**Needs:** Owner decision on backdated balances and rates, and whether bank-posted interest replaces an app entry.
+**Owner decision (19 November 2026, recorded as L03–L06 in DECISIONS.md):** corrections go through a reviewed *Correct past interest* flow on the savings account (past rates change only there; a corrected balance is an ordinary dated entry or balance adjustment). Each affected completed month keeps its recorded entries and gets one marked *Interest correction* entry for the difference. Bank-posted interest for a month that also has, or would get, an app entry needs a per-month choice: bank amount only, or keep both. The review lists all affected months with downstream *compounding effect* rows and a total, and applies them together. **Status:** In progress on `codex/interest-corrections`.
 
 Design a reviewed, explicit correction flow after agreement. Show the affected completed months and downstream compounding. Cover a corrected past balance, existing bank interest, duplicate prevention, cancel, and repeated application.
 
