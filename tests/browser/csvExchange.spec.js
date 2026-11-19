@@ -181,6 +181,20 @@ test('review shows the before and projected balances for both sides of a transfe
   expect(ledger).toHaveLength(1);
 });
 
+// L01: a row dated after today does not change today's balance; it is shown
+// as scheduled and counts from its date.
+test('review keeps a later-dated row out of today\'s balance and shows it as scheduled', async ({ page }) => {
+  const dialog = await previewFile(page, [
+    'date,title,amount,type,account,category',
+    '2026-11-12,Imported lunch,15.42,expense,everyday,groceries',
+    '2026-11-28,Concert,40.00,expense,everyday,shopping'
+  ].join('\n'));
+  await expect(dialog.getByText('Account balances', { exact: true })).toBeVisible({ timeout: 2500 });
+  for (const text of ['Balances as of today. Entries dated later count from their date.', 'Before €987.66', 'Projected €972.24', 'Scheduled after import −€40.00']) {
+    await expect(dialog.getByText(text, { exact: true })).toBeVisible();
+  }
+});
+
 test('after confirming, import results report what was added, updated, skipped and the final balances', async ({ page }) => {
   const dialog = await previewFile(page, [
     'id,date,title,amount,type,account,category,toAccount',

@@ -2,7 +2,7 @@ import React, { useContext, useState } from 'react';
 import { View } from 'react-native';
 import { useApp } from './context.js';
 import { Theme, T, H, Card, Button, Dialog, Field, Select, Toggle } from './ui.jsx';
-import { previousMonths, monthOf, yearOfMonth } from './calendar.js';
+import { previousMonths, currentLocalMonth, yearOfMonth } from './calendar.js';
 import { latestPlan } from './planArchive.js';
 import { cents } from './money.js';
 import { validateOutlookState } from './outlookInputs.js';
@@ -41,7 +41,7 @@ function OutlookSettingsDialog({ month, onClose }) {
   const [adoptScheduledChanges, setAdoptScheduledChanges] = useState(false);
   const [error, setError] = useState('');
   const dirty = useDirtyForm([completeMonths, historyWindow, incomeDrafts, loanDrafts, adoptScheduledChanges]);
-  const currentMonth = monthOf(new Date().toISOString());
+  const currentMonth = currentLocalMonth();
   const approvedPlan = latestPlan(state, yearOfMonth(month));
   const history = previousMonths(currentMonth, k_historyControlMonths);
   const savedIncome = state.outlook?.incomeChanges?.find(change => change.since === since);

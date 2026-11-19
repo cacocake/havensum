@@ -26,7 +26,7 @@ const k_backupMessages = {
   missingBaseline: 'Export a backup first to establish a shared merge baseline.'
 };
 const k_mergeConflictFields = { outlook: '$outlook', record: '$record' };
-const k_filteredSpendingHint = 'Past and current totals use entries through today. Future months show registered entries. The list includes future-dated rows; open a movement for its breakdown.';
+const k_filteredSpendingHint = 'Totals count entries posted by today. Entries dated later are marked Scheduled and count from their date. Open a movement for its breakdown.';
 export function Transactions(){
  const {state,month,search,setSearch,filters,setFilters,searchFocus}=useApp(),c=useContext(Theme),searchRef=useRef(null);
  useEffect(()=>{if(searchFocus){const id=setTimeout(()=>searchRef.current?.focus(),60);return()=>clearTimeout(id)}},[searchFocus]);

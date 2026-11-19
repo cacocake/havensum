@@ -7,17 +7,22 @@ import {TransactionRow} from './Dashboard.jsx';
 import Icon from './Icon';
 import {Squish} from './Playful.jsx';
 import { expenseReportingMonth, isPlannedCostLink } from './plannedCosts.js';
+import { localCalendarDate } from './calendar.js';
+import { scheduledAccountMovement } from './ledger.js';
+import { signedEuro } from './money.js';
 
 export function AccountDetail(){
  const {state,accountId,setScreen,setModal}=useApp(),c=useContext(Theme),account=state.accounts.find(a=>a.id===accountId);
  if(!account)return <Empty title="Account unavailable" description="Choose an account from More."/>;
- const rows=state.transactions.filter(t=>t.account===accountId||t.type==='transfer'&&t.toAccount===accountId).sort((a,b)=>b.date.localeCompare(a.date));
- const movement=rows.reduce((sum,t)=>sum+(t.type==='expense'||t.type==='transfer'&&t.account===accountId?-t.amount:t.amount),0);
+ const today=localCalendarDate(),rows=state.transactions.filter(t=>t.account===accountId||t.type==='transfer'&&t.toAccount===accountId).sort((a,b)=>b.date.localeCompare(a.date));
+ // L01: the balance counts entries posted by today; later ones are scheduled.
+ const balanceToday=accountBalance(state,accountId,today),postedMovement=balanceToday-account.openingBalance,scheduledMovement=scheduledAccountMovement(state,accountId,today);
  return <View style={{gap:20}}>
   <Row style={{justifyContent:'space-between',gap:8}}><Button small kind="soft" icon="ArrowLeft" onPress={()=>setScreen('Accounts')}>Accounts</Button><Button small kind="outline" icon="Pencil" onPress={()=>setModal({type:'account',item:account})}>Edit account</Button></Row>
-  <Card style={{backgroundColor:c.peach,borderColor:'transparent'}}><Row style={{gap:12}}><TileIcon name={account.icon} color={account.color}/><View style={{flex:1}}><T>{account.tag} · recorded balance</T><H size={35} numberOfLines={1} adjustsFontSizeToFit>{euro(accountBalance(state,accountId))}</H></View></Row><Divider/>
-   <Row style={{justifyContent:'space-between',gap:10}}><T style={{color:c.sub}}>Opening balance</T><T>{euro(account.openingBalance)}</T></Row><Row style={{justifyContent:'space-between',gap:10,marginTop:8}}><T style={{color:c.sub}}>All recorded movements</T><T>{movement>=0?'+':''}{euro(movement)}</T></Row>
-   <T style={{fontSize:12,color:c.sub,marginTop:14}}>All dates, including future-dated entries. Transfers and paybacks change cash here, without becoming earnings.</T>
+  <Card style={{backgroundColor:c.peach,borderColor:'transparent'}}><Row style={{gap:12}}><TileIcon name={account.icon} color={account.color}/><View style={{flex:1}}><T>{account.tag} · balance today</T><H testID="account-balance-today" size={35} numberOfLines={1} adjustsFontSizeToFit>{euro(balanceToday)}</H></View></Row><Divider/>
+   <Row style={{justifyContent:'space-between',gap:10}}><T style={{color:c.sub}}>Opening balance</T><T>{euro(account.openingBalance)}</T></Row><Row style={{justifyContent:'space-between',gap:10,marginTop:8}}><T style={{color:c.sub}}>Posted movements</T><T>{signedEuro(postedMovement)}</T></Row>
+   {scheduledMovement!==0&&<><Row style={{justifyContent:'space-between',gap:10,marginTop:8}}><T style={{color:c.sub}}>Scheduled</T><T testID="account-scheduled-movement">{signedEuro(scheduledMovement)}</T></Row><Row style={{justifyContent:'space-between',gap:10,marginTop:8}}><T style={{color:c.sub}}>After scheduled entries</T><T testID="account-balance-after-scheduled">{euro(balanceToday+scheduledMovement)}</T></Row></>}
+   <T style={{fontSize:12,color:c.sub,marginTop:14}}>Entries count from their date, by this device. Later ones are scheduled. Transfers and paybacks change cash here, without becoming earnings.</T>
   </Card>
   <Card><H size={22}>Account activity</H><T style={{color:c.sub,fontSize:12,marginTop:5,marginBottom:12}}>All time · {rows.length} movements</T>{rows.length?rows.map((t,i)=><TransactionRow key={t.id} tx={t} last={i===rows.length-1} accountId={accountId}/>):<Empty title="Your ledger starts here" description="Add a transaction to record a movement."/>}</Card>
  </View>;

@@ -1,0 +1,107 @@
+import { test, expect } from '../helpers/browserTest.js';
+import { createFinancialState, createTransaction } from '../helpers/financialFixtures.js';
+import { addTransaction, openMoreSection, returnHome } from '../helpers/userFlows.js';
+
+// Owner decision L01: an entry dated after today counts in balances and
+// monthly reports from its date, by the device's local date. Until then it is
+// shown as scheduled and still feeds forecasts.
+const k_ledgerKey = 'melo-state-v1';
+
+function ledgerWithConcert() {
+  return createFinancialState({ transactions: [
+    createTransaction({ id: 'bakery', title: 'Bakery', amount: 1000, date: '2026-11-10' }),
+    createTransaction({ id: 'concert', title: 'Concert tickets', amount: 4000, date: '2026-11-20', category: 'shopping' })
+  ] });
+}
+
+async function openWithLedger(page, ledger, time) {
+  await page.clock.install({ time: new Date(time) });
+  await page.addInitScript(({ key, ledger }) => {
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, JSON.stringify(ledger));
+    }
+  }, { key: k_ledgerKey, ledger });
+  await page.goto('/');
+  await expect(page.getByLabel('Add expense', { exact: true })).toBeVisible();
+}
+
+test('a future-dated expense leaves today\'s balance and report alone, shows as scheduled and counts from its date', async ({ page }) => {
+  await openWithLedger(page, ledgerWithConcert(), '2026-11-17T12:00:00');
+
+  await expect(page.getByLabel('View Everyday account').first()).toContainText('€990.00');
+  await expect(page.getByLabel('View net spending transactions')).toContainText('€10.00');
+  await expect(page.getByTestId('month-scheduled')).toHaveText('1 scheduled entry · −€40.00 when it posts');
+  await expect(page.getByLabel('View Concert tickets, scheduled', { exact: true })).toContainText('Scheduled');
+  await expect(page.getByLabel('View Bakery', { exact: true })).not.toContainText('Scheduled');
+
+  await page.getByLabel('View Everyday account').first().click();
+  await expect(page.getByTestId('account-balance-today')).toHaveText('€990.00');
+  await expect(page.getByTestId('account-scheduled-movement')).toHaveText('−€40.00');
+  await expect(page.getByTestId('account-balance-after-scheduled')).toHaveText('€950.00');
+  const ledgerBefore = await page.evaluate(key => localStorage.getItem(key), k_ledgerKey);
+
+  // From its date the entry counts automatically, with no confirmation step.
+  await page.clock.setSystemTime(new Date('2026-11-20T09:00:00'));
+  await page.reload();
+  await expect(page.getByLabel('View Everyday account').first()).toContainText('€950.00');
+  await expect(page.getByLabel('View net spending transactions')).toContainText('€50.00');
+  await expect(page.getByTestId('month-scheduled')).toHaveCount(0);
+  await expect(page.getByLabel('View Concert tickets', { exact: true })).not.toContainText('Scheduled');
+  expect(await page.evaluate(key => localStorage.getItem(key), k_ledgerKey)).toBe(ledgerBefore);
+});
+
+test('a future month reports nothing until its entries post and lists them as scheduled', async ({ page }) => {
+  const ledger = createFinancialState({ transactions: [
+    createTransaction({ id: 'rent', title: 'December rent', amount: 80000, date: '2026-12-02', category: 'rent' })
+  ] });
+  await openWithLedger(page, ledger, '2026-11-17T12:00:00');
+  await page.getByRole('button', { name: 'Choose month', exact: true }).click();
+  await page.getByRole('button', { name: 'Dec', exact: true }).click();
+
+  await expect(page.getByTestId('month-pulse-period')).toHaveText('December · posted so far');
+  await expect(page.getByLabel('View net spending transactions')).toContainText('€0.00');
+  await expect(page.getByTestId('month-scheduled')).toHaveText('1 scheduled entry · −€800.00 when it posts');
+  await expect(page.getByLabel('View December rent, scheduled', { exact: true })).toBeVisible();
+});
+
+test('an account shows no scheduled lines when nothing is dated after today', async ({ page }) => {
+  await openWithLedger(page, ledgerWithConcert(), '2026-11-25T12:00:00');
+  await openMoreSection(page, 'Accounts');
+  await page.getByLabel('View Everyday account').first().click();
+  await expect(page.getByTestId('account-balance-today')).toHaveText('€950.00');
+  await expect(page.getByTestId('account-scheduled-movement')).toHaveCount(0);
+  await returnHome(page);
+});
+
+test.describe('west of UTC in the evening', () => {
+  test.use({ timezoneId: 'America/Los_Angeles' });
+
+  test('a new entry defaults to the local date and is not scheduled', async ({ page }) => {
+    // 21:00 on 10 November in Los Angeles is already 11 November in UTC.
+    await openWithLedger(page, createFinancialState(), '2026-11-11T05:00:00Z');
+    await page.getByLabel('Add expense', { exact: true }).click();
+    await expect(page.getByRole('dialog').getByLabel('Date', { exact: true })).toHaveValue('2026-11-10');
+    await page.getByRole('dialog').getByLabel('Close dialog', { exact: true }).click();
+
+    await addTransaction(page, { title: 'Late snack', amount: '5.00' });
+    await expect(page.getByLabel('View Late snack', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('View Everyday account').first()).toContainText('€995.00');
+  });
+});
+
+test.describe('east of UTC just after midnight', () => {
+  test.use({ timezoneId: 'Pacific/Auckland' });
+
+  test('the app opens on the local month and counts entries dated today', async ({ page }) => {
+    // 00:30 on 1 December in Auckland is still 30 November in UTC.
+    const ledger = createFinancialState({ transactions: [
+      createTransaction({ id: 'coffee', title: 'First coffee', amount: 300, date: '2026-12-01' })
+    ] });
+    await openWithLedger(page, ledger, '2026-11-30T11:30:00Z');
+
+    await expect(page.getByTestId('month-pulse-period')).toHaveText('December, so far');
+    await expect(page.getByLabel('View net spending transactions')).toContainText('€3.00');
+    await expect(page.getByLabel('View First coffee', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('View Everyday account').first()).toContainText('€997.00');
+  });
+});

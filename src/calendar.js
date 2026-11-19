@@ -24,6 +24,11 @@ export function monthOf(date) {
   return date.slice(0, k_monthKeyLength);
 }
 
+// The device's local calendar month (owner decision L02).
+export function currentLocalMonth() {
+  return monthOf(localCalendarDate());
+}
+
 export function formatMonth(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }

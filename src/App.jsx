@@ -9,7 +9,7 @@ import {useInsets} from './insets';
 import {useHavensumFonts} from './fonts';
 import { prepareLoadedLedger } from './startupLedger.js';
 import {seed} from './seed.js';
-import {monthOf} from './engine.js';
+import { currentLocalMonth } from './calendar.js';
 import {readState,writeState,readSavedLedgerCopy} from './storage';
 import { downloadSavedLedgerCopy } from './files';
 import Dashboard from './Dashboard.jsx';
@@ -41,7 +41,7 @@ export default function App(){
  const [filters,setFilters]=useState({}),[searchFocus,setSearchFocus]=useState(0),[accountId,setAccountId]=useState(null),[pickerYear,setPickerYear]=useState(null);
  const searchRequest=useRef(0);
  const [fontsLoaded]=useHavensumFonts();const insets=useInsets();const scrollRef=useRef(null);
- const [state,setState]=useState(null),[screen,setScreen]=useState('Overview'),[month,setMonth]=useState(new Date().toISOString().slice(0,7)),[modal,setModal]=useState(null),[toast,setToast]=useState(''),[search,setSearch]=useState(''),[mobileMenu,setMobileMenu]=useState(false),[monthOpen,setMonthOpen]=useState(false),[saveError,setSaveError]=useState(false);const {width}=useWindowDimensions(),wide=width>=1130,desktop=width>=850,c=state?.theme==='dark'?dark:light;
+ const [state,setState]=useState(null),[screen,setScreen]=useState('Overview'),[month,setMonth]=useState(currentLocalMonth),[modal,setModal]=useState(null),[toast,setToast]=useState(''),[search,setSearch]=useState(''),[mobileMenu,setMobileMenu]=useState(false),[monthOpen,setMonthOpen]=useState(false),[saveError,setSaveError]=useState(false);const {width}=useWindowDimensions(),wide=width>=1130,desktop=width>=850,c=state?.theme==='dark'?dark:light;
  async function loadStoredState() {
    setLoadError(null);
    setRecoveryError('');
@@ -54,7 +54,7 @@ export default function App(){
      return;
    }
    try {
-     const currentMonth = monthOf(new Date().toISOString());
+     const currentMonth = currentLocalMonth();
      const initialState = savedState || seed();
      setState(prepareLoadedLedger(initialState, currentMonth));
      setCategoryReviewOpen(Boolean(initialState.migrationCategoryWarnings?.length));

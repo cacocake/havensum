@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { accountBalance, reportingMonthStats } from '../src/engine.js';
-import { scheduledMonthStats } from '../src/ledger.js';
+import { scheduledAccountMovement, scheduledMonthStats } from '../src/ledger.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 import { atLocalTime } from './helpers/localClock.js';
 import { planInsights } from '../src/planInsights.js';
+import { getImportBalances } from '../src/importOutcomes.js';
 import { yearOutlook } from '../src/yearOutlook.js';
 import { expectedSavings } from '../src/expectedSavings.js';
 
@@ -139,4 +140,32 @@ test('forecasts treat the local date as today when no date is given', () => {
   assert.equal(insights.elapsed, 30);
   assert.equal(outlook.months[10].period, 'current');
   assert.equal(estimate, null, 'November is not complete yet, so December has no history to estimate from');
+});
+
+test('an account\'s scheduled movement is what its balance gains once later entries post', () => {
+  const state = createFinancialState({ transactions: [
+    createTransaction({ id: 'posted', amount: 1000, date: '2026-11-10' }),
+    createTransaction({ id: 'rent', amount: 80000, date: '2026-12-02', category: 'rent' }),
+    createTransaction({ id: 'salary', type: 'income', amount: 200000, date: '2026-11-28', category: 'salary' }),
+    createTransaction({ id: 'to-shared', type: 'transfer', toAccount: 'shared', amount: 15000, date: '2026-11-30' })
+  ] });
+
+  assert.equal(scheduledAccountMovement(state, 'everyday', '2026-11-17'), -80000 + 200000 - 15000);
+  assert.equal(scheduledAccountMovement(state, 'shared', '2026-11-17'), 15000);
+  assert.equal(scheduledAccountMovement(state, 'everyday', '2026-12-02'), 0);
+});
+
+test('an import preview shows balances as of today and keeps later-dated rows as a scheduled change', () => {
+  const state = createFinancialState();
+  const imported = [
+    createTransaction({ id: 'posted-row', amount: 2500, date: '2026-11-12' }),
+    createTransaction({ id: 'scheduled-row', amount: 9000, date: '2026-11-28' })
+  ];
+  const review = { rows: imported.map(transaction => ({ transaction })) };
+  const result = { ...state, transactions: imported };
+
+  assert.deepEqual(getImportBalances(state, review, result, '2026-11-17'), [
+    { id: 'everyday', name: 'Everyday', before: 100000, after: 97500, scheduledAfter: -9000 }
+  ]);
+  assert.deepEqual(getImportBalances(state, review, null, '2026-11-17')[0], { id: 'everyday', name: 'Everyday', before: 100000, after: null, scheduledAfter: null });
 });

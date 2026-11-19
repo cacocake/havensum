@@ -99,3 +99,10 @@ export function accountBalance(state, accountId, until = localCalendarDate()) {
     return transaction.type === k_transactionTypes.expense ? balance - transaction.amount : balance + transaction.amount;
   }, account.openingBalance);
 }
+
+const k_lastCalendarDate = '9999-12-31';
+
+// What an account's balance gains (or loses) once its scheduled entries post.
+export function scheduledAccountMovement(state, accountId, today = localCalendarDate()) {
+  return accountBalance(state, accountId, k_lastCalendarDate) - accountBalance(state, accountId, today);
+}
