@@ -127,12 +127,15 @@ export class StaleLedgerError extends Error {
 // Without that step the app could later save its older in-memory ledger under
 // a link that claims the partner's changes, and the next sync would delete them.
 //
-// Saving takes time, so the person may edit meanwhile. Their edit is then
-// merged onto the saved ledger instead of being replaced (on a same-field
-// collision in that moment the edit wins, as the newest change), and later
-// saves in this sync are refused so the edit is sent by the next sync.
-export function createSyncProgressSaver({ storage, snapshotState, readCurrentState, adoptSavedState }) {
+// Saving takes time, so the person may edit meanwhile. An edit that fits with
+// the saved ledger is merged onto it. An edit that collides with a change the
+// sync brought in (same field, or edit versus delete) is never decided here:
+// the previous ledger and link are put back, the edit stays in the app, and
+// the next sync offers the collision for review. Either way, later saves in
+// this sync are refused so the edit is sent by the next sync.
+export function createSyncProgressSaver({ storage, snapshotState, snapshotBinding, readCurrentState, adoptSavedState }) {
   let expectedState = snapshotState;
+  let lastSaved = { state: snapshotState, binding: snapshotBinding };
   return async function saveProgress({ state, binding }) {
     if (!isSameLedger(readCurrentState(), expectedState)) {
       throw new StaleLedgerError();
@@ -142,11 +145,17 @@ export function createSyncProgressSaver({ storage, snapshotState, readCurrentSta
     if (isSameLedger(currentState, expectedState)) {
       adoptSavedState(state);
       expectedState = state;
+      lastSaved = { state, binding };
       return;
     }
-    const { result } = mergeSharedLedgers(expectedState, currentState, state);
-    adoptSavedState(withDeviceKeys(result, currentState));
+    const merge = mergeSharedLedgers(expectedState, currentState, state);
+    if (merge.conflicts.length) {
+      await storage.writeStateWithSharedFileBinding(lastSaved.state, lastSaved.binding);
+      throw new StaleLedgerError();
+    }
+    adoptSavedState(withDeviceKeys(merge.result, currentState));
     expectedState = state;
+    lastSaved = { state, binding };
   };
 }
 
