@@ -30,14 +30,10 @@ const k_backupMessages = {
   previewUnavailable: 'Merge baselines are unavailable in preview mode. Open the main app to review a backup merge.',
   missingBaseline: 'Export a backup first to establish a shared merge baseline.'
 };
-<<<<<<< HEAD
-=======
-const k_mergeConflictFields = { outlook: '$outlook', record: '$record' };
 const k_mergeSides = [
   { side: 'local', label: 'This device' },
   { side: 'remote', label: 'Backup file' }
 ];
->>>>>>> origin/develop
 const k_filteredSpendingHint = 'Totals count entries posted by today. Entries dated later are marked Scheduled and count from their date. Open a movement for its breakdown.';
 export function Transactions(){
  const {state,month,today,search,setSearch,filters,setFilters,searchFocus}=useApp(),c=useContext(Theme),searchRef=useRef(null);
@@ -177,10 +173,6 @@ function mergeConflictLines(conflict, side) {
   return [value === undefined ? 'Deleted' : typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)];
 }
 
-function mergeConflictKey(conflict) {
-  return `${conflict.collection}|${conflict.id}|${conflict.field}`;
-}
-
 // One conflict with a choice between this device and the backup file. Each
 // side's accessible name reads its label and every line, as shown.
 function MergeConflictCard({ conflict, chosenSide, onChoose }) {
@@ -283,45 +275,7 @@ export function Settings(){
    }
  }
  function getReviewedMerge() {
-<<<<<<< HEAD
    const result = applyMergeChoices(merge.result, merge.conflicts, merge.choices);
-=======
-   let result = JSON.parse(JSON.stringify(merge.result));
-   for (const conflict of merge.conflicts) {
-     const selectedSide = merge.choices[mergeConflictKey(conflict)];
-     if (!selectedSide) {
-       continue;
-     }
-     const selectedValue = conflict[selectedSide];
-     if (conflict.field === '$trackedExpense') {
-       result = takeReviewedTrackedExpense(result, conflict.id, selectedValue);
-       continue;
-     }
-     if (conflict.field === '$paybackTask') {
-       result = takeReviewedPaybackTask(result, conflict.id, selectedValue);
-       continue;
-     }
-     if (conflict.field === k_planYearConflictField) {
-       result = takeReviewedPlanYear(result, conflict.id, selectedValue);
-       continue;
-     }
-     if (conflict.field === k_mergeConflictFields.outlook) {
-       result[conflict.collection] = selectedValue;
-       continue;
-     }
-     if (conflict.field === k_mergeConflictFields.record) {
-       result[conflict.collection] = result[conflict.collection].filter(record => record.id !== conflict.id);
-       if (selectedValue) {
-         result[conflict.collection].push(selectedValue);
-       }
-       continue;
-     }
-     const record = result[conflict.collection].find(record => record.id === conflict.id);
-     if (record) {
-       record[conflict.field] = selectedValue;
-     }
-   }
->>>>>>> origin/develop
    const normalized = clearMissingTransactionCategories(result);
    const rows = categoryReviewRows(normalized.state, normalized.missingCategories);
    return { state: normalized.state, rows };
@@ -358,15 +312,11 @@ export function Settings(){
  {merge&&<Dialog title="Two sides. Your choice." subtitle={`${merge.conflicts.length} conflicts need review. Nothing is applied until you finish.`} onClose={()=>setMerge(null)} width={650}>
  {!merge.conflicts.length&&<View style={{gap:13,paddingBottom:25}}><H size={21}>These changes fit together.</H><T style={{fontSize:12,color:c.sub}}>No conflicting fields were found. Review the merged record counts before applying.</T>{['transactions','accounts','categories','loans'].map(k=><Row key={k} style={{justifyContent:'space-between'}}><T style={{fontSize:12}}>{k}</T><T style={{fontSize:12}}>{merge.result[k].length}</T></Row>)}</View>}
  <MissingCategoryReview rows={reviewedMerge.rows} categories={reviewedMerge.state.categories} edits={merge.categoryEdits} onChange={editMissingCategory}/>
-<<<<<<< HEAD
- {merge.conflicts.map(cf=>{const key=mergeConflictKey(cf);return <View key={key} style={{padding:14,borderWidth:1,borderColor:c.line,borderRadius:12,marginBottom:15}}><T style={{fontSize:12,fontWeight:'600',marginBottom:12}}>{mergeConflictTitle(cf)}</T><Row style={{gap:10,alignItems:'stretch'}}>{['local','remote'].map(side=><Pressable key={side} onPress={()=>setMerge(m=>({...m,choices:{...m.choices,[key]:side}}))} style={{flex:1,padding:12,borderRadius:9,borderWidth:1,borderColor:merge.choices[key]===side?c.accent:c.line,backgroundColor:merge.choices[key]===side?c.peach:c.soft}}><T style={{fontSize:10,color:c.sub,marginBottom:6}}>{side==='local'?'THIS DEVICE':'BACKUP FILE'}</T>{mergeConflictLines(cf,side).map(line=><T key={line} style={{fontSize:11}}>{line}</T>)}</Pressable>)}</Row></View>})}<Button icon="Check" disabled={!hasChosenEveryConflict(merge.conflicts, merge.choices)} onPress={applyMerge}>Apply reviewed merge</Button>
-=======
  {merge.conflicts.map(conflict => {
    const key = mergeConflictKey(conflict);
    return <MergeConflictCard key={key} conflict={conflict} chosenSide={merge.choices[key]} onChoose={side => setMerge(previous => ({ ...previous, choices: { ...previous.choices, [key]: side } }))}/>;
  })}
- <Button icon="Check" disabled={merge.conflicts.some(conflict => !merge.choices[mergeConflictKey(conflict)])} onPress={applyMerge}>Apply reviewed merge</Button>
->>>>>>> origin/develop
+ <Button icon="Check" disabled={!hasChosenEveryConflict(merge.conflicts, merge.choices)} onPress={applyMerge}>Apply reviewed merge</Button>
  </Dialog>}
  </View>;
 }
