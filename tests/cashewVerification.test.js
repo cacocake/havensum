@@ -269,3 +269,28 @@ test('Cashew borrowing proceeds cannot be linked to an expense and lending stays
   assert.equal(lendingAsExpense.rows[1].status, 'invalid');
   assert.match(lendingAsExpense.rows[1].error, /lending/i);
 });
+
+test('malformed Cashew cells stay row errors or warnings and invalid account creation choices are refused', async () => {
+  const rows = [
+    publishedRow({ ...k_cafe, amount: '-1,234.56' }),
+    publishedRow({ ...k_cafe, amount: '€5' }),
+    publishedRow({ ...k_cafe, income: 'yes' }) + ',unexpected',
+    publishedRow({ ...k_cafe, income: '' })
+  ];
+  const file = await cashewFile(`${k_publishedHeader},,`, rows);
+  assert.equal(file.cashew.profile, 'cashew-csv-v1');
+  assert.match(file.rows[0].error, /signed EUR amount/i);
+  assert.match(file.rows[1].error, /signed EUR amount/i);
+  assert.match(file.rows[2].error, /extra values/i);
+  const state = createFinancialState();
+  const review = previewImportFile(state, file, { accounts: { 'Conta Poupança': 'everyday' } });
+  assert.match(review.rows[3].bank.sourceWarning, /income flag is missing or unrecognized/i);
+  const invalidChoices = [
+    [{ sourceName: 'Conta Poupança', id: 'everyday' }],
+    [{ sourceName: 'Not in this file', id: 'new-account' }],
+    [{ sourceName: 'Conta Poupança', id: '' }]
+  ];
+  for (const newAccounts of invalidChoices) {
+    assert.throws(() => previewImportFile(state, file, { newAccounts }), /distinct new account/i);
+  }
+});
