@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readInvalidSnapshotCopy, readState, writeState, readSnapshot, writeSnapshot, isSavedStateUnchanged, writeStateIfUnchanged } from '../src/storage.web.js';
-import { SavedStateChangedError } from '../src/persistedState.js';
+import { createPersistedStorage, SavedStateChangedError } from '../src/persistedState.js';
 import { installBrowserStorage } from './helpers/browserStorage.js';
 import { createFinancialState, createTransaction, expectedMigratedLedger } from './helpers/financialFixtures.js';
 import { buildPlan } from '../src/engine.js';
@@ -385,4 +385,15 @@ test('a guarded save replaces the ledger this tab last read or saved, even after
   const replacement = createFinancialState({ accounts: [] });
   await writeStateIfUnchanged(replacement);
   assert.deepEqual(await readState(), replacement);
+});
+
+test('a guarded save refuses to replace saved data this storage has never read or saved', async context => {
+  const storage = installBrowserStorage(context);
+  const savedElsewhere = JSON.stringify(createFinancialState({ theme: 'dark' }));
+  storage.setItem('melo-state-v1', savedElsewhere);
+  const freshStorage = createPersistedStorage(() => storage);
+
+  assert.equal(await freshStorage.isUnchangedSinceLastAccess('melo-state-v1'), false);
+  await assert.rejects(freshStorage.writeIfUnchanged('melo-state-v1', createFinancialState()), SavedStateChangedError);
+  assert.equal(storage.getItem('melo-state-v1'), savedElsewhere);
 });
