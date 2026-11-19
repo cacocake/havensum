@@ -38,7 +38,7 @@ function sourceDetails(row) {
 }
 
 function isTransferLeg(row, draft) {
-  return Boolean(row.movement) && !draft.bank.error && draft.transaction.account !== undefined
+  return Boolean(row.movement) && !draft.bank.error && !draft.bank.loanRequired && draft.transaction.account !== undefined
     && row.category.trim().toLowerCase() === k_balanceCorrectionCategory;
 }
 

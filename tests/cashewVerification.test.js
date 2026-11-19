@@ -294,3 +294,19 @@ test('malformed Cashew cells stay row errors or warnings and invalid account cre
     assert.throws(() => previewImportFile(state, file, { newAccounts }), /distinct new account/i);
   }
 });
+
+test('a Cashew borrowing credit is never suggested or accepted as a transfer leg (K02 review fix)', async () => {
+  const state = createFinancialState({ loans: [k_carLoan] });
+  const borrowedLeg = publishedRow({
+    account: 'Poupança', amount: '36.4', income: 'true', title: 'Transfer', date: '2026-11-12 23:40:00.123',
+    type: 'TransactionSpecialType.debt', 'category name': 'Balance Correction'
+  });
+  const file = await cashewFile(k_publishedHeader, [balanceCorrection('Carteira', '-36.4'), borrowedLeg]);
+  const preview = previewImportFile(state, file, { accounts: { Carteira: 'everyday', Poupança: 'shared' } });
+  assert.deepEqual(preview.rows.map(row => row.transaction.type), [undefined, undefined]);
+  assert.equal(preview.rows[1].bank.suggestedCounterpartRow, undefined);
+  const manual = reviseTransactionImport(state, preview, 0, { type: 'transfer', counterpartIndex: 1 });
+  assert.equal(manual.rows[1].status, 'invalid');
+  assert.equal(manual.rows[0].pair, undefined);
+  assert.match(manual.rows[0].error, /matching credit/i);
+});
