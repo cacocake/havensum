@@ -3,7 +3,7 @@ import { validateOutlookState } from './outlookInputs.js';
 import { validatePaybackState } from './paybackState.js';
 import { legacyPlanArchive } from './planArchive.js';
 import { isInterestRate } from './interestSchedule.js';
-import { isValidYearAmounts } from './plannedCosts.js';
+import { isValidMonthFromYear, isValidYearAmounts } from './plannedCosts.js';
 
 export const k_interestScheduleStateVersion = 4;
 export const k_currentStateVersion = k_interestScheduleStateVersion;
@@ -206,6 +206,7 @@ export function validateState(state) {
     validateCentFields(event, ['amount']);
     requireValid(Number.isInteger(event.month) && event.month >= 1 && event.month <= 12, 'event month');
     requireValid(isValidYearAmounts(event), 'event year amounts');
+    requireValid(isValidMonthFromYear(event), 'event month moves');
   }
   for (const transaction of state.transactions) {
     const categoryId = transaction.category;
