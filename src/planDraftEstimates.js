@@ -2,7 +2,7 @@ import { categorySettings, hasCategoryParent, netExpenses } from './ledger.js';
 import { completedHistory } from './outlookHistory.js';
 import { isFixedBill, isLoanExpense } from './expectedBills.js';
 import { billIdentity } from './outlookInputs.js';
-import { expenseReportingMonth, isPlannedCostLink } from './plannedCosts.js';
+import { expenseReportingMonth, isPlannedCostLink, plannedCostOccursInYear } from './plannedCosts.js';
 import { k_spendingBehaviors, k_transactionTypes } from './domainConstants.js';
 import { postedLedger } from './posting.js';
 import { monthKeyOf, nextMonth } from './calendar.js';
@@ -21,9 +21,9 @@ function isEstimatedSpending(state, expense) {
   return !isPlannedCostLink(expense.plannedCost) && !isLoanExpense(state, expense);
 }
 
-// Recurring events and events in the planned year get their own plan lines.
+// Planned costs that occur in the planned year get their own plan lines.
 function plannedEventIds(state, year) {
-  return new Set((state.events ?? []).filter(event => !event.year || event.year === year).map(event => event.id));
+  return new Set((state.events ?? []).filter(event => plannedCostOccursInYear(event, year)).map(event => event.id));
 }
 
 // A payment for an event with no line in this plan is past occasional

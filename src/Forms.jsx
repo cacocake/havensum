@@ -295,6 +295,13 @@ function withYearAmountDraft(event, year, yearAmountDrafts) {
   return eventWithUsualAmount;
 }
 
+// A cost that repeats every year counts from the drafted plan's year onwards
+// (owner decision P04); otherwise it belongs to that year only.
+function draftPlannedCost({ name, month, amount, year, repeatsEveryYear }) {
+  const timing = repeatsEveryYear ? { fromYear: year } : { year };
+  return { id: k_draftEventId, name, month, amount, ...timing };
+}
+
 export function PlanForm({onClose}){
  const dismissRef=useRef(null);
  const {state,setState,month,notify}=useApp(),c=useContext(Theme);
@@ -306,6 +313,7 @@ export function PlanForm({onClose}){
  const [step,setStep]=useState(0),[income,setIncome]=useState(String((carried.income??k_defaultPlanIncome)/k_centsPerEuro)),[cushion,setCushion]=useState(()=>String(initialPlanCushion(state,carried,{year,fromMonth:from})/k_centsPerEuro)),[window,setWindow]=useState(String(carried.window??k_defaultHistoryWindow)),[eventName,setEventName]=useState(''),[eventAmount,setEventAmount]=useState(''),[eventMonth,setEventMonth]=useState('12'),[overrides,setOverrides]=useState(()=>Object.fromEntries(carried.overrides.filter(override=>override.keep).map(override=>[override.lineId,String(override.amount/k_centsPerEuro)]))),[error,setError]=useState('');
  const [incomeChangeFrom,setIncomeChangeFrom]=useState(''),[incomeChangeAmount,setIncomeChangeAmount]=useState(''),[loanEdits,setLoanEdits]=useState({}),[loanChangeFrom,setLoanChangeFrom]=useState(String(from)),[tolerance,setTolerance]=useState(String((carried.tolerance??k_defaultFixedTolerance)/k_centsPerEuro)),[drift,setDrift]=useState(String(Math.round((carried.drift??k_defaultVariableDrift)*k_percentageScale))),[draftEvents,setDraftEvents]=useState([]),[carriedIncomeChanges,setCarriedIncomeChanges]=useState(carried.incomeChanges),[carriedLoanChanges,setCarriedLoanChanges]=useState(carried.loanChanges);
  const [eventLike,setEventLike]=useState('');
+ const [eventRepeatsEveryYear,setEventRepeatsEveryYear]=useState(false);
  const [yearAmountDrafts,setYearAmountDrafts]=useState({});
  const [evaluationDate]=useState(()=>localCalendarDate());
  function changeEventName(name) {
@@ -330,10 +338,10 @@ export function PlanForm({onClose}){
      return remainingDrafts;
    });
  }
- const suggestionCandidate=useMemo(()=>({id:k_draftEventId,name:eventName.trim(),year,month:Number(eventMonth),amount:0}),[eventName,year,eventMonth]);
- const candidateEvent=eventName.trim()&&cents(eventAmount)>0?{id:k_draftEventId,name:eventName.trim(),year,month:Number(eventMonth),amount:cents(eventAmount)}:null;
+ const suggestionCandidate=useMemo(()=>draftPlannedCost({name:eventName.trim(),month:Number(eventMonth),amount:0,year,repeatsEveryYear:eventRepeatsEveryYear}),[eventName,year,eventMonth,eventRepeatsEveryYear]);
+ const candidateEvent=eventName.trim()&&cents(eventAmount)>0?draftPlannedCost({name:eventName.trim(),month:Number(eventMonth),amount:cents(eventAmount),year,repeatsEveryYear:eventRepeatsEveryYear}):null;
  // Stable between renders so the forecast preview only recomputes for new evidence.
- const plannedEvents=useMemo(()=>[...(state.events||[]).map(event=>withYearAmountDraft(event,year,yearAmountDrafts)),...draftEvents,...(candidateEvent?[candidateEvent]:[])],[state.events,yearAmountDrafts,year,draftEvents,candidateEvent?.name,candidateEvent?.month,candidateEvent?.amount]);
+ const plannedEvents=useMemo(()=>[...(state.events||[]).map(event=>withYearAmountDraft(event,year,yearAmountDrafts)),...draftEvents,...(candidateEvent?[candidateEvent]:[])],[state.events,yearAmountDrafts,year,draftEvents,candidateEvent?.name,candidateEvent?.month,candidateEvent?.amount,candidateEvent?.fromYear]);
  const draftEstimates=planDraftEstimates({...state,events:plannedEvents},{year,fromMonth:from,window:Number(window),today:localCalendarDate()}),draftBills=draftEstimates.bills;
  const preview=buildPlan({...state,events:plannedEvents},{estimates:draftEstimates,year,fromMonth:from,income:cents(income)||0,cushion:cents(cushion)||0,window:Number(window),incomeChanges:[...carriedIncomeChanges,...(incomeChangeFrom&&cents(incomeChangeAmount)>=0?[{since:`${year}-${incomeChangeFrom.padStart(2,'0')}`,amount:cents(incomeChangeAmount)}]:[])],loanChanges:[...carriedLoanChanges,...Object.entries(loanEdits).filter(([,v])=>v!==''&&cents(v)>=0).map(([loanId,v])=>({loanId,since:`${year}-${loanChangeFrom.padStart(2,'0')}`,amount:cents(v)}))],overrides:Object.fromEntries(Object.entries(overrides).filter(([,v])=>v!=='').map(([k,v])=>[k,cents(v)]))});
  function addPlannedEvent() {
@@ -345,6 +353,7 @@ export function PlanForm({onClose}){
    setEventName('');
    setEventAmount('');
    setEventLike('');
+   setEventRepeatsEveryYear(false);
  }
  function save() {
    const validBaseAmounts = cents(tolerance) >= 0 && cents(income) >= 0 && cents(cushion) >= 0;
@@ -395,11 +404,11 @@ export function PlanForm({onClose}){
    notify(`Plan frozen · ${firstRevisedMonthName} onwards`);
    onClose();
  }
- const isDirty = useDirtyForm([income,cushion,window,eventName,eventAmount,eventMonth,carriedIncomeChanges,carriedLoanChanges,overrides,incomeChangeFrom,incomeChangeAmount,loanEdits,loanChangeFrom,tolerance,drift,draftEvents,yearAmountDrafts]);
+ const isDirty = useDirtyForm([income,cushion,window,eventName,eventAmount,eventMonth,carriedIncomeChanges,carriedLoanChanges,overrides,incomeChangeFrom,incomeChangeAmount,loanEdits,loanChangeFrom,tolerance,drift,draftEvents,yearAmountDrafts,eventRepeatsEveryYear]);
  return <Dialog dismissRef={dismissRef} dirty={isDirty} title={step===0?'Make room for your year':step===1?'The things coming up':'Your plan, your call'} subtitle={`Step ${step+1} of 3 · Only ${new Date(year,from-1,1).toLocaleString('en',{month:'long'})}–December will change.`} onClose={onClose} width={550}>
  <Row style={{gap:6,marginBottom:25}}>{[0,1,2].map(i=><View key={i} style={{height:4,flex:1,borderRadius:4,backgroundColor:i<=step?c.accent:c.line}}/>)}</Row>
  {step===0&&<><PlanDraftEvidence evidence={preview.evidence} suggestedCushion={preview.suggestedCushion}/><Field label="Expected monthly income · EUR" value={income} onChangeText={setIncome} keyboardType="decimal-pad"/><Field label="Monthly occasional-spending cushion · EUR" value={cushion} onChangeText={setCushion} keyboardType="decimal-pad"/><Select label="Variable spending history" value={window} onChange={setWindow} options={[{value:'3',label:'3 completed months'},{value:'6',label:'6 completed months · recommended'},{value:'12',label:'12 completed months'}]}/><Row style={{gap:12}}><Field label="Fixed tolerance · ± EUR" value={tolerance} onChangeText={setTolerance} style={{flex:1}}/><Field label="Variable drift trigger · %" value={drift} onChangeText={setDrift} style={{flex:1}}/></Row><View style={{backgroundColor:c.soft,padding:15,borderRadius:12}}><T style={{fontSize:12,color:c.sub}}>Fixed costs use each bill's latest observed amount until you cancel it. Variable costs use your rolling net average. Occasional spending uses its own cushion. Loan repayments get a separate line.</T></View></>}
- {step===1&&<><H size={19} style={{marginBottom:16}}>Changes to your regular income</H><Select label="Income changes from" value={incomeChangeFrom} onChange={setIncomeChangeFrom} options={[{value:'',label:'No change planned'},...Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))]}/>{incomeChangeFrom&&<Field label="New monthly income · EUR" value={incomeChangeAmount} onChangeText={setIncomeChangeAmount} placeholder="e.g. 2600"/>}<Divider/><H size={19} style={{marginBottom:16}}>The bigger things</H><Field label="A trip, a big purchase, a seasonal cost · optional" value={eventName} onChangeText={changeEventName} placeholder="e.g. Summer in the Azores"/><Row style={{gap:14}}><Field label="One-off amount · EUR" value={eventAmount} onChangeText={setEventAmount} style={{flex:1}}/><Select label="Month" value={eventMonth} onChange={setEventMonth} options={Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))} style={{flex:1}}/></Row>
+ {step===1&&<><H size={19} style={{marginBottom:16}}>Changes to your regular income</H><Select label="Income changes from" value={incomeChangeFrom} onChange={setIncomeChangeFrom} options={[{value:'',label:'No change planned'},...Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))]}/>{incomeChangeFrom&&<Field label="New monthly income · EUR" value={incomeChangeAmount} onChangeText={setIncomeChangeAmount} placeholder="e.g. 2600"/>}<Divider/><H size={19} style={{marginBottom:16}}>The bigger things</H><Field label="A trip, a big purchase, a seasonal cost · optional" value={eventName} onChangeText={changeEventName} placeholder="e.g. Summer in the Azores"/><Toggle value={eventRepeatsEveryYear} onChange={setEventRepeatsEveryYear} label="Repeats every year" description={eventRepeatsEveryYear?`Counts from ${year} onwards. ${year-1} and earlier stay as they are.`:`Off: ${year} only.`}/><Row style={{gap:14}}><Field label={eventRepeatsEveryYear?'Amount each year · EUR':'One-off amount · EUR'} value={eventAmount} onChangeText={setEventAmount} style={{flex:1}}/><Select label="Month" value={eventMonth} onChange={setEventMonth} options={Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))} style={{flex:1}}/></Row>
  {eventName.trim()&&<NewPlannedCostSuggestion state={state} evaluationDate={evaluationDate} candidate={suggestionCandidate} likeValue={eventLike} onLikeChange={setEventLike} onUseAmount={setEventAmount}/>}
  {candidateEvent&&<Button small kind="soft" icon="Plus" onPress={addPlannedEvent}>Add another event</Button>}
  <DraftPlannedCosts state={state} evaluationDate={evaluationDate} events={[...plannedEvents.filter(event=>event.id!==k_draftEventId)]} year={year} fromMonth={from} onAccept={acceptYearAmount} onRevert={keepUsualAmount}/><Divider/><H size={18} style={{marginBottom:10}}>Loans and changes already accounted for</H><CarriedChanges loans={state.loans} startMonth={`${year}-${String(from).padStart(2,'0')}`} incomeChanges={carriedIncomeChanges} loanChanges={carriedLoanChanges} onRemoveIncomeChange={change=>setCarriedIncomeChanges(changes=>changes.filter(candidate=>candidate!==change))} onRemoveLoanChange={change=>setCarriedLoanChanges(changes=>changes.filter(candidate=>candidate!==change))}/>{state.loans.length>0&&<><Select label="Loan payment changes from" value={loanChangeFrom} onChange={setLoanChangeFrom} options={Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))}/>{state.loans.map(l=><Field key={l.id} label={`${l.name} · new monthly payment, optional`} value={loanEdits[l.id]||''} onChangeText={v=>setLoanEdits(es=>({...es,[l.id]:v}))} placeholder={`${(carriedLoanChanges.find(change=>change.loanId===l.id&&change.since===`${year}-${String(from).padStart(2,'0')}`)?.amount??l.payment)/k_centsPerEuro} · unchanged`}/>)}</>}</>}

@@ -4,7 +4,7 @@ import { validatePaybackState } from './paybackState.js';
 import { legacyPlanArchive } from './planArchive.js';
 import { isInterestRate } from './interestSchedule.js';
 import { k_interestBankChoices } from './interestEntries.js';
-import { isMonthNumber, isValidMonthFromYear, isValidYearAmounts } from './plannedCosts.js';
+import { isMonthNumber, isValidFromYear, isValidMonthFromYear, isValidYearAmounts } from './plannedCosts.js';
 
 export const k_interestScheduleStateVersion = 4;
 export const k_currentStateVersion = k_interestScheduleStateVersion;
@@ -225,6 +225,7 @@ export function validateState(state) {
     requireValid(isMonthNumber(event.month), 'event month');
     requireValid(isValidYearAmounts(event), 'event year amounts');
     requireValid(isValidMonthFromYear(event), 'event month moves');
+    requireValid(isValidFromYear(event), 'event start year');
   }
   for (const transaction of state.transactions) {
     const categoryId = transaction.category;

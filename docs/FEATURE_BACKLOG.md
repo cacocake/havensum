@@ -40,12 +40,27 @@ Use integer EUR cents. Cash follows its transaction date, including for early pa
 
 ### PLAN-3 · Review assumptions carried forward
 
-**Status:** Done, reviewed and merged into `develop` from `codex/plan-carry-forward` (implementation `4923875`, review fixes `5117fec`, `42609b9`). The new recurring-cost option is deferred pending an owner decision. See the PLAN-3 handoff note below. **Depends on:** PLAN-2.
+**Status:** Done, reviewed and merged into `develop` from `codex/plan-carry-forward` (implementation `4923875`, review fixes `5117fec`, `42609b9`). The new recurring-cost option was deferred; the owner answered on 19 November 2026 (P04–P06) and it is tracked as **PLAN-3 follow-up** below. See the PLAN-3 handoff note below. **Depends on:** PLAN-2.
 
 - Reuse the three-step interview. Prefill recurring income, applicable income and loan changes, history window, and review thresholds from the latest earlier plan. Use amounts effective at the start of the period and show later changes in their applicable months. Preserve deliberately entered zeros.
 - Show earlier manual overrides beside fresh suggestions. Apply the ones the owner chooses to keep. For a same-year revision, prefill that year's current overrides. Surface assumptions for removed categories or closed loans without applying them.
 - Carry recurring events into applicable years and leave one-off events in their original year. Preview draft targets and available forecasts month by month before **Freeze my plan**. Adding a named cost supplies new evidence to the forecast. Editing only a draft target leaves the forecast unchanged.
 - Cover no prior plan, zero amounts, applicable changes carried once, keep/drop override, stale category and loan references, a one-off trip, a recurring event, history-window edits, and abandoning a draft. Verify older snapshots and same-year past months remain intact on save.
+
+### PLAN-3 follow-up · "Repeats every year" for new planned costs, from the plan's year onwards
+
+**Depends on:** PLAN-3, FORECAST-2 follow-ups (F16 year amounts and moves). **Status:** Done, reviewed and merged into `develop` from `codex/recurring-planned-cost-from-year` (implementation `aaab9a3`, `fb65dad`; review fixes `a1a1582`, `1df059b`); see the PLAN-3 follow-up handoff at the end.
+
+**Owner answers (19 November 2026, in chat; P04–P06 in DECISIONS.md):**
+1. **Repeat start (P04):** a new planned cost marked as repeating every year in the Year Plan interview counts from the year of the plan being drafted onwards. Earlier years, their forecasts/Expected savings and frozen plans are untouched. Stored as an optional `fromYear` on the recurring planned cost; recurring planned costs without it keep applying to every year.
+2. **Loan payment for a new draft (P05):** when a carried loan change differs from a newer payment entered on the loan itself, a new draft starts from the newer loan payment. Loans keep no record of when their payment was edited, so this needs a stored edit date (schema, merge and backup work). Queued below as its own ticket.
+3. **"Copy existing scheduled changes" after a same-year revision (P06):** current behaviour is acceptable; no change.
+
+Cover: a repeating cost added to next year's draft does not appear in this year and appears in later years; editing an older-year plan does not pull it back; frozen snapshots unchanged; legacy recurring costs unaffected; validation, backup restore and merge of `fromYear`; comparable-cost evidence, the planned-cost picker, moves and year amounts respect the start year; a target-only edit leaves Expected savings unchanged; narrow layouts with long names.
+
+#### PLAN-3 follow-up b · Draft loan payment from a newer loan edit (P05)
+
+**Status:** Queued, not started. **Depends on:** PLAN-3 follow-up. Record when a loan's monthly payment is edited (new optional field, validated, kept by restore, merged three-way), and when a carried loan change in effect at the draft start predates a later edit of the loan's payment, start the draft from the loan's payment instead. Cover legacy loans without the field (keep today's carried change), a later plan change after the edit, merge conflicts, and the step-2 placeholder.
 
 ### PLAN-4 · Offer the interview and verify rollover
 
@@ -640,3 +655,29 @@ The implementation note below records how these were built; it stores only per-y
 
 - **K13 follow-up:** the owner confirmed the loan-objective sign follows the cash (+ = loan money received, − = a payment on the loan). The sign rule stays; the review now spells out what a loan-linked row becomes. Merged and pushed as `e6e026a` after the full gate (523 unit, 468 browser, build, Hermes compile) and a read-only Claude review with nothing blocking.
 - **Board:** IMPORT-2 is closed. Optional only: real exports with older `debt`/`credit` type rows (K02), the published v1 layout beyond ordinary rows, or a loan objective used for lending would verify those cases.
+
+## Session handoff — PLAN-3 follow-up · "Repeats every year" from the plan's year (19 November 2026, Claude cloud session)
+
+- **Owner answers recorded:** P04 (a new repeating cost counts from the drafted year onwards), P05 (a draft starts from a newer loan payment; queued as **PLAN-3 follow-up b** because loans keep no edit date), P06 ("Copy existing scheduled changes" after a same-year revision is acceptable; no change). See DECISIONS.md and the ticket above.
+- **Storage:** optional `fromYear` on recurring planned costs (schema v4, no migration). It is validated (a four-digit integer, never on one-off costs), kept by full restore, and merged three-way as one field, so different start years become a conflict for the owner. Recurring costs without it still apply to every year. Documented in docs/STATE_MIGRATIONS.md. Risk: an older app version ignores it and applies the cost to every year.
+- **Implementation:**
+  - `plannedCostOccursInYear` in `src/plannedCosts.js` now decides whether a cost occurs in a year everywhere this is checked: plans, Expected costs/Expected savings, Year ahead, draft estimates (`plannedEventIds`), comparable-cost evidence, the planned-cost picker, the interview's planned-cost list and the Year ahead *Planned costs* card.
+  - Moves start no earlier than `fromYear`.
+  - A saved link from before a cost starts stays selectable and reads "…, before it repeats".
+  - UI: a **Repeats every year** switch in step 2 of the interview. Its description ("Counts from 2027 onwards. 2026 and earlier stay as they are." or "Off: 2027 only.") is read with the switch. The amount label becomes "Amount each year · EUR". Lists show "every year from 2027".
+  - The shared `Toggle` (src/ui.jsx) now exposes its description: `aria-describedby` on web, `accessibilityHint` on Android.
+- **Tests:**
+  - tests/plannedCostStartYear.test.js (18 unit tests): plans by year; validation; picker and pre-start links; comparable evidence; draft estimates; moves; Expected savings; Year ahead; legacy costs; year amounts; a same-year revision keeping earlier snapshots; a target-only edit leaving Expected savings unchanged; restore; merge.
+  - tests/browser/plannedCostStartYear.spec.js, on all three viewports. Covers a next-year draft with a long name at 320 px, the accessible description, the saved `fromYear`, unchanged 2026 plans and the Year ahead lists, and a revision of this year's plan that keeps the cost out.
+  - tests/browser/plannedCostMove.spec.js now uses retrying option assertions, after one intermittent desktop failure in a full run.
+- **Checks:**
+  - `npm run test:coverage`: 524/524 (96.91% lines, 94.87% branches).
+  - `npm run build`, and `npm run check:android` (Hermes compilation only; no device test).
+  - `npm run test:browser` on `a1a1582`: 448/450. The 2 failures are the known intermittent `fullRestore.spec.js` stale-preview test (owned by the sibling BUG-1 session).
+  - The affected specs were rerun on `1df059b`.
+  - On the tree merged with origin/develop `87e827b` (LEDGER-2a, BUG-1, BUG-2, K13, DRIVE-2a; the later IMPORT-2 board update `3f0b3a4` is docs-only): `npm run test:coverage` 619/619 (97.29% lines, 95.06% branches), `npm run test:browser` 483/483, `npm run build`, `npm run check:android`.
+- **Review:** a separate read-only Claude review raised nothing blocking. Its should-fix items (the switch description was not read by screen readers; no target-only regression) and nits (pre-start link wording, suggestion candidate timing, a realistic merge case) were fixed test-first. The re-review found nothing blocking; its two nits (one-off link wording, empty-description guard) are fixed in `1df059b` and were re-reviewed.
+- **Deferred nits:** readable merge-conflict wording for `fromYear` (shown raw, like `monthFromYear`); splitting the dense step-2 JSX in `PlanForm` into its own component; a native render test for the `Toggle` hint.
+- **Owner question (non-blocking; current behaviour is the safe default):** in a same-year revision (for example in November), the month list only offers the months still being revised. A repeating cost whose month has already passed (say every March) therefore cannot be added from that interview. Should such a cost (a) start next year automatically, (b) stay as it is: add it from next year's interview, or (c) other?
+- **Not done:** PLAN-3 follow-up b (P05) is queued, not started.
+
