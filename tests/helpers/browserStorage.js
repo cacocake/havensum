@@ -6,6 +6,9 @@ export function installBrowserStorage(context, search = '') {
     },
     setItem(key, value) {
       values.set(key, String(value));
+    },
+    removeItem(key) {
+      values.delete(key);
     }
   };
   const globals = { window: { location: { search } }, localStorage: storage };

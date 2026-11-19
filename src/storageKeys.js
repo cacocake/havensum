@@ -7,3 +7,7 @@ export const k_mergeRecoveryStorageKey = 'havensum-merge-recovery-v1';
 // Per-installation preference, deliberately outside the shared ledger.
 export const k_planInvitationDeferralKey = 'havensum-plan-invitation-deferral-v1';
 export const k_restoreRecoveryStorageKey = 'havensum-restore-recovery-v1';
+// This installation's link to the shared Drive file and its baselines (DRIVE-2a).
+export const k_sharedFileBindingStorageKey = 'havensum-shared-file-binding-v1';
+// The device ledger as it was before adopting or merging a shared file (G08).
+export const k_sharedFileJoinRecoveryStorageKey = 'havensum-shared-file-join-recovery-v1';

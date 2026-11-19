@@ -1,4 +1,5 @@
-import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey, k_mergeRecoveryStorageKey, k_planInvitationDeferralKey, k_restoreRecoveryStorageKey } from './storageKeys.js';
+import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey, k_mergeRecoveryStorageKey, k_planInvitationDeferralKey, k_restoreRecoveryStorageKey, k_sharedFileBindingStorageKey, k_sharedFileJoinRecoveryStorageKey } from './storageKeys.js';
+import { parseBinding } from './sharedFileBinding.js';
 import { parseMergeBaseline, parseStoredYear } from './storageSerialization.js';
 import { createPersistedStorage } from './persistedState.js';
 
@@ -116,4 +117,44 @@ export async function readRestoreRecovery() {
     return null;
   }
   return k_persistedStorage.readLatestKeptCopy(k_restoreRecoveryStorageKey);
+}
+
+// This installation's shared Drive file link. A damaged link is kept as an
+// invalid copy and read as not connected.
+export async function readSharedFileBinding() {
+  if (isDemoSession()) {
+    return null;
+  }
+  return k_persistedStorage.readRecord(k_sharedFileBindingStorageKey, parseBinding);
+}
+
+export async function writeSharedFileBinding(binding) {
+  if (isDemoSession()) {
+    return;
+  }
+  await k_persistedStorage.writeRecord(k_sharedFileBindingStorageKey, binding);
+}
+
+// Saves the ledger and the shared-file link together, so the link never
+// describes a ledger that was not saved.
+export async function writeStateWithSharedFileBinding(state, binding) {
+  if (isDemoSession()) {
+    return;
+  }
+  await k_persistedStorage.writeWithRecord(k_stateStorageKey, state, k_sharedFileBindingStorageKey, binding);
+}
+
+// The device ledger as it was before each shared-file adoption or join merge. Every distinct copy is kept.
+export async function writeSharedFileJoinRecovery(state) {
+  if (isDemoSession()) {
+    return;
+  }
+  await k_persistedStorage.writeKeptCopy(k_sharedFileJoinRecoveryStorageKey, state);
+}
+
+export async function readSharedFileJoinRecovery() {
+  if (isDemoSession()) {
+    return null;
+  }
+  return k_persistedStorage.readLatestKeptCopy(k_sharedFileJoinRecoveryStorageKey);
 }
