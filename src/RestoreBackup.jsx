@@ -7,13 +7,15 @@ import { applyCategoryReviewEdits, categoryReviewRows } from './categoryReview.j
 import { isRestorePreviewCurrent, prepareFullRestore, restoreSummary } from './fullRestore.js';
 import { validateState } from './stateSchema.js';
 import { chooseFile, downloadJSON } from './files';
-import { isDemoSession, readRestoreRecovery, readSavedLedgerCopy, writeRestoreRecovery, writeState } from './storage';
+import { isDemoSession, isSavedStateUnchanged, readRestoreRecovery, readState, SavedStateChangedError, writeRestoreRecovery, writeStateIfUnchanged } from './storage';
 import { prepareLoadedLedger } from './startupLedger.js';
 import { currentLocalMonth } from './calendar.js';
 
 const k_restoreOutcomeMessages = Object.freeze({
   preview: 'Restoring replaces data only on this device and is not available in the preview.',
   stale: 'Your ledger changed after this preview. Choose the backup again to review it against the current ledger.',
+  reloaded: 'Your ledger was changed in another tab or window, so it was reloaded here. Choose the backup again to review it against the current ledger.',
+  reloadFailed: 'Your ledger was changed in another tab or window and could not be reloaded here. Reload the app before restoring a backup.',
   recoveryFailed: 'The current ledger could not be copied for recovery, so nothing was replaced.',
   saveFailed: 'The backup could not be saved, so your ledger is unchanged. A recovery copy of it was kept.',
   restored: 'Backup restored. Your previous ledger is kept as a pre-restore copy.',
@@ -55,17 +57,38 @@ function RestorePreview({ preview, onCancel, onRestored }) {
     onCancel();
   }
 
-  async function isStillCurrent() {
-    // Another tab or window may have saved since the preview was made.
-    return isRestorePreviewCurrent(preview, state) && await readSavedLedgerCopy() === preview.savedBytes;
+  function refuseStalePreview() {
+    notify(k_restoreOutcomeMessages.stale);
+    onCancel();
+  }
+
+  // Another tab or window saved over the ledger this tab last read or saved.
+  // The restore is refused and that saved ledger is shown here instead, so the
+  // backup can be chosen again and reviewed against it (owner decision R01).
+  async function reloadLedgerSavedElsewhere() {
+    onCancel();
+    try {
+      const savedState = await readState();
+      if (!savedState) {
+        notify(k_restoreOutcomeMessages.reloadFailed);
+        return;
+      }
+      setState(prepareLoadedLedger(savedState, currentLocalMonth()));
+      notify(k_restoreOutcomeMessages.reloaded);
+    } catch {
+      notify(k_restoreOutcomeMessages.reloadFailed);
+    }
   }
 
   async function replaceLedger() {
     setBusy(true);
     try {
-      if (!await isStillCurrent()) {
-        notify(k_restoreOutcomeMessages.stale);
-        onCancel();
+      if (!isRestorePreviewCurrent(preview, state)) {
+        refuseStalePreview();
+        return;
+      }
+      if (!await isSavedStateUnchanged()) {
+        await reloadLedgerSavedElsewhere();
         return;
       }
       const reviewedState = validateState(applyCategoryReviewEdits(preview.restoredState, reviewRows, categoryEdits));
@@ -77,8 +100,12 @@ function RestorePreview({ preview, onCancel, onRestored }) {
         return;
       }
       try {
-        await writeState(restoredState);
-      } catch {
+        await writeStateIfUnchanged(restoredState);
+      } catch (saveError) {
+        if (saveError instanceof SavedStateChangedError) {
+          await reloadLedgerSavedElsewhere();
+          return;
+        }
         setError(k_restoreOutcomeMessages.saveFailed);
         return;
       }
@@ -140,8 +167,7 @@ export default function RestoreBackup() {
         return;
       }
       const fileText = await file.text();
-      const savedBytes = await readSavedLedgerCopy();
-      setPreview({ ...prepareFullRestore(fileText, state), savedBytes });
+      setPreview(prepareFullRestore(fileText, state));
     } catch (error) {
       notify(error.message);
     }
