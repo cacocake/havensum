@@ -126,6 +126,12 @@ Let the owner move a recurring planned cost's month from a chosen year onward. E
 3. **Expenses already linked to the old month in a moved year:** their links stay as recorded and are flagged for review (the existing "This planned cost moved" list). The move dialog says how many. They are not evidence until relinked by hand.
 4. **A move from this year** (asked after review): both the old and the new month must be this month or later; otherwise the move starts next year.
 
+### FORECAST-2 follow-up · Readable year-amount merge conflicts (F20)
+
+**Depends on:** FORECAST-2 (year amounts). **Status:** queued and unblocked (owner answer, 19 November 2026).
+
+When two devices set different amounts for the same year of a recurring planned cost, the backup-merge conflict review should name the planned cost and the year and show euro amounts, for example "December celebrations · amount for 2027: €410.00 here, €450.00 on the other device", instead of the raw `yearAmounts` field and cents. Keep the merge decision itself unchanged: `yearAmounts` is one field, so differing year amounts form one conflict per planned cost, and choosing a side takes that side's whole set of year amounts. The card should list each differing year on its own line. Match the final wording to the review's side labels (*This device* / *Backup file*). Cover a conflict on one year; several differing years on one planned cost (one card, one line per year); years set on different sides from the same starting point (still one conflict, shown year by year); long names at narrow widths; and screen-reader text. An edit-versus-delete conflict on a planned cost is a different conflict type, not part of this ticket; it only must not regress. Separate merge choices per year would be a new owner question, not part of this ticket.
+
 ## Queued delivery and integrations
 
 ### ANDROID-1 · Installable package
@@ -286,6 +292,7 @@ The implementation note below records how these were built; it stores only per-y
 - **Checks:** on `74f83b7`, `npm run test:coverage` 388/388 with thresholds met, `npm run test:browser` 348/348, `npm run build`, `npm run check:android` (Hermes compilation only; no device test). The final nit commit `ac36777` was rechecked with `npm run test:coverage` (389/389), build, Hermes and the planned-cost browser spec on all three viewports (18/18).
 - **Review:** a separate read-only Claude review of the implementation (no blocking defects; six should-fix items fixed test-first in `74f83b7`), a focused re-review (no blocking defects; two nits fixed in the final commit) and a final re-review of that commit.
 - **Owner questions (non-blocking):** (1) Accepting a suggestion changes Expected savings as well as the plan, because a planned cost's amount is forecast evidence (the PLAN-3 convention). Is that what you expect? (2) Merge conflicts on year amounts show the raw field and cents, like other merge conflicts.
+- **Owner answers (19 November 2026, in chat):** (1) Confirmed: accepting a suggested amount also changes Expected savings, because a planned cost's amount is forecast evidence; a target-only edit still leaves Expected savings unchanged (decision F19). (2) A year-amount merge conflict should read plainly, for example "December celebrations · amount for 2027: €410.00 here, €450.00 on the other device", instead of the raw field and cents (decision F20). Not built yet; queued as **FORECAST-2 follow-up · Readable year-amount merge conflicts** below.
 
 ## Session handoff — LEDGER-1 (19 November 2026, Claude cloud session)
 
