@@ -112,7 +112,7 @@ These are grounded in the present code; they have not been fixed by the handoff 
 4. **Drift/data completeness:** no explicit complete-month marker exists. Missing/incomplete imported months can produce misleading drift recommendations. Suggestions are also relative to the selected month rather than a fully modeled reporting period.
 5. **Interest corrections:** existing monthly interest IDs are deliberately not regenerated. Backdated transactions or rate edits do not revise past interest. There is no reconciliation workflow yet.
 6. **Identifiers and import identity:** new user-created objects now use collision-resistant IDs while existing and imported IDs remain unchanged. External import identifiers still need a source namespace. Content deduplication cannot distinguish two legitimate identical rows lacking IDs; import reconciliation remains pending.
-7. **Full restore:** JSON export contains the state, but transaction import only imports transactions. Manual merge requires an established baseline. Add a reviewed full-state restore path with schema validation and recovery protection.
+7. **Full restore:** implemented by BACKUP-1 — a validated, previewed and explicitly confirmed replacement with a pre-restore recovery copy. See docs/STATE_MIGRATIONS.md.
 8. **Persistence schema:** JSON loading has limited structural validation. Add explicit migrations and robust invalid-data recovery before release.
 9. **Repository maintainability:** several large components remain densely formatted. Split by feature as work proceeds; do not replace the shared React Native implementation with a separate web mockup.
 

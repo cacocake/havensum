@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**Next implementation ticket: BACKUP-1.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**Next implementation ticket: none unblocked; see the owner questions and blocked tickets below.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -68,7 +68,7 @@ Use integer EUR cents. Cash follows its transaction date, including for early pa
 
 ### BACKUP-1 · Full JSON restore
 
-**Depends on:** PLAN-1.
+**Status:** Implemented on `codex/full-restore`; see the BACKUP-1 handoff note below. **Depends on:** PLAN-1.
 
 Provide a distinct full-ledger restore with file validation, preview, explicit replacement confirmation, and a separate recovery copy written before replacement. Summarize affected accounts, records, and archived plans. Preserve the distinction from reviewed merge and transaction import. Verify legacy and current backups, including scheduled rates if SAVINGS-1 has landed, missing-category review, invalid versions, corrupt files, cancelled and stale previews, quota failure, interrupted writes, and reload. A failed recovery copy blocks replacement.
 
@@ -188,3 +188,8 @@ Start with units and a manually entered EUR price if requested. For automatic pr
 - **Owner questions (non-blocking):** (1) Choosing an older backup's differing rate during review now inserts it as one period, replacing only the period with the same start month and leaving future periods. That start month is usually in the past, so months already holding recorded interest then show a different rate from the one posted (recorded entries never change). Please confirm a reviewed merge may override the "new periods start in the current month or later" rule, or whether the backup side should only be shown for information. (2) Pre-existing: rates reject comma decimals ("3,5") while balances accept them. (3) The start month is a typed `YYYY-MM` field rather than a month picker, and `account.bank` keeps the rate label written at save time.
 - **Checks (`32eecc6`):** `npm run test:coverage` 315/315 with thresholds met, `npm run build`, `npm run check:android` (Hermes only). `npm run test:browser`: 294 passed and 9 failed — three existing tests across three viewports that asserted the old schema version, the old balance error text and the old single rate field. Those tests were updated to the new behaviour and both affected spec files were rerun (99/99).
 - **Review:** separate read-only Claude review, two focused re-reviews; all actionable findings fixed test-first; the final re-review found no new defects.
+
+## Session handoff — BACKUP-1 (19 November 2026, Claude cloud session)
+
+- **Implementation:** `src/fullRestore.js` validates and previews a full backup; `src/RestoreBackup.jsx` shows the summary, missing-category review and explicit confirmation, writes `havensum-restore-recovery-v1` first, then saves the backup. Scheduled rates (SAVINGS-1) and archived plans (PLAN-1) restore with the rest of the ledger, including from legacy backups in migrated form. See [STATE_MIGRATIONS.md](STATE_MIGRATIONS.md).
+- **Checks, review and merge:** recorded below once complete.

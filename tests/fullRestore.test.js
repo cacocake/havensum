@@ -1,0 +1,94 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { isRestorePreviewCurrent, prepareFullRestore } from '../src/fullRestore.js';
+import { buildPlan } from '../src/planning.js';
+import { readRestoreRecovery, writeRestoreRecovery, readImportRecovery, writeImportRecovery, readMergeRecovery } from '../src/storage.web.js';
+import { installBrowserStorage } from './helpers/browserStorage.js';
+import { createFinancialState, createTransaction, planArchiveOf } from './helpers/financialFixtures.js';
+
+function ledgerWithoutPlans() {
+  return createFinancialState({
+    accounts: [
+      { id: 'everyday', name: 'Everyday', tag: 'Personal', openingBalance: 100000 },
+      { id: 'reserve', name: 'Reserve', tag: 'Savings', openingBalance: 500000, interestSchedule: [{ since: '2026-01', rate: 3 }, { since: '2027-01', rate: 1 }] }
+    ],
+    transactions: [createTransaction({ id: 'one' }), createTransaction({ id: 'two', amount: 5000 })],
+  });
+}
+
+function backupLedger() {
+  const ledger = ledgerWithoutPlans();
+  const snapshot = year => ({ ...buildPlan(ledger, { year, income: 100000, cushion: 0, today: `${year}-01-02` }), createdAt: `${year}-01-02T09:00:00.000Z` });
+  return { ...ledger, plans: { ...planArchiveOf(snapshot(2026)), ...planArchiveOf(snapshot(2027)) } };
+}
+
+test('a current backup is validated and summarised before anything is replaced', () => {
+  const backup = backupLedger();
+
+  const preview = prepareFullRestore(JSON.stringify(backup));
+
+  assert.deepEqual(preview.restoredState, backup);
+  assert.deepEqual(preview.missingCategories, []);
+  assert.deepEqual(preview.summary, {
+    accounts: 2, transactions: 2, categories: backup.categories.length, loans: 0, events: 0,
+    planYears: [{ year: 2026, revisions: 1 }, { year: 2027, revisions: 1 }], scheduledRateAccounts: 1
+  });
+});
+
+test('a legacy backup restores in its migrated form, keeping its plan and rate', () => {
+  const legacy = createFinancialState({
+    version: 2,
+    accounts: [{ id: 'reserve', name: 'Reserve', tag: 'Savings', openingBalance: 0, interest: 2, interestStart: '2026-03' }],
+    plan: { year: 2026, revision: 2, window: 6, tolerance: 200, drift: 0.3, incomeChanges: [], loanChanges: [], months: {} }
+  });
+
+  const { restoredState, summary } = prepareFullRestore(JSON.stringify(legacy));
+
+  assert.equal(restoredState.version, 4);
+  assert.deepEqual(restoredState.accounts[0].interestSchedule, [{ since: '2026-03', rate: 2 }]);
+  assert.deepEqual(summary.planYears, [{ year: 2026, revisions: 1 }]);
+  assert.equal(restoredState.plans[2026][0].revision, 2);
+});
+
+test('transactions whose category is missing are listed for review and kept uncategorized', () => {
+  const backup = backupLedger();
+  backup.transactions[0].category = 'retired-category';
+
+  const preview = prepareFullRestore(JSON.stringify(backup));
+
+  assert.deepEqual(preview.missingCategories, [{ transactionId: 'one', categoryId: 'retired-category' }]);
+  assert.equal(preview.restoredState.transactions[0].category, null);
+});
+
+test('corrupt files, transaction lists, invalid ledgers and future versions are refused with a clear reason', () => {
+  const cases = [
+    ['{not json', /not a readable JSON/],
+    [JSON.stringify([createTransaction()]), /full Havensum backup/],
+    [JSON.stringify({ ...backupLedger(), version: 99 }), /newer version/],
+    [JSON.stringify({ ...backupLedger(), transactions: [createTransaction({ amount: 1.5 })] }), /could not be validated/]
+  ];
+  for (const [fileText, reason] of cases) {
+    assert.throws(() => prepareFullRestore(fileText), reason);
+  }
+});
+
+test('a preview is stale once the device ledger has changed', () => {
+  const current = createFinancialState();
+  const preview = prepareFullRestore(JSON.stringify(backupLedger()), current);
+
+  assert.equal(isRestorePreviewCurrent(preview, current), true);
+  assert.equal(isRestorePreviewCurrent(preview, { ...current, theme: 'dark' }), false);
+});
+
+test('the pre-restore copy is kept apart from import and merge recovery', async context => {
+  installBrowserStorage(context);
+  const importCopy = createFinancialState({ theme: 'dark' });
+  const deviceLedger = createFinancialState({ transactions: [createTransaction()] });
+  await writeImportRecovery(importCopy);
+
+  await writeRestoreRecovery(deviceLedger);
+
+  assert.deepEqual(await readRestoreRecovery(), deviceLedger);
+  assert.deepEqual(await readImportRecovery(), importCopy);
+  assert.equal(await readMergeRecovery(), null);
+});

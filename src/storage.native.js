@@ -1,6 +1,6 @@
 import { validatePaybackState } from './paybackState.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey, k_mergeRecoveryStorageKey, k_planInvitationDeferralKey } from './storageKeys.js';
+import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey, k_mergeRecoveryStorageKey, k_planInvitationDeferralKey, k_restoreRecoveryStorageKey } from './storageKeys.js';
 import { parseMergeBaseline, parseStoredYear } from './storageSerialization.js';
 import { createPersistedStorage } from './persistedState.js';
 
@@ -58,4 +58,13 @@ export async function readPlanInvitationDeferral() {
 
 export async function writePlanInvitationDeferral(year) {
   await AsyncStorage.setItem(k_planInvitationDeferralKey, String(year));
+}
+
+// The device ledger as it was before a full restore replaced it.
+export async function writeRestoreRecovery(state) {
+  await k_persistedStorage.write(k_restoreRecoveryStorageKey, state, { recoverInvalid: true });
+}
+
+export async function readRestoreRecovery() {
+  return k_persistedStorage.read(k_restoreRecoveryStorageKey);
 }
