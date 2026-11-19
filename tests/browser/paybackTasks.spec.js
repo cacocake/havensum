@@ -77,9 +77,14 @@ test('backup review identifies the expense and payback task before confirming th
   const expense = createTransaction({ title: 'Shared train tickets', amount: 10000 });
   const baseline = createFinancialState({ transactions: [expense] });
   const current = createPaybackTask(baseline, expense.id, { id: 'train-task', expectedAmount: 6000, at: '2026-11-18T11:00:00.000Z' });
-  await page.evaluate(({ current, baseline }) => {
-    localStorage.setItem('melo-state-v1', JSON.stringify(current));
-    localStorage.setItem('melo-sync-base', JSON.stringify(baseline));
+  // Seed before the app starts on reload. Writing from the running page could
+  // race with a save the app still has pending.
+  await page.addInitScript(({ current, baseline }) => {
+    if (!sessionStorage.getItem('synthetic-merge-seeded')) {
+      localStorage.setItem('melo-state-v1', JSON.stringify(current));
+      localStorage.setItem('melo-sync-base', JSON.stringify(baseline));
+      sessionStorage.setItem('synthetic-merge-seeded', 'true');
+    }
   }, { current, baseline });
   await page.reload();
   await openMoreSection(page, 'Settings');
