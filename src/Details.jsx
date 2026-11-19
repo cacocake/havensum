@@ -8,7 +8,7 @@ import Icon from './Icon';
 import {Squish} from './Playful.jsx';
 import { expenseReportingMonth, isPlannedCostLink } from './plannedCosts.js';
 import { localCalendarDate } from './calendar.js';
-import { scheduledAccountMovement } from './ledger.js';
+import { expensePaybacks, scheduledAccountMovement } from './ledger.js';
 import { signedEuro } from './money.js';
 
 export function AccountDetail(){
@@ -31,7 +31,7 @@ export function AccountDetail(){
 export function TransactionDetail({transactionId,onClose}){
  const {state,setModal}=useApp(),c=useContext(Theme),tx=state.transactions.find(t=>t.id===transactionId);
  if(!tx)return <Dialog title="Transaction unavailable" onClose={onClose}><T>This movement is no longer available.</T></Dialog>;
- const cat=categorySettings(state.categories,tx.category),account=state.accounts.find(a=>a.id===tx.account),original=state.transactions.find(t=>t.id===tx.linkedId),refunds=state.transactions.filter(t=>t.type==='reimbursement'&&t.linkedId===tx.id),refunded=refunds.reduce((s,t)=>s+t.amount,0);
+ const cat=categorySettings(state.categories,tx.category),account=state.accounts.find(a=>a.id===tx.account),original=state.transactions.find(t=>t.id===tx.linkedId),paybacks=expensePaybacks(state.transactions,tx.id);
  const linkRow=(t,label)=><Squish key={t.id} accessibilityLabel={`View ${t.title}`} onPress={()=>setModal({type:'transaction-detail',id:t.id})} style={{minHeight:56,paddingVertical:12,borderTopWidth:1,borderColor:c.line}}><Row style={{gap:10}}><Icon name="Link2" size={17} color={c.sub}/><View style={{flex:1,minWidth:0}}><T>{t.title}</T><T style={{fontSize:12,color:c.sub}}>{label} · {t.date}</T></View><Icon name="ChevronRight" size={16} color={c.sub}/></Row></Squish>;
  return <Dialog title="Transaction details" onClose={onClose} footer={<Button icon="Pencil" onPress={()=>setModal({type:'transaction',item:tx})}>Edit transaction</Button>}>
   <Row style={{gap:13,marginBottom:18}}><TileIcon name={tx.type==='transfer'?'ArrowLeftRight':cat.icon} color={cat.color} size={48}/><View style={{flex:1,minWidth:0}}><H size={24}>{tx.title}</H><Badge style={{marginTop:7}}>{tx.type==='reimbursement'?'Payback':tx.type}</Badge></View></Row>
@@ -41,8 +41,32 @@ export function TransactionDetail({transactionId,onClose}){
   {isPlannedCostLink(tx.plannedCost) && <T style={{ color: c.sub, marginBottom: 12 }}>
     Planned cost · {state.events.find(event => event.id === tx.plannedCost.eventId)?.name ?? 'Former planned cost'} · {tx.plannedCost.month}
   </T>}
-  {tx.type==='expense'&&refunded>0&&<View style={{backgroundColor:c.soft,padding:15,borderRadius:15,marginVertical:12}}><Row style={{justifyContent:'space-between',gap:12}}><T>Paid back</T><T>{euro(refunded)}</T></Row><Row style={{justifyContent:'space-between',gap:12,marginTop:9}}><T>Net expense</T><T style={{fontWeight:'700'}}>{euro(tx.amount-refunded)}</T></Row><T style={{fontSize:12,color:c.sub,marginTop:9}}>Attributed to {expenseReportingMonth(tx)}, even when the payback arrives later.</T></View>}
-  {original&&linkRow(original,'Original expense')}{refunds.map(t=>linkRow(t,'Payback received'))}
+  {tx.type==='expense'&&<ExpensePaybackSummary expense={tx} paybacks={paybacks}/>}
+  {original&&linkRow(original,'Original expense')}{paybacks.received.map(t=>linkRow(t,'Payback received'))}{paybacks.scheduled.map(t=>linkRow(t,'Scheduled payback'))}
   {tx.type==='reimbursement'&&!original&&<T style={{fontSize:12,color:c.sub}}>Balance adjustment · excluded from income and net spending.</T>}
  </Dialog>;
+}
+
+// Paid back counts paybacks received by today; one dated later is scheduled
+// and only reduces the net expense from its date (L01).
+function ExpensePaybackSummary({ expense, paybacks }) {
+  const colors = useContext(Theme);
+  if (!paybacks.receivedTotal && !paybacks.scheduledTotal) {
+    return null;
+  }
+  return <View style={{ backgroundColor: colors.soft, padding: 15, borderRadius: 15, marginVertical: 12 }}>
+    {paybacks.receivedTotal > 0 && <Row style={{ justifyContent: 'space-between', gap: 12, marginBottom: 9 }}>
+      <T>Paid back</T>
+      <T testID="expense-paid-back">{euro(paybacks.receivedTotal)}</T>
+    </Row>}
+    {paybacks.scheduledTotal > 0 && <Row style={{ justifyContent: 'space-between', gap: 12, marginBottom: 9 }}>
+      <T>Scheduled payback</T>
+      <T testID="expense-scheduled-back">{euro(paybacks.scheduledTotal)}</T>
+    </Row>}
+    <Row style={{ justifyContent: 'space-between', gap: 12 }}>
+      <T>Net expense</T>
+      <T testID="expense-net" style={{ fontWeight: '700' }}>{euro(expense.amount - paybacks.receivedTotal)}</T>
+    </Row>
+    <T style={{ fontSize: 12, color: colors.sub, marginTop: 9 }}>Attributed to {expenseReportingMonth(expense)}, even when the payback arrives later. A scheduled payback counts from its date.</T>
+  </View>;
 }

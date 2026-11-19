@@ -1,8 +1,9 @@
 import { localCalendarDate, monthOf } from './calendar.js';
 import { k_spendingBehaviors, k_transactionTypes } from './domainConstants.js';
 import { expenseReportingMonth } from './plannedCosts.js';
-import { postedLedger, scheduledTransactions } from './posting.js';
+import { isScheduledEntry, postedLedger, scheduledTransactions } from './posting.js';
 
+const k_lastCalendarDate = '9999-12-31';
 const k_defaultCategory = {
   name: 'Uncategorized', color: '#aa9ca5', icon: 'Shapes', kind: k_spendingBehaviors.variable
 };
@@ -100,9 +101,20 @@ export function accountBalance(state, accountId, until = localCalendarDate()) {
   }, account.openingBalance);
 }
 
-const k_lastCalendarDate = '9999-12-31';
-
 // What an account's balance gains (or loses) once its scheduled entries post.
 export function scheduledAccountMovement(state, accountId, today = localCalendarDate()) {
   return accountBalance(state, accountId, k_lastCalendarDate) - accountBalance(state, accountId, today);
+}
+
+// An expense's linked paybacks: received by today, and scheduled for later.
+export function expensePaybacks(transactions, expenseId, today = localCalendarDate()) {
+  const paybacks = transactions.filter(transaction => transaction.type === k_transactionTypes.reimbursement && transaction.linkedId === expenseId);
+  const received = paybacks.filter(payback => !isScheduledEntry(payback, today));
+  const scheduled = paybacks.filter(payback => isScheduledEntry(payback, today));
+  return {
+    received,
+    scheduled,
+    receivedTotal: received.reduce((total, payback) => total + payback.amount, 0),
+    scheduledTotal: scheduled.reduce((total, payback) => total + payback.amount, 0)
+  };
 }

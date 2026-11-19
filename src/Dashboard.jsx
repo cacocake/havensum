@@ -11,7 +11,7 @@ import {euro,reportingMonthStats,accountBalance,categorySettings,monthOf} from '
 import { plannedMonth } from './planArchive.js';
 import { savingsRateLabel } from './savingsRateLabel.js';
 import { currentLocalMonth, localCalendarDate } from './calendar.js';
-import { scheduledMonthStats } from './ledger.js';
+import { expensePaybacks, scheduledMonthStats } from './ledger.js';
 import { isScheduledEntry } from './posting.js';
 import { signedEuro } from './money.js';
 
@@ -26,16 +26,27 @@ export function AccountCard({account}){
   </Card>
  </Squish>;
 }
+// Received paybacks, then any dated later (they count from their date).
+function paybackSummary(paybacks){
+ let summary='';
+ if(paybacks.receivedTotal>0){
+  summary+=` · ${euro(paybacks.receivedTotal)} back`;
+ }
+ if(paybacks.scheduledTotal>0){
+  summary+=` · ${euro(paybacks.scheduledTotal)} scheduled back`;
+ }
+ return summary;
+}
 export function TransactionRow({tx,last=false,wide=false,accountId=null}){
  const {state,setModal}=useApp(),c=useContext(Theme),cat=categorySettings(state.categories,tx.category),incoming=tx.type==='income'||tx.type==='reimbursement',transfer=tx.type==='transfer',received=transfer&&accountId===tx.toAccount;
- const linked=state.transactions.find(x=>x.id===tx.linkedId),refunded=state.transactions.filter(x=>x.linkedId===tx.id).reduce((s,x)=>s+x.amount,0),account=state.accounts.find(a=>a.id===tx.account);
+ const linked=state.transactions.find(x=>x.id===tx.linkedId),paybacks=expensePaybacks(state.transactions,tx.id),account=state.accounts.find(a=>a.id===tx.account);
  const color=tx.type==='reimbursement'?'#779BC4':transfer?'#A69AC7':cat.color;
  // L01: an entry dated after today is scheduled until its date.
  const scheduled=isScheduledEntry(tx,localCalendarDate());
  return <Squish accessibilityLabel={scheduled?`View ${tx.title}, scheduled`:`View ${tx.title}`} onPress={()=>setModal({type:'transaction-detail',id:tx.id})} style={{paddingVertical:14,borderBottomWidth:last?0:1,borderColor:c.line,minWidth:0}}>
   <Row style={{gap:12,minWidth:0}}><View style={{flexShrink:0}}><TileIcon name={transfer?'ArrowLeftRight':tx.type==='reimbursement'?'CornerDownLeft':cat.icon} color={color} size={43}/></View>
    <View style={{flex:1,minWidth:0}}><Row style={{gap:5,minWidth:0}}><T numberOfLines={1} style={{fontSize:14,fontWeight:'600',flexShrink:1}}>{tx.title}</T>{linked&&<Icon name="Link2" size={12} color={c.positive}/>}</Row>
-    <T numberOfLines={1} style={{fontSize:11,color:c.sub,marginTop:3}}>{linked?`Payback · ${linked.date.slice(0,7)} expense`:transfer?`${account?.name} → ${state.accounts.find(a=>a.id===tx.toAccount)?.name}`:`${cat.name} · ${account?.name||''}`}{refunded>0?` · ${euro(refunded)} back`:''}</T>
+    <T numberOfLines={1} style={{fontSize:11,color:c.sub,marginTop:3}}>{linked?`Payback · ${linked.date.slice(0,7)} expense`:transfer?`${account?.name} → ${state.accounts.find(a=>a.id===tx.toAccount)?.name}`:`${cat.name} · ${account?.name||''}`}{paybackSummary(paybacks)}</T>
    </View>
    {wide&&<View style={{width:90}}><Badge>{tx.kind||cat.kind}</Badge></View>}
    <View style={{alignItems:'flex-end',maxWidth:112,flexShrink:0}}><T numberOfLines={1} adjustsFontSizeToFit style={{fontSize:14,fontWeight:'700',color:incoming||received?c.positive:c.text}}>{transfer?(accountId?(received?'+':'−'):''):incoming?'+':'−'}{euro(tx.amount)}</T><T style={{fontSize:10,color:c.muted,marginTop:3}}>{new Date(tx.date+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</T>{scheduled&&<Row style={{gap:3,marginTop:3}}><Icon name="CalendarDays" size={11} color={c.sub}/><T style={{fontSize:10,color:c.sub,fontWeight:'600'}}>Scheduled</T></Row>}</View>

@@ -111,3 +111,33 @@ test.describe('east of UTC just after midnight', () => {
     await expect(page.getByLabel('View Rainy day account').first()).toContainText('€1,009.49');
   });
 });
+
+test('an expense counts a payback dated later as scheduled, not received, until its date', async ({ page }) => {
+  const ledger = createFinancialState({ transactions: [
+    createTransaction({ id: 'dinner', title: 'Dinner out', amount: 12000, date: '2026-10-08' }),
+    createTransaction({ id: 'friend-pays', type: 'reimbursement', title: 'Friend pays back', account: 'shared', amount: 4000, date: '2026-11-25', linkedId: 'dinner', category: undefined })
+  ] });
+  await openWithLedger(page, ledger, '2026-11-17T12:00:00');
+  await page.getByRole('button', { name: 'Choose month', exact: true }).click();
+  await page.getByRole('button', { name: 'Oct', exact: true }).click();
+
+  const row = page.getByLabel('View Dinner out', { exact: true });
+  await expect(row).toContainText('€40.00 scheduled back');
+  await expect(row).not.toContainText('€40.00 back');
+  await row.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByTestId('expense-net')).toHaveText('€120.00');
+  await expect(dialog.getByTestId('expense-scheduled-back')).toHaveText('€40.00');
+  await expect(dialog.getByTestId('expense-paid-back')).toHaveCount(0);
+  await expect(dialog.getByText(/^Scheduled payback · 2026-11-25$/)).toBeVisible();
+
+  await page.clock.setSystemTime(new Date('2026-11-25T09:00:00'));
+  await page.reload();
+  await page.getByRole('button', { name: 'Choose month', exact: true }).click();
+  await page.getByRole('button', { name: 'Oct', exact: true }).click();
+  await expect(page.getByLabel('View Dinner out', { exact: true })).toContainText('€40.00 back');
+  await page.getByLabel('View Dinner out', { exact: true }).click();
+  await expect(page.getByRole('dialog').getByTestId('expense-paid-back')).toHaveText('€40.00');
+  await expect(page.getByRole('dialog').getByTestId('expense-net')).toHaveText('€80.00');
+  await expect(page.getByRole('dialog').getByTestId('expense-scheduled-back')).toHaveCount(0);
+});
