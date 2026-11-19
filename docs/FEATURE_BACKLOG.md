@@ -532,6 +532,7 @@ The implementation note below records how these were built; it stores only per-y
   - `npm run build`;
   - `npm run check:android` (Hermes compilation only; no device test);
   - stress: all other-tab tests 180/180 with `--repeat-each 15 --workers 6`.
+  - after merging the latest `develop` (`361138a`, LEDGER-2a and the F20 follow-up): `npm run test:coverage` 520/520 (96.84% lines, 94.71% branches), `npm run test:browser` 465/465, `npm run build`, `npm run check:android`.
 - **Review:**
   - Three separate read-only Claude reviews.
   - Round 1 found a false refusal after a failed save and a window between the check and the final save. Both were fixed (`7b91fc7`).
