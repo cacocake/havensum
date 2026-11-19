@@ -13,7 +13,7 @@ function signedEuro(amount) {
 }
 
 function monthName(month) {
-  return new Date(`${month}-01T12:00:00`).toLocaleString('en', k_monthNameOptions);
+  return monthDate(month).toLocaleString('en', k_monthNameOptions);
 }
 
 // Draft targets beside the independent forecast. Draft events are new evidence
@@ -75,22 +75,31 @@ export function CarriedAssumptionNotes({ carried, loans, lineIds }) {
   </View>;
 }
 
+function monthDate(month) {
+  return new Date(`${month}-01T12:00:00`);
+}
+
 function monthYearName(month) {
-  return new Date(`${month}-01T12:00:00`).toLocaleString('en', { month: 'long', year: 'numeric' });
+  return monthDate(month).toLocaleString('en', { month: 'long', year: 'numeric' });
+}
+
+function monthLongName(month) {
+  return monthDate(month).toLocaleString('en', { month: 'long' });
 }
 
 // Loan payments in effect when the period starts, and carried later changes
 // in their months. Removing a carried change only affects this draft.
 export function CarriedChanges({ loans, startMonth, incomeChanges, loanChanges, onRemoveIncomeChange, onRemoveLoanChange }) {
   const colors = useContext(Theme);
-  const startName = new Date(`${startMonth}-01T12:00:00`).toLocaleString('en', { month: 'long' });
   const activeLoans = loans.filter(loan => loan.end >= startMonth);
   const laterLoanChanges = loanChanges.filter(change => change.since > startMonth);
   const loanName = loanId => loans.find(loan => loan.id === loanId)?.name ?? 'Loan';
   return <View testID="carried-changes" style={{ gap: 6 }}>
     {activeLoans.map(loan => {
       const restated = loanChanges.find(change => change.loanId === loan.id && change.since === startMonth);
-      return <T key={loan.id} style={{ fontSize: 12 }}>{loan.name} · {euro(restated?.amount ?? loan.payment)}/month from {startName}</T>;
+      const firstMonth = loan.start > startMonth ? loan.start : startMonth;
+      const firstMonthName = firstMonth.slice(0, 4) === startMonth.slice(0, 4) ? monthLongName(firstMonth) : monthYearName(firstMonth);
+      return <T key={loan.id} style={{ fontSize: 12 }}>{loan.name} · {euro(restated?.amount ?? loan.payment)}/month from {firstMonthName}</T>;
     })}
     {[...incomeChanges.map(change => ({ change, kind: 'income' })), ...laterLoanChanges.map(change => ({ change, kind: 'loan' }))].map(({ change, kind }) => {
       const label = kind === 'income' ? 'Income' : loanName(change.loanId);

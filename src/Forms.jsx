@@ -1,6 +1,6 @@
 import { saveTransaction, deleteTransaction } from './transactionActions.js';
 import { useDirtyForm } from './useDirtyForm.js';
-import React,{useState,useContext,useRef} from 'react';
+import React,{useState,useContext,useRef,useMemo} from 'react';
 import {View,Pressable,ScrollView,TextInput} from 'react-native';
 import {useApp} from './context.js';
 import {Theme,T,H,Row,Button,IB,Badge,TileIcon,Field,Select,DateField,Toggle,Dialog,Divider} from './ui.jsx';
@@ -267,7 +267,8 @@ export function PlanForm({onClose}){
  const [step,setStep]=useState(0),[income,setIncome]=useState(String((carried.income??k_defaultPlanIncome)/k_centsPerEuro)),[cushion,setCushion]=useState(()=>String(initialPlanCushion(state,carried,{year,fromMonth:from})/k_centsPerEuro)),[window,setWindow]=useState(String(carried.window??k_defaultHistoryWindow)),[eventName,setEventName]=useState(''),[eventAmount,setEventAmount]=useState(''),[eventMonth,setEventMonth]=useState('12'),[overrides,setOverrides]=useState(()=>Object.fromEntries(carried.overrides.filter(override=>override.keep).map(override=>[override.lineId,String(override.amount/k_centsPerEuro)]))),[error,setError]=useState('');
  const [incomeChangeFrom,setIncomeChangeFrom]=useState(''),[incomeChangeAmount,setIncomeChangeAmount]=useState(''),[loanEdits,setLoanEdits]=useState({}),[loanChangeFrom,setLoanChangeFrom]=useState(String(from)),[tolerance,setTolerance]=useState(String((carried.tolerance??k_defaultFixedTolerance)/k_centsPerEuro)),[drift,setDrift]=useState(String(Math.round((carried.drift??k_defaultVariableDrift)*k_percentageScale))),[draftEvents,setDraftEvents]=useState([]),[carriedIncomeChanges,setCarriedIncomeChanges]=useState(carried.incomeChanges),[carriedLoanChanges,setCarriedLoanChanges]=useState(carried.loanChanges);
  const candidateEvent=eventName.trim()&&cents(eventAmount)>0?{id:k_draftEventId,name:eventName.trim(),year,month:Number(eventMonth),amount:cents(eventAmount)}:null;
- const plannedEvents=[...(state.events||[]),...draftEvents,...(candidateEvent?[candidateEvent]:[])];
+ // Stable between renders so the forecast preview only recomputes for new evidence.
+ const plannedEvents=useMemo(()=>[...(state.events||[]),...draftEvents,...(candidateEvent?[candidateEvent]:[])],[state.events,draftEvents,candidateEvent?.name,candidateEvent?.month,candidateEvent?.amount]);
  const draftEstimates=planDraftEstimates({...state,events:plannedEvents},{year,fromMonth:from,window:Number(window),today:localCalendarDate()}),draftBills=draftEstimates.bills;
  const preview=buildPlan({...state,events:plannedEvents},{estimates:draftEstimates,year,fromMonth:from,income:cents(income)||0,cushion:cents(cushion)||0,window:Number(window),incomeChanges:[...carriedIncomeChanges,...(incomeChangeFrom&&cents(incomeChangeAmount)>=0?[{since:`${year}-${incomeChangeFrom.padStart(2,'0')}`,amount:cents(incomeChangeAmount)}]:[])],loanChanges:[...carriedLoanChanges,...Object.entries(loanEdits).filter(([,v])=>v!==''&&cents(v)>=0).map(([loanId,v])=>({loanId,since:`${year}-${loanChangeFrom.padStart(2,'0')}`,amount:cents(v)}))],overrides:Object.fromEntries(Object.entries(overrides).filter(([,v])=>v!=='').map(([k,v])=>[k,cents(v)]))});
  function addPlannedEvent() {
