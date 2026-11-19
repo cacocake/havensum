@@ -1,4 +1,5 @@
-// Loads Reanimated's own CSS animation helpers in Node, so native-only animation settings
+// Loads Reanimated's own CSS animation helpers in Node (internal lib/module/css paths of Reanimated 4.1.x;
+// revisit them when upgrading Reanimated), so native-only animation settings
 // can be checked against the validation the Android app runs at startup.
 import { registerHooks } from 'node:module';
 import { existsSync, statSync } from 'node:fs';
@@ -49,6 +50,6 @@ registerHooks({
 
 export async function loadReanimatedCssHelpers() {
   const { cubicBezier } = await import(new URL('easing/index.js', k_reanimatedCssUrl).href);
-  const { normalizeTimingFunction } = await import(new URL('native/normalization/common/settings.js', k_reanimatedCssUrl).href);
-  return { cubicBezier, normalizeTimingFunction };
+  const { normalizeCSSTransitionProperties } = await import(new URL('native/normalization/transition/config.js', k_reanimatedCssUrl).href);
+  return { cubicBezier, normalizeCSSTransitionProperties };
 }

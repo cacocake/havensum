@@ -1,11 +1,11 @@
 import React,{useState} from 'react';
 import {Pressable,View} from 'react-native';
 import Animated,{FadeIn,useReducedMotion} from 'react-native-reanimated';
-import {k_motionTimingCurve} from './motionTimingCurve.native.js';
+import {meterTransitionStyle,pressTransitionStyle} from './motionTransitions.native.js';
 const AnimatedPressable=Animated.createAnimatedComponent(Pressable);
 export function MotionPressable({children,style,onPressIn,onPressOut,...props}){
  const [pressed,setPressed]=useState(false),reduced=useReducedMotion();
- return <AnimatedPressable {...props} accessibilityRole={props.accessibilityRole||'button'} pressRetentionOffset={16} onPressIn={e=>{setPressed(true);onPressIn?.(e)}} onPressOut={e=>{setPressed(false);onPressOut?.(e)}} style={[style,{transform:[{scale:pressed&&!reduced?.97:1}],transitionProperty:'transform',transitionDuration:reduced?0:120,transitionTimingFunction:k_motionTimingCurve}]}>{children}</AnimatedPressable>;
+ return <AnimatedPressable {...props} accessibilityRole={props.accessibilityRole||'button'} pressRetentionOffset={16} onPressIn={e=>{setPressed(true);onPressIn?.(e)}} onPressOut={e=>{setPressed(false);onPressOut?.(e)}} style={[style,{transform:[{scale:pressed&&!reduced?.97:1}],...pressTransitionStyle(reduced)}]}>{children}</AnimatedPressable>;
 }
 export function Reveal({children}){const reduced=useReducedMotion();return <Animated.View entering={reduced?undefined:FadeIn.duration(140)}>{children}</Animated.View>}
-export function Meter({value,color,track}){const reduced=useReducedMotion();return <View style={{height:8,backgroundColor:track,borderRadius:8,overflow:'hidden'}}><Animated.View style={{position:'absolute',left:0,top:0,bottom:0,width:'100%',borderRadius:8,backgroundColor:color,transformOrigin:'left center',transform:[{scaleX:Math.max(0,Math.min(1,value))}],transitionProperty:'transform',transitionDuration:reduced?0:180,transitionTimingFunction:k_motionTimingCurve}}/></View>}
+export function Meter({value,color,track}){const reduced=useReducedMotion();return <View style={{height:8,backgroundColor:track,borderRadius:8,overflow:'hidden'}}><Animated.View style={{position:'absolute',left:0,top:0,bottom:0,width:'100%',borderRadius:8,backgroundColor:color,transformOrigin:'left center',transform:[{scaleX:Math.max(0,Math.min(1,value))}],...meterTransitionStyle(reduced)}}/></View>}
