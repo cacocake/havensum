@@ -43,3 +43,15 @@ The owner chose to verify against synthetic rows that mirror the published expor
 - **Metadata:** color, icon and emoji are ignored; budget and objective are shown read-only in review and never create records (K07). Classification is never prefilled from the sign (K08).
 
 Still needed to move any of these from synthetic to verified: a small sanitized Cashew export of the owner's version containing a transfer pair, a payback, a scheduled entry, a borrowing row and populated budget/objective, with the expected Havensum result for each.
+
+## Owner's real test export (19 November 2026)
+
+The owner exported a small test file from their Cashew app (the newer layout with `amount unpaid` and `extra`; app version not stated). It is private runtime data and is not in Git; `tests/cashewExportShape.test.js` uses synthetic rows with the same structure. Running the file through the importer confirmed, against a real export:
+
+- Scheduled types are written bare (`repetitive`, `subscription`, `upcoming`), ordinary rows as `default`. A paid scheduled row has a negative `amount` and a blank `amount unpaid`; an unpaid one has a blank `amount` and the value in `amount unpaid`, and stays a row error (K04).
+- `extra` carries recurrence text such as `repeat every 1 month`, even on ordinary rows. It is now shown read-only and never blocks a row (K10).
+- A transfer is two `default` rows in the app-language balance-correction category (here `Correção do equilíbrio`) whose note reads `Transferred Balance` then `from → to` with both source account names. Havensum now suggests the pair from that note, not from the category (K11).
+- Borrowing and lending appear as `default` rows tagged with a loan objective, not as `debt`/`credit` types. A row with an objective can be recorded against a chosen Havensum loan by its sign, or classified normally (K12). The CSV cannot tell a loan objective from a savings goal, so nothing is chosen automatically.
+- Category styling is written as `0XFF…` colours and icon names; it is ignored.
+
+Still unverified: older `debt`/`credit` type rows (K02), the published v1 layout beyond the earlier ordinary rows, and what each loan-objective sign means in Cashew (the test rows were not explained beyond their titles). No exact Cashew compatibility is claimed.

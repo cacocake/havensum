@@ -97,3 +97,23 @@ test('editing imported loan proceeds keeps their loan tag', async ({ page }) => 
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).transactions
     .map(({ title, loanId, type }) => [title, loanId, type]))).toEqual([['Borrowed from the bank', 'car', 'reimbursement']]);
 });
+
+test('a Cashew row with an objective shows its extra and may be recorded against a chosen loan', async ({ page }) => {
+  const loan = { id: 'car', name: 'Car loan', remaining: 500000, original: 800000, payment: 18500, start: '2026-01', end: '2029-12', account: 'everyday' };
+  const dialog = await openCashewImport(page, [
+    'Everyday,-50.0,,EUR,Prestação,,2026-11-10 20:28:00.000,false,default,Comer Fora,,0XFF607D8B,cutlery,,,Empréstimo da família,repeat every 1 month'
+  ], k_betaHeader, createFinancialState({ loans: [loan] }));
+  await dialog.getByRole('button', { name: 'Preview import', exact: true }).click();
+  await expect(dialog.getByText('Cashew extra · repeat every 1 month · not imported', { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/This Cashew objective may be a loan/)).toBeVisible();
+  await dialog.getByRole('button', { name: 'Edit row 2', exact: true }).click();
+  await dialog.getByLabel('Type', { exact: true }).selectOption('expense');
+  await dialog.getByLabel('Category', { exact: true }).selectOption('loan');
+  await dialog.getByLabel('Havensum loan', { exact: true }).selectOption({ label: 'Car loan' });
+  await dialog.getByRole('button', { name: 'Update draft', exact: true }).click();
+  await expect(dialog.getByText('Loan · Car loan', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Import transactions', exact: true }).click();
+  await expect(dialog.getByText('After €950.00', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).transactions
+    .map(({ type, amount, loanId, category }) => [type, amount, loanId, category]))).toEqual([['expense', 5000, 'car', 'loan']]);
+});
