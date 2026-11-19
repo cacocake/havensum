@@ -66,6 +66,7 @@ export function bankTransferCounterparts(review, index) {
     const incoming = review.originals[row.index];
     return row.bank?.direction === 'credit'
       && !row.normalizationError
+      && !row.bank.loanRequired
       && !row.transaction.type
       && (row.pairedBy === undefined || row.pairedBy === index)
       && incoming.account !== outgoing.account

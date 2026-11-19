@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**The FORECAST-2 follow-up (move a recurring planned cost from a chosen year, F16–F18) is done, reviewed and merged into `develop`** (see its handoff note at the end). **LEDGER-1 is done, reviewed and merged into `develop`**. **FORECAST-2 is done, reviewed and merged into `develop`** after the owner's answers (see "FORECAST-2 owner answers" and the implementation handoff at the end). No other ticket is unblocked: each needs owner input, samples, credentials or a device. PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**IMPORT-2 (Cashew verification with synthetic rows) is done, reviewed and merged into `develop`** (see its handoff note at the end). **The FORECAST-2 follow-up (move a recurring planned cost from a chosen year, F16–F18) is done, reviewed and merged into `develop`** (see its handoff note at the end). **LEDGER-1 is done, reviewed and merged into `develop`**. **FORECAST-2 is done, reviewed and merged into `develop`** after the owner's answers (see "FORECAST-2 owner answers" and the implementation handoff at the end). No other ticket is unblocked: each needs owner input, samples, credentials or a device. PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -82,6 +82,16 @@ Reuse the Real Bank adapter if the second layout matches. Otherwise create a dis
 
 **Needs:** Representative rows and agreed classifications for the cases the owner uses.
 
+**Status (19 November 2026):** Done, reviewed and merged into `develop` from `codex/cashew-verification` (started from `75a8108`; implementation `11c9a44`–`b202a16`; review fixes `bc6518b`, `e440610`, `771e7c4`). See the IMPORT-2 handoff note at the end. The owner chose to proceed with synthetic rows that mirror the documented Cashew export format; every case beyond the verified ordinary EUR rows from v6.7.5+524 stays explicitly unverified against a real export.
+
+**Owner answers (19 November 2026, in chat; recorded as K01–K08 in DECISIONS.md):**
+1. **Borrowing/lending:** a `debt` row is importable only after picking an existing Havensum loan in review; positive = loan proceeds (unlinked balance adjustment tagged with the loan), negative = loan repayment expense tagged with the loan. `credit` (lent) rows stay blocked.
+2. **Scheduled entries:** treated as paid when `amount unpaid` is blank or 0 (v1 exports only paid rows); still need a classification; review shows they came from a scheduled entry.
+3. **Transfers:** a unique opposite `Balance Correction` row with the same amount and timestamp in another account is preselected as a suggested pair; the owner confirms or changes it.
+4. **Paybacks:** manual link only, as today.
+5. **Metadata:** ignore color/icon/emoji; show budget/objective read-only in review, never create records; non-zero `amount unpaid` or any `extra` stays a row error.
+6. **Classification:** ordinary rows still need an explicit choice; nothing prefilled from the sign.
+
 Ordinary EUR rows from v6.7.5+524 are already verified. Check real transfer and payback rows where available. Agree how to handle borrowing, lending, scheduled entries, and populated metadata before widening support. Test both layouts, accents, integer-cent handling, matches after renames and layout changes, account creation only on confirmation, and original-expense links. Unverified entries retain their review status.
 
 ### LEDGER-1 · Posted versus future-dated activity
@@ -92,9 +102,15 @@ Apply the agreed rule to current balances, account details, reports, forecasts, 
 
 ### LEDGER-2 · Historical interest corrections
 
-**Owner decision (19 November 2026, recorded as L03–L06 in DECISIONS.md):** corrections go through a reviewed *Correct past interest* flow on the savings account (past rates change only there; a corrected balance is an ordinary dated entry or balance adjustment). Each affected completed month keeps its recorded entries and gets one marked *Interest correction* entry for the difference. Bank-posted interest for a month that also has, or would get, an app entry needs a per-month choice: bank amount only, or keep both. The review lists all affected months with downstream *compounding effect* rows and a total, and applies them together. **Status:** Done, reviewed and merged into `develop` from `codex/interest-corrections` (implementation `d443fe4`, `ca2723f`; review fixes `869521f`, `870e6a0`). See the LEDGER-2 handoff note at the end; its owner questions are non-blocking.
+**Owner decision (19 November 2026, recorded as L03–L06 in DECISIONS.md):** corrections go through a reviewed *Correct past interest* flow on the savings account (past rates change only there; a corrected balance is an ordinary dated entry or balance adjustment). Each affected completed month keeps its recorded entries and gets one marked *Interest correction* entry for the difference. Bank-posted interest for a month that also has, or would get, an app entry needs a per-month choice: bank amount only, or keep both. The review lists all affected months with downstream *compounding effect* rows and a total, and applies them together. **Status:** Done, reviewed and merged into `develop` from `codex/interest-corrections` (implementation `d443fe4`, `ca2723f`; review fixes `869521f`, `870e6a0`). See the LEDGER-2 handoff note at the end; its owner questions were answered (L07), and the earliest-month limit is queued as LEDGER-2a.
 
 Design a reviewed, explicit correction flow after agreement. Show the affected completed months and downstream compounding. Cover a corrected past balance, existing bank interest, duplicate prevention, cancel, and repeated application.
+
+### LEDGER-2a · Earliest correctable month
+
+**Owner decision (19 November 2026, L07):** a correction cannot start before the account's first recorded entry or its first rate period. **Status:** Queued, unblocked. **Depends on:** LEDGER-2 (merged).
+
+In the *Correct past interest* review (`src/interestCorrection.js`, `src/interestSchedule.js` `correctedSchedule`, `src/InterestCorrection.jsx`), refuse a draft rate period whose start month is earlier than the account's first transaction month (including a transfer into the account) or its first stored rate period (whichever is earlier; an account with neither may start from the current month), with a clear message, and never loop over months before that bound. Cover a mistyped far-past year, an account with no entries, a legacy unscheduled rate, and the existing earlier-start case that must still work.
 
 ## Queued forecast improvements
 
@@ -347,7 +363,7 @@ The implementation note below records how these were built; it stores only per-y
   - Corrections are the only signed entries (validation in `transactionValidation.js`); `interestBankChoices` is validated in `stateSchema.js` (additive, no version bump; see STATE_MIGRATIONS.md). Canonical CSV (`corrects_interest_month`), JSON backup rows and the workbook raw sheet keep the marker and sign; import comparison includes the marker.
   - `correctedSchedule`/`correctedScheduleWithout` allow past rate periods only for the correction draft; the normal editor still refuses them.
 - **UI (shared web/Android):** account detail shows a *Past interest* card for savings accounts (differing months and total, or months needing a bank choice) with *Correct past interest* / *Review past interest*. The dialog edits past rates as a draft, offers *Bank amount only* / *Keep both* per month, lists affected months and the total, blocks Apply while a choice or a typed-but-unset rate is pending, asks before discarding a changed draft and validates the ledger before saving. Activity rows and details show a negative correction with a minus; correction details explain it and have no Edit button.
-- **Owner questions (non-blocking; current behaviour in brackets):**
+- **Owner questions — answered 19 November 2026 (L07):** 1 keep (no Edit), 2 keep (later months previewed), 3 keep (main category only), 4 limit to the account's first entry or first rate period → LEDGER-2a; 5 is a statement of current behaviour, not asked. Original questions, current behaviour in brackets:
   1. Corrections cannot be edited, only superseded by reviewing again [no Edit]. The ordinary app interest entry stays editable; edits to it then show up as differences in the review. OK?
   2. While a bank-interest choice is pending, later months are previewed as if the app entry stayed [their differences change once you choose]. Acceptable, or hide later months until every choice is made?
   3. Bank interest means Interest income in the system *Interest* category itself, not its subcategories [subcategories ignored, as in the forecast]. Should a subcategory count?
@@ -356,7 +372,7 @@ The implementation note below records how these were built; it stores only per-y
 - **Checks (merged tree with ANDROID-1, DRIVE-1 and L02):** `npm run test:coverage` 475/475 with thresholds met (96.6% lines, 94.6% branches), `npm run test:browser` 426/426 on the final run (earlier runs hit only the BUG-1 flake below), `npm run build`, `npm run check:android` (Hermes compilation only; no device test).
 - **Review:** separate read-only Claude review (two blocking defects: an unscheduled legacy rate and a re-dated app entry each produced an unsaveable ledger; four should-fix items: backup/workbook round trips, repeated correction numbers, startup posting over corrected months, a typed rate ignored by Apply), then two focused re-reviews (two should-fix leftovers fixed in `870e6a0`); the last found no blocking or should-fix issues. All fixes were test-first.
 - **Bug found between tasks (BUG-1, not fixed here):** the browser test `fullRestore.spec.js` "a ledger saved by another tab after the preview makes the preview stale" fails intermittently on `develop` itself (all three viewports in one full run of `e53517f`; about 2% of repeated runs, more under load). When it fails, the restore dialog closes without the stale-preview notice. The likely cause is that the app's own save of its in-memory ledger lands after the simulated other-tab write, so the bytes match the preview again. This is unconfirmed. It needs its own `codex/` bug branch from `develop`: first decide whether the app or the test is at fault, then add a failing regression and fix it. The LEDGER-2 merge passes everything else.
-- **Not done (nits):** a correction cancelling an app entry re-dated into the next month is still dated in its own month, so that month's end balance dips until the re-dated entry's date; the review is not bounded in time (question 4); an older app build would report a ledger holding a negative correction as unreadable rather than as a newer version (all devices should run the same build).
+- **Not done (nits):** a correction cancelling an app entry re-dated into the next month is still dated in its own month, so that month's end balance dips until the re-dated entry's date; the review is not bounded in time (queued as LEDGER-2a); an older app build would report a ledger holding a negative correction as unreadable rather than as a newer version (all devices should run the same build).
 
 ## Session handoff — ANDROID-1 (19 November 2026, Claude cloud session)
 
@@ -422,3 +438,11 @@ The implementation note below records how these were built; it stores only per-y
   - `npm run test:browser` 402/402;
   - `npm run build`;
   - `npm run check:android` (Hermes compilation only; no device test).
+
+## Session handoff — IMPORT-2 · Extend Cashew verification (19 November 2026)
+
+- **Scope:** synthetic rows mirroring the published Cashew export (owner choice K01). Owner answers K01–K09 are in DECISIONS.md; behaviour and known limits are in the IMPORT-2 section of docs/CASHEW_IMPORT_RESEARCH.md. Nothing beyond the ordinary EUR rows from v6.7.5+524 is verified against a real export; no exact Cashew compatibility is claimed.
+- **Implemented:** both layouts read Dart double amounts to integer cents (v1 previously rejected float tails; comma and zero-padded amounts are now row errors in both layouts — a deliberate tightening); paid scheduled entries import after classification (K04); budget/objective shown read-only (K07); a unique opposite Balance Correction pair is preselected as a transfer and import confirms it (K05/K09); `debt` rows import only against a chosen Havensum loan, as proceeds or a repayment in the loan category (K02/K03), and are never transfer legs; lending stays blocked; editing imported proceeds keeps the loan tag. Coverage added for accents, renames on both sides, same-file payback links and malformed cells.
+- **Checks:** `npm run test:coverage` (449 pass on the tree merged with develop `5b2164d`; all files 96.65% lines), `npm run test:browser` (417 pass), `npm run build`, `npm run check:android` (Hermes export = compilation only).
+- **Review:** separate read-only Claude review found 1 blocking (debt credit usable as a transfer leg) and 4 should-fix items; all fixed test-first, the owner answered the pair-confirmation question (K09), and the re-review found nothing actionable.
+- **Still needs the owner:** a small sanitized Cashew export of their version with a transfer pair, a payback, a scheduled entry, a borrowing row and populated budget/objective, plus the expected Havensum result, to move these cases from synthetic to verified.

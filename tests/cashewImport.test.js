@@ -70,7 +70,10 @@ test('opposite Cashew rows become one neutral transfer, with both export legs av
   assert.equal(monthStats(saved, '2026-11').income, 0);
   assert.equal(monthStats(saved, '2026-11').spent, 0);
   const repeated = previewImportFile(saved, file, { accounts: { Wallet: 'everyday' } });
-  assert.deepEqual(repeated.rows.map(row => row.possibleMatches.map(match => match.id)),
+  assert.deepEqual(repeated.rows.map(row => row.status), ['possible', 'paired']);
+  assert.deepEqual(repeated.rows[0].possibleMatches.map(match => match.id), ['matched-cashew-transfer']);
+  const unpaired = reviseTransactionImport(saved, repeated, 0, { type: undefined });
+  assert.deepEqual(unpaired.rows.map(row => row.possibleMatches.map(match => match.id)),
     [['matched-cashew-transfer'], ['matched-cashew-transfer']]);
 });
 
@@ -94,7 +97,7 @@ test('Cashew rejects unsupported currencies, invalid dates and ambiguous amounts
   assert.deepEqual(file.rows.map(row => row.sourceRow), [2, 3, 4, 6]);
   assert.match(file.rows[0].error, /only EUR/i);
   assert.match(file.rows[1].error, /invalid/);
-  assert.match(file.rows[2].error, /signed EUR amount/);
+  assert.match(file.rows[2].error, /fraction of a cent/);
   assert.equal(file.rows[3].movement.amount, 501);
 });
 
@@ -108,10 +111,10 @@ test('a Cashew borrowing or lending entry cannot be applied as ordinary income o
   const file = await parseImportContent('synthetic.csv', [k_header, k_borrowing, lending].join('\n'));
   const state = createFinancialState();
   const review = previewImportFile(state, file, { accounts: { Wallet: 'everyday' } });
-  for (const [index, type] of [[0, 'income'], [1, 'expense']]) {
+  for (const [index, type, message] of [[0, 'income', /choose the havensum loan/i], [1, 'expense', /lending cannot be imported/i]]) {
     const changed = reviseTransactionImport(state, review, index, { type, category: 'groceries' });
     assert.equal(changed.rows[index].status, 'invalid');
-    assert.match(changed.rows[index].error, /borrowing and lending/i);
+    assert.match(changed.rows[index].error, message);
   }
   assert.deepEqual(applyTransactionImport(state, review, { 0: 'skip', 1: 'skip' }).transactions, []);
 });
@@ -188,18 +191,4 @@ test('a Cashew layout upgrade still finds the original transaction after it was 
   const upgraded = await parseImportContent('upgraded.csv', [betaHeader, betaRow].join('\n'));
   const repeated = previewImportFile(saved, upgraded, options);
   assert.deepEqual(repeated.rows[0].possibleMatches.map(match => match.id), ['recorded-purchase']);
-});
-
-test('Cashew scheduled entries with no verified payment status cannot add cash movements', async () => {
-  const rows = ['upcoming', 'subscription', 'repetitive'].map(type =>
-    k_expense.replace(',false,null,', ',false,TransactionSpecialType.' + type + ','));
-  const file = await parseImportContent('synthetic.csv', [k_header, ...rows].join('\n'));
-  const state = createFinancialState();
-  let review = previewImportFile(state, file, { accounts: { Wallet: 'everyday' } });
-  for (const index of rows.keys()) {
-    review = reviseTransactionImport(state, review, index, { type: 'expense', category: 'groceries' });
-    assert.equal(review.rows[index].status, 'invalid');
-    assert.match(review.rows[index].error, /payment status/i);
-  }
-  assert.deepEqual(applyTransactionImport(state, review, { 0: 'skip', 1: 'skip', 2: 'skip' }).transactions, []);
 });
