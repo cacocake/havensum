@@ -3,7 +3,8 @@ import { Theme, T, Button, Badge, Field, Select, Dialog } from './ui.jsx';
 import { useApp } from './context.js';
 import { cents, k_centsPerEuro } from './money.js';
 import { currentLocalMonth } from './calendar.js';
-import { InterestScheduleError, scheduleWithPeriod, scheduleWithoutPeriod } from './interestSchedule.js';
+import { correctableStartText, InterestScheduleError, scheduleWithPeriod, scheduleWithoutPeriod } from './interestSchedule.js';
+import { earliestCorrectableMonth } from './interestCorrection.js';
 import { savingsRateLabel } from './savingsRateLabel.js';
 import InterestScheduleEditor from './InterestScheduleEditor.jsx';
 import { palette } from './seed.js';
@@ -26,13 +27,25 @@ const k_accountAppearance = {
   [k_accountTypes.investment]: { icon: 'ChartNoAxesCombined', color: palette[6], bank: 'Manual valuation' }
 };
 
+function isUnscheduledLegacyRate(item) {
+  return Boolean(item) && !item.interestSchedule?.length && item.unscheduledInterest !== undefined;
+}
+
+// BUG-2 (L08): a legacy rate's past start has the same earliest month as corrections.
+function legacyRateCorrectableBound(state, item, currentMonth) {
+  if (!isUnscheduledLegacyRate(item)) {
+    return null;
+  }
+  return { earliestMonth: earliestCorrectableMonth(state, item.id, currentMonth), currentMonth };
+}
+
 // A new savings account starts with the default rate from this month. An
 // unscheduled legacy rate is offered so the owner can choose its start month.
 function initialRateDraft(item) {
   if (!item) {
     return String(k_defaultInterestRate);
   }
-  if (!item.interestSchedule?.length && item.unscheduledInterest !== undefined) {
+  if (isUnscheduledLegacyRate(item)) {
     return String(item.unscheduledInterest);
   }
   // Only an account becoming a savings account starts like a new one.
@@ -40,7 +53,7 @@ function initialRateDraft(item) {
 }
 
 export function AccountForm({ item, onClose }) {
-  const { setState, notify } = useApp();
+  const { state, setState, notify } = useApp();
   const colors = useContext(Theme);
   const [name, setName] = useState(item?.name || '');
   const [tag, setTag] = useState(item?.tag || k_accountTypes.personal);
@@ -49,9 +62,11 @@ export function AccountForm({ item, onClose }) {
   const currentMonth = currentLocalMonth();
   const [schedule, setSchedule] = useState(item?.interestSchedule ?? []);
   const [interestRate, setInterestRate] = useState(initialRateDraft(item));
-  const isUnscheduledLegacyRate = Boolean(item) && !item.interestSchedule?.length && item.unscheduledInterest !== undefined;
+  const hasUnscheduledLegacyRate = isUnscheduledLegacyRate(item);
   // An unscheduled legacy rate waits for the owner to choose its real start month.
-  const [rateStart, setRateStart] = useState(isUnscheduledLegacyRate ? '' : currentMonth);
+  const [rateStart, setRateStart] = useState(hasUnscheduledLegacyRate ? '' : currentMonth);
+  const legacyRateBound = legacyRateCorrectableBound(state, item, currentMonth);
+  const legacyRateOptions = { allowPastStart: hasUnscheduledLegacyRate, correctableBound: legacyRateBound };
   const [ticker, setTicker] = useState(item?.ticker || '');
   const [error, setError] = useState('');
   const isDirty = useDirtyForm([name, tag, openingBalance, schedule, interestRate, rateStart, ticker]);
@@ -59,17 +74,17 @@ export function AccountForm({ item, onClose }) {
   const isInvestmentAccount = tag === k_accountTypes.investment;
 
   function scheduleWithDraftRate() {
-    if (!interestRate.trim() || (isUnscheduledLegacyRate && !rateStart.trim())) {
+    if (!interestRate.trim() || (hasUnscheduledLegacyRate && !rateStart.trim())) {
       return schedule;
     }
-    return scheduleWithPeriod(schedule, { since: rateStart.trim(), rate: Number(interestRate) }, currentMonth, { allowPastStart: isUnscheduledLegacyRate });
+    return scheduleWithPeriod(schedule, { since: rateStart.trim(), rate: Number(interestRate) }, currentMonth, legacyRateOptions);
   }
 
   function addRatePeriod() {
     try {
       // Adding is explicit, so a missing start month is reported rather than skipped.
       const rate = interestRate.trim() ? Number(interestRate) : Number.NaN;
-      setSchedule(scheduleWithPeriod(schedule, { since: rateStart.trim(), rate }, currentMonth, { allowPastStart: isUnscheduledLegacyRate }));
+      setSchedule(scheduleWithPeriod(schedule, { since: rateStart.trim(), rate }, currentMonth, legacyRateOptions));
       setInterestRate('');
       setError('');
     } catch (scheduleError) {
@@ -139,6 +154,7 @@ export function AccountForm({ item, onClose }) {
       {isSavingsAccount && (
         <>
           <InterestScheduleEditor schedule={schedule} unscheduledRate={item?.unscheduledInterest} currentMonth={currentMonth}
+            legacyStartText={legacyRateBound ? correctableStartText(legacyRateBound.earliestMonth, currentMonth) : null}
             rate={interestRate} onRateChange={setInterestRate} since={rateStart} onSinceChange={setRateStart}
             onAdd={addRatePeriod} onRemove={removeRatePeriod} />
         </>

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compoundSavings, mergeThreeWay } from '../src/engine.js';
-import { interestPeriodsForDisplay, scheduleWithPeriod, scheduleWithoutPeriod } from '../src/interestSchedule.js';
+import { interestPeriodsForDisplay, InterestScheduleError, scheduleWithPeriod, scheduleWithoutPeriod } from '../src/interestSchedule.js';
 import { representsInterestSchedules } from '../src/interestMerge.js';
 import { migrateState } from '../src/stateSchema.js';
 import { readState, writeState } from '../src/storage.web.js';
@@ -134,7 +134,15 @@ test('new periods start in the current or a future month, replacing a period wit
 });
 
 test('the first period may start in a past month so an unscheduled legacy rate can be set up', () => {
-  assert.deepEqual(scheduleWithPeriod([], { since: '2026-03', rate: 2.5 }, '2026-11', { allowPastStart: true }), [{ since: '2026-03', rate: 2.5 }]);
+  const correctableBound = { earliestMonth: '2026-03', currentMonth: '2026-11' };
+  assert.deepEqual(scheduleWithPeriod([], { since: '2026-03', rate: 2.5 }, '2026-11', { allowPastStart: true, correctableBound }), [{ since: '2026-03', rate: 2.5 }]);
+});
+
+test('a legacy past start without an earliest correctable month may start from the current month only', () => {
+  const currentMonthOnlyMessage = 'This account has no earlier entries or rate periods, so rates can start from Nov 2026.';
+  assert.throws(() => scheduleWithPeriod([], { since: '2020-01', rate: 3 }, '2026-11', { allowPastStart: true }), InterestScheduleError);
+  assert.throws(() => scheduleWithPeriod([], { since: '2026-10', rate: 3 }, '2026-11', { allowPastStart: true }), { message: currentMonthOnlyMessage });
+  assert.deepEqual(scheduleWithPeriod([], { since: '2026-11', rate: 3 }, '2026-11', { allowPastStart: true }), [{ since: '2026-11', rate: 3 }]);
 });
 
 test('only current and future periods can be removed, so recorded history keeps its rates', () => {
@@ -147,7 +155,21 @@ test('only current and future periods can be removed, so recorded history keeps 
 
 test('a past start is allowed only when setting up an unscheduled legacy rate', () => {
   assert.throws(() => scheduleWithPeriod([], { since: '2020-01', rate: 3 }, '2026-11'), /current or a future month/);
-  assert.deepEqual(scheduleWithPeriod([], { since: '2020-01', rate: 3 }, '2026-11', { allowPastStart: true }), [{ since: '2020-01', rate: 3 }]);
+  const correctableBound = { earliestMonth: '2020-01', currentMonth: '2026-11' };
+  assert.deepEqual(scheduleWithPeriod([], { since: '2020-01', rate: 3 }, '2026-11', { allowPastStart: true, correctableBound }), [{ since: '2020-01', rate: 3 }]);
+});
+
+test('a legacy past start is refused before the earliest correctable month, but a schedule keeps the current-month rule', () => {
+  const firstEntryBound = { earliestMonth: '2026-03', currentMonth: '2026-11' };
+  const openingBalanceOnlyBound = { earliestMonth: '2026-11', currentMonth: '2026-11' };
+  const legacyOptions = bound => ({ allowPastStart: true, correctableBound: bound });
+
+  assert.throws(() => scheduleWithPeriod([], { since: '1026-01', rate: 3 }, '2026-11', legacyOptions(firstEntryBound)), { message: "Rates can start from Mar 2026, the account's first entry or rate period." });
+  assert.throws(() => scheduleWithPeriod([], { since: '2026-02', rate: 3 }, '2026-11', legacyOptions(firstEntryBound)), /Mar 2026/);
+  assert.deepEqual(scheduleWithPeriod([], { since: '2026-03', rate: 3 }, '2026-11', legacyOptions(firstEntryBound)), [{ since: '2026-03', rate: 3 }]);
+  assert.throws(() => scheduleWithPeriod([], { since: '2026-10', rate: 3 }, '2026-11', legacyOptions(openingBalanceOnlyBound)), { message: 'This account has no earlier entries or rate periods, so rates can start from Nov 2026.' });
+  assert.deepEqual(scheduleWithPeriod([], { since: '2026-11', rate: 3 }, '2026-11', legacyOptions(openingBalanceOnlyBound)), [{ since: '2026-11', rate: 3 }]);
+  assert.throws(() => scheduleWithPeriod([{ since: '2026-11', rate: 3 }], { since: '2026-06', rate: 2 }, '2026-11', legacyOptions(firstEntryBound)), /current or a future month/);
 });
 
 test('an older backup leaves accounts without a schedule alone when it only carries the old 0% default', () => {
