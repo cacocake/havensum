@@ -43,6 +43,13 @@ Compounding is unchanged: the effective annual rate becomes a monthly rate, inte
 
 Reviewed merge treats an older (v1–v3) backup as unable to represent a schedule: if its single rate is already a period in this device's schedule, the schedule stays; otherwise the schedule stays and the legacy rate is offered as a conflict to review. The Excel export lists rate periods as text in an `interestRates` column.
 
+## Interest corrections and bank-interest choices (LEDGER-2, version 4, additive)
+
+No schema version change: both fields are optional and older version 4 ledgers stay valid.
+
+- A transaction with `correctsInterestMonth: 'YYYY-MM'` is a reviewed interest correction (id `interest-correction-<account>-<month>-<n>`). It is Interest income dated in that month and is the only entry whose integer-cent amount may be negative (non-zero). It never replaces or edits the month's app entry (`interest-<account>-<month>`) or bank entries. Canonical CSV carries it in a `corrects_interest_month` column with a signed amount; every other imported amount stays positive.
+- An account may hold `interestBankChoices`, a list of `{ month: 'YYYY-MM', choice: 'bank' | 'both' }` with unique months. A month that holds bank interest (Interest income that is neither the app entry nor a correction) gets no app entry at startup unless its choice is `both`. Reviewed merge compares the field like any other account field.
+
 ## Full restore (BACKUP-1)
 
 Settings → **Restore full backup** reads a full JSON backup of any supported version, applies the missing-category review and the normal migrations in memory, and shows a preview: record counts for this device beside the backup, archived plan years and revisions, and accounts with scheduled rates. Transaction lists, unreadable files, invalid ledgers and newer versions are refused before any preview. Replacing requires an explicit confirmation. The current ledger is first kept as a pre-restore copy (`havensum-restore-recovery-v1`, then `:1`, `:2`… — every distinct copy is retained), separate from import and merge recovery; if that copy fails nothing is replaced, and if saving the backup fails the ledger stays as it was. A preview no longer applies once the device ledger has changed, including a save from another tab. The restored ledger receives the same startup preparation as a loaded one before it is saved. The merge baseline is not changed. **Download pre-restore copy** exports the newest kept copy. This is distinct from reviewed merge (combining devices) and transaction import (appending entries).
