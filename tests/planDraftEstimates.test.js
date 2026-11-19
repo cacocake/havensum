@@ -175,7 +175,7 @@ test('drift measures the same bills as the plan line: a cancellation and a loan 
   state.plans = { 2026: [{ ...plan, id: 'plan-december' }] };
 
   assert.equal(lineAmount(plan, '2026-12', 'rent'), 80000);
-  assert.deepEqual(driftAlerts(state, '2026-12'), []);
+  assert.deepEqual(driftAlerts(state, '2026-12', '2026-12-02'), []);
 });
 
 test('a payment linked to a moved event awaiting review stays out of the cushion and the variable estimate', () => {
@@ -206,7 +206,7 @@ test('a recurring linked payback lowers the bill estimate so drift does not fire
   state.plans = { 2026: [{ ...plan, id: 'plan-november' }] };
 
   assert.equal(lineAmount(plan, '2026-11', 'rent'), 40000);
-  assert.deepEqual(driftAlerts(state, '2026-11'), []);
+  assert.deepEqual(driftAlerts(state, '2026-11', k_today), []);
 });
 
 test('a past one-off event without a line in the new plan counts as occasional history in its occurrence month', () => {

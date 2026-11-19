@@ -3,6 +3,7 @@ import { localCalendarDate, previousMonths, yearOfMonth } from './calendar.js';
 import { latestPlan } from './planArchive.js';
 import { plannedCostAmount } from './plannedCosts.js';
 import { billsDueInMonth, lineSpending, planDraftEstimates } from './planDraftEstimates.js';
+import { postedLedger } from './posting.js';
 import { k_defaultHistoryWindow, k_monthsPerYear, k_spendingBehaviors, k_systemCategoryIds } from './domainConstants.js';
 
 export const k_defaultPlanIncome = 245000;
@@ -86,7 +87,9 @@ export function buildPlan(state, {
     months, revision: (approvedPlan?.revision || 0) + 1
   };
 }
-export function driftAlerts(state, month) {
+// Drift compares what has posted by today (L01); later entries count from their date.
+export function driftAlerts(registeredState, month, today = localCalendarDate()) {
+  const state = postedLedger(registeredState, today);
   const approvedPlan = latestPlan(state, yearOfMonth(month));
   const plannedMonth = approvedPlan?.months[month];
   if (!plannedMonth) {
