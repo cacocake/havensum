@@ -130,3 +130,10 @@ These choices are approved requirements for the upcoming implementation, not cla
 | F14 | Owner approved, implemented | Evidence skips confirmed months without linked expenses and fully refunded (cancelled) costs; older eventPayments matches don't count | Median and range from 3+ completed comparables, five most recent |
 | F15 | Owner approved, implemented | An expense dated after an occurrence may link to it | Spending follows the occurrence month; cash follows the payment date |
 | F16 | Owner approved; year amount implemented, move not built | Accepting a suggestion sets that draft year's amount only; moving a recurring cost applies from a chosen year | Stored as optional `yearAmounts` in schema v4. No screen moves planned costs yet, so the move-from-year rule waits for one |
+
+## LEDGER-1 — posted versus future-dated activity (owner answer, 19 November 2026)
+
+| ID | Status | Decision | Consequence |
+| --- | --- | --- | --- |
+| L01 | Owner approved | An entry dated after today counts in current account balances and monthly reports from its date, by the device's local date | Until its date it is shown as upcoming/scheduled and still feeds forecasts. From that day it is included automatically, with no manual confirmation step |
+| L02 | Owner approved (follows L01) | "Today" is the device's local calendar date everywhere a view decides what has posted | Replaces the UTC dates recorded in PLAN-4 Q4 and FORECAST-1 Q3 for balances, reports, forecasts, the starting month and new-entry dates |

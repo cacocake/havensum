@@ -86,7 +86,7 @@ Ordinary EUR rows from v6.7.5+524 are already verified. Check real transfer and 
 
 ### LEDGER-1 · Posted versus future-dated activity
 
-**Needs:** Owner decision on when a scheduled entry becomes posted and which date drives each view.
+**Owner decision (19 November 2026, recorded as L01/L02 in DECISIONS.md):** an entry dated after today counts in current account balances and monthly reports from its date, by the device's local date. Until its date it shows as upcoming/scheduled and still feeds forecasts; from that day it is included automatically, with no manual confirmation step. **Status:** in progress on `codex/ledger-posting`.
 
 Apply the agreed rule to current balances, account details, reports, forecasts, and import previews. Scheduled items can inform forecasts while current cash reflects posted movements. Cover today, month-end, time zones, future transfers, early planned-cost payments, and received paybacks.
 
