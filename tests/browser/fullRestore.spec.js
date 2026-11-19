@@ -172,8 +172,35 @@ for (const [failingKey, message] of [
 test('a ledger saved by another tab after the preview makes the preview stale', async ({ page }) => {
   await openSettings(page);
   await chooseBackupFile(page, JSON.stringify(currentBackup()));
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByTestId('restore-summary')).toBeVisible();
   const otherTabLedger = JSON.stringify({ ...deviceLedger(), theme: 'dark' });
   await page.evaluate(({ key, bytes }) => localStorage.setItem(key, bytes), { key: k_ledgerKey, bytes: otherTabLedger });
+  await dialog.getByRole('switch', { name: "Replace this device's ledger", exact: true }).click();
+  await dialog.getByRole('button', { name: 'Restore this backup', exact: true }).click();
+
+  await expect(page.getByText('Your ledger changed after this preview. Choose the backup again to review it against the current ledger.', { exact: true })).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+  expect(await stored(page, k_ledgerKey)).toBe(otherTabLedger);
+  expect(await stored(page, k_restoreRecoveryKey)).toBeNull();
+});
+
+test('a ledger saved by another tab while the backup is read is not replaced by the restore', async ({ page }) => {
+  const otherTabLedger = JSON.stringify({ ...deviceLedger(), theme: 'dark' });
+  // The other tab saves after this tab loaded its ledger but before the
+  // preview reads the saved copy, while the chosen file is being read.
+  const saveFromOtherTabWhileReadingFile = {
+    script: ({ key, bytes }) => {
+      const readFileText = Blob.prototype.text;
+      Blob.prototype.text = function () {
+        localStorage.setItem(key, bytes);
+        return readFileText.call(this);
+      };
+    },
+    argument: { key: k_ledgerKey, bytes: otherTabLedger }
+  };
+  await openSettings(page, { setup: saveFromOtherTabWhileReadingFile });
+  await chooseBackupFile(page, JSON.stringify(currentBackup()));
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('switch', { name: "Replace this device's ledger", exact: true }).click();
   await dialog.getByRole('button', { name: 'Restore this backup', exact: true }).click();

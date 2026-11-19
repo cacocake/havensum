@@ -78,8 +78,19 @@ test('a preview is stale once the device ledger has changed', () => {
   const current = createFinancialState();
   const preview = prepareFullRestore(JSON.stringify(backupLedger()), current);
 
-  assert.equal(isRestorePreviewCurrent(preview, current), true);
-  assert.equal(isRestorePreviewCurrent(preview, { ...current, theme: 'dark' }), false);
+  const savedCurrent = JSON.stringify(current);
+
+  assert.equal(isRestorePreviewCurrent(preview, current, savedCurrent), true);
+  assert.equal(isRestorePreviewCurrent(preview, { ...current, theme: 'dark' }, savedCurrent), false);
+});
+
+test('a preview is stale when the saved ledger is not the one it was compared with', () => {
+  const current = createFinancialState();
+  const preview = prepareFullRestore(JSON.stringify(backupLedger()), current);
+  const savedByAnotherTab = JSON.stringify({ ...current, theme: 'dark' });
+
+  assert.equal(isRestorePreviewCurrent(preview, current, savedByAnotherTab), false);
+  assert.equal(isRestorePreviewCurrent(preview, current, null), false);
 });
 
 test('the pre-restore copy is kept apart from import and merge recovery', async context => {

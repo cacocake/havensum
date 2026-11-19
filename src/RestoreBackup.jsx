@@ -57,7 +57,7 @@ function RestorePreview({ preview, onCancel, onRestored }) {
 
   async function isStillCurrent() {
     // Another tab or window may have saved since the preview was made.
-    return isRestorePreviewCurrent(preview, state) && await readSavedLedgerCopy() === preview.savedBytes;
+    return isRestorePreviewCurrent(preview, state, await readSavedLedgerCopy());
   }
 
   async function replaceLedger() {
@@ -140,8 +140,7 @@ export default function RestoreBackup() {
         return;
       }
       const fileText = await file.text();
-      const savedBytes = await readSavedLedgerCopy();
-      setPreview({ ...prepareFullRestore(fileText, state), savedBytes });
+      setPreview(prepareFullRestore(fileText, state));
     } catch (error) {
       notify(error.message);
     }
