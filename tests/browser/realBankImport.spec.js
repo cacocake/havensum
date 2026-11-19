@@ -3,6 +3,10 @@ import { createFinancialState, createTransaction } from '../helpers/financialFix
 import { editTransaction, openMoreSection, returnHome } from '../helpers/userFlows.js';
 import { monthStats } from '../../src/engine.js';
 
+// The synthetic statements are dated December 2031. Balances count entries
+// from their date (L01), so balance checks run after the statements.
+const k_afterStatements = '2031-12-10T12:00:00Z';
+
 function statementFile(name, movement) {
   return {
     name, mimeType: 'text/csv',
@@ -24,6 +28,7 @@ async function selectStatement(page, button, file) {
 }
 
 test('a bank credit can be linked to a new expense from the same statement before either row is saved', async ({ page }) => {
+  await page.clock.install({ time: new Date(k_afterStatements) });
   await page.route('https://fonts.googleapis.com/**', route => route.abort());
   await page.addInitScript(state => localStorage.setItem('melo-state-v1', JSON.stringify(state)), createFinancialState());
   await page.goto('/');
@@ -99,6 +104,7 @@ test('a bank payback distinguishes a draft expense from a recorded duplicate and
 });
 
 test('a Real Bank debit is imported through an editable draft for the chosen account', async ({ page }) => {
+  await page.clock.install({ time: new Date(k_afterStatements) });
   await page.route('https://fonts.googleapis.com/**', route => route.abort());
   await page.addInitScript(state => {
     localStorage.setItem('melo-state-v1', JSON.stringify(state));
@@ -132,6 +138,7 @@ test('a Real Bank debit is imported through an editable draft for the chosen acc
 });
 
 test('matching rows from two selected statement accounts can be reviewed as a single transfer', async ({ page }) => {
+  await page.clock.install({ time: new Date(k_afterStatements) });
   await page.route('https://fonts.googleapis.com/**', route => route.abort());
   await page.addInitScript(state => localStorage.setItem('melo-state-v1', JSON.stringify(state)), createFinancialState());
   await page.goto('/');
@@ -161,7 +168,7 @@ test('matching rows from two selected statement accounts can be reviewed as a si
 
 test('a ledger rename keeps the original statement row available for duplicate review', async ({ page }) => {
   await page.route('https://fonts.googleapis.com/**', route => route.abort());
-  await page.clock.install({ time: new Date('2031-12-10T12:00:00Z') });
+  await page.clock.install({ time: new Date(k_afterStatements) });
   await page.addInitScript(state => {
     if (!localStorage.getItem('melo-state-v1')) {
       localStorage.setItem('melo-state-v1', JSON.stringify(state));
