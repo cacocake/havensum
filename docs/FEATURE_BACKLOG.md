@@ -114,7 +114,7 @@ In the *Correct past interest* review (`src/interestCorrection.js`, `src/interes
 
 ### BUG-2 · Account-form past start for a legacy rate
 
-**Owner decision (19 November 2026, L08):** the account form's past start month for an unscheduled legacy rate gets the same earliest-month limit as corrections. **Status:** Queued, unblocked (bug ticket: its own `codex/` branch from `develop`). **Depends on:** LEDGER-2a (merged).
+**Owner decision (19 November 2026, L08):** the account form's past start month for an unscheduled legacy rate gets the same earliest-month limit as corrections. **Status:** In progress on `codex/bug-2-account-form-past-start` (started 19 November 2026, Claude cloud session). **Depends on:** LEDGER-2a (merged).
 
 `AccountForm.jsx` lets an unscheduled legacy rate take any past start month (`scheduleWithPeriod(..., { allowPastStart: true })`), and startup then posts app interest for every completed month since then. A mistyped year (for example `1026-01`) would post thousands of entries. Add a failing regression first, then refuse a start before `earliestCorrectableMonth` (`src/interestCorrection.js`) with the shared `correctableStartText` message (`src/interestSchedule.js`). Cover a mistyped year, an account with only an opening balance (current month only), and a legacy rate whose valid past start still works.
 
