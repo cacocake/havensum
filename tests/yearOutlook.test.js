@@ -118,6 +118,8 @@ test('changed obligations shape the expected months and are explained for the fo
   assert.deepEqual(drivers.bills.map(bill => [bill.name, bill.expected, bill.cancelledSince]), [['Rent', 7 * 80000, '2027-11']]);
   assert.equal(drivers.loans, 2 * 15000 + 4 * 10000);
   assert.deepEqual(drivers.loanChanges, [{ loanId: 'car', name: 'Car loan', since: '2027-06', amount: 10000 }]);
+  assert.deepEqual(drivers.activeLoans, [{ id: 'car', name: 'Car loan', payment: 15000, since: '2027-04', end: '2027-09' }],
+    'each loan behind the total is listed with the payment in effect from the first forecast month');
   assert.equal(drivers.occasional, 120000);
   assert.deepEqual(drivers.namedCosts.map(cost => [cost.name, cost.month, cost.amount, cost.remaining]), [['Summer trip', '2027-08', 120000, 120000]]);
   assert.equal(drivers.variable, 0);
@@ -192,6 +194,40 @@ test('a backtest from an earlier date uses only information available then and t
   assert.deepEqual(forecast.expected, totals(12 * 200000, 12 * 80000));
   assert.deepEqual(actual.recorded, totals(12 * 200000, 12 * 80000 + 45000));
   assert.equal(actual.recorded.balance - forecast.expected.balance, -45000, 'only the unforeseen repair separates the forecast from the actual year');
-  const laterEvidence = yearOutlook(fullYear, 2027, backtestDate);
-  assert.notDeepEqual(laterEvidence.expected, forecast.expected, 'entries dated after the backtest date are not available to it');
+  assert.deepEqual(forecast.months[8].expected, totals(200000, 80000), 'the September repair entered later is not known to the backtest');
+  assert.ok(!knownThen.transactions.some(transaction => transaction.id === 'boiler'));
+});
+
+test('recorded interest in the current month counts once in the year and its explanation', () => {
+  const recordedApril = createTransaction({
+    id: 'bank-interest-april', type: 'income', title: 'Interest', amount: 1500, date: '2027-04-05', account: 'savings', category: 'interest'
+  });
+  const state = steadyLedger({
+    accounts: [
+      { id: 'everyday', name: 'Everyday', tag: 'Personal', openingBalance: 100000 },
+      { id: 'savings', name: 'Rainy day', tag: 'Savings', openingBalance: 100000, interestSchedule: [{ since: '2027-04', rate: 12 }, { since: '2027-05', rate: 0 }] }
+    ],
+    transactions: [...monthlyEntries([...k_firstQuarter, '2027-04']), recordedApril]
+  });
+  const outlook = yearOutlook(state, 2027, '2027-04-10');
+  assert.equal(outlook.months[3].recorded.income, 201500);
+  assert.equal(outlook.months[3].expected.income, 201500, 'recorded interest replaces the estimate instead of adding to it');
+  assert.equal(outlook.expected.income, 12 * 200000 + 1500);
+  assert.deepEqual(outlook.drivers.interest.map(line => [line.recorded, line.estimated, line.expected]), [[1500, 0, 1500]]);
+});
+
+// Current posting semantics: entries dated in a future month are not
+// recorded yet, but their registered totals stay visible as scheduled.
+test('future-dated entries in a future month stay visible as scheduled totals', () => {
+  const state = steadyLedger({
+    transactions: [
+      ...monthlyEntries([...k_firstQuarter, '2027-04']),
+      createTransaction({ id: 'insurance', title: 'Car insurance', amount: 45000, date: '2027-06-15', category: 'shopping' })
+    ]
+  });
+  const outlook = yearOutlook(state, 2027, '2027-04-10');
+  assert.equal(outlook.months[5].recorded, null);
+  assert.deepEqual(outlook.months[5].scheduled, totals(0, 45000));
+  assert.equal(outlook.months[6].scheduled, null);
+  assert.equal(outlook.months[2].scheduled, null, 'past and current months show recorded totals instead');
 });

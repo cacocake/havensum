@@ -22,6 +22,7 @@ export function isSavingsAccount(account) {
 // before `through`. Recorded interest entries are never regenerated.
 export function compoundSavings(state, through) {
   const transactions = [...state.transactions];
+  const transactionIds = new Set(transactions.map(transaction => transaction.id));
   for (const account of state.accounts.filter(isSavingsAccount)) {
     const startMonth = firstInterestMonth(account);
     if (!startMonth) {
@@ -30,7 +31,7 @@ export function compoundSavings(state, through) {
     for (let month = startMonth; month < through; month = nextMonth(month)) {
       const id = `interest-${account.id}-${month}`;
       const rate = interestRateForMonth(account, month);
-      if (!rate || transactions.some(transaction => transaction.id === id)) {
+      if (!rate || transactionIds.has(id)) {
         continue;
       }
       const date = `${month}-${String(daysInMonth(month)).padStart(2, '0')}`;
@@ -39,6 +40,7 @@ export function compoundSavings(state, through) {
       if (amount <= 0) {
         continue;
       }
+      transactionIds.add(id);
       transactions.push({
         id, type: k_transactionTypes.income, title: k_interestTitle, amount, date,
         account: account.id, category: k_systemCategoryIds.interest, kind: k_spendingBehaviors.fixed, note: k_interestNote

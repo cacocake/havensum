@@ -1,55 +1,56 @@
 import { monthOf, nextMonth } from './calendar.js';
 import { compoundSavings, isSavingsAccount } from './savingsInterest.js';
-import { firstInterestMonth, interestRateForMonth } from './interestSchedule.js';
+import { interestRateForMonth } from './interestSchedule.js';
+import { sumCents } from './money.js';
 import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
 
-// Savings accounts with a rate schedule estimate their own interest; their
-// historical interest no longer informs expected income.
-export function scheduledInterestAccounts(state) {
-  return (state.accounts ?? []).filter(account => isSavingsAccount(account) && firstInterestMonth(account));
+// Savings accounts with a scheduled rate for `month` (0% included) estimate
+// that month's interest; their historical interest no longer informs it.
+export function scheduledInterestAccounts(state, month) {
+  return (state.accounts ?? []).filter(account => isSavingsAccount(account) && interestRateForMonth(account, month) !== null);
 }
 
-export function isScheduledInterest(transaction, scheduledAccountIds) {
-  return transaction.type === k_transactionTypes.income
-    && transaction.category === k_systemCategoryIds.interest
-    && scheduledAccountIds.has(transaction.account);
+function isInterestIncome(transaction) {
+  return transaction.type === k_transactionTypes.income && transaction.category === k_systemCategoryIds.interest;
 }
 
-// Interest recorded in `month` on accounts whose rates are scheduled.
-export function scheduledInterestIncome(transactions, month, scheduledAccountIds) {
-  return transactions
-    .filter(transaction => monthOf(transaction.date) === month && isScheduledInterest(transaction, scheduledAccountIds))
-    .reduce((total, transaction) => total + transaction.amount, 0);
+// Interest recorded in `month` on the given accounts.
+export function scheduledInterestIncome(transactions, month, accountIds) {
+  const amounts = transactions
+    .filter(transaction => isInterestIncome(transaction) && accountIds.has(transaction.account) && monthOf(transaction.date) === month)
+    .map(transaction => transaction.amount);
+  return sumCents(amounts);
 }
 
-function interestInMonth(transactions, accountId, month) {
-  return transactions
-    .filter(transaction => transaction.account === accountId && monthOf(transaction.date) === month
-      && transaction.type === k_transactionTypes.income && transaction.category === k_systemCategoryIds.interest)
-    .reduce((total, transaction) => total + transaction.amount, 0);
+// Estimated interest entries through `throughMonth` under the existing
+// compounding convention, each compounding the earlier estimates. Recorded
+// entries are excluded and nothing is written to the ledger. Compute it once
+// and share it across the months of one outlook.
+export function interestProjection(state, throughMonth) {
+  const recordedIds = new Set(state.transactions.map(transaction => transaction.id));
+  const projectedState = compoundSavings(state, nextMonth(throughMonth));
+  return projectedState.transactions.filter(transaction => !recordedIds.has(transaction.id));
 }
 
-// Per scheduled account: recorded interest counts once; otherwise the
-// existing compounding convention estimates the month from projected
-// balances, compounding earlier estimates. Nothing is written to the ledger.
-export function expectedInterest(state, month) {
-  const accounts = scheduledInterestAccounts(state);
+// Per scheduled account: recorded interest counts once and replaces the
+// scheduled estimate; otherwise the estimate is expected.
+export function expectedInterest(state, month, projectedInterest = null) {
+  const accounts = scheduledInterestAccounts(state, month);
   if (!accounts.length) {
     return [];
   }
-  const recordedIds = new Set(state.transactions.map(transaction => transaction.id));
-  const projectedState = compoundSavings(state, nextMonth(month));
-  const estimates = projectedState.transactions.filter(transaction => !recordedIds.has(transaction.id));
+  const estimates = projectedInterest ?? interestProjection(state, month);
   return accounts.map(account => {
-    const recorded = interestInMonth(state.transactions, account.id, month);
-    const estimated = interestInMonth(estimates, account.id, month);
+    const accountIds = new Set([account.id]);
+    const recorded = scheduledInterestIncome(state.transactions, month, accountIds);
+    const scheduledEstimate = scheduledInterestIncome(estimates, month, accountIds);
     return {
       account: account.id,
       name: account.name,
       rate: interestRateForMonth(account, month),
       recorded,
-      estimated,
-      expected: recorded > 0 ? recorded : estimated
+      scheduledEstimate,
+      expected: recorded > 0 ? recorded : scheduledEstimate
     };
   });
 }

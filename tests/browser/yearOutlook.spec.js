@@ -74,12 +74,13 @@ test('the year outlook shows recorded, expected and planned totals with what sha
   await expect(page.getByTestId('year-month-2027-08-expected')).toHaveText('+€200.00');
   expect(await savedLedger(page)).toBe(ledgerBefore);
 
-  await page.getByRole('button', { name: 'View August 2027 plan', exact: true }).click();
+  await page.getByRole('button', { name: /^August 2027\. Plan \+€1,100\.00\. Recorded —\. Expected \+€200\.00\. Opens this month's plan$/ }).click();
   await expect(page.getByTestId('expected-savings-amount')).toHaveText('+€200.00');
 });
 
 test('without a frozen target the outlook has no variance and labels months without evidence', async ({ page }) => {
-  const ledger = createFinancialState({ outlook: { window: 3 }, transactions: monthlyEntries(['2027-01', '2027-02']) });
+  const insurance = createTransaction({ id: 'insurance', title: 'Car insurance', amount: 45000, date: '2027-06-15', category: 'shopping' });
+  const ledger = createFinancialState({ outlook: { window: 3 }, transactions: [...monthlyEntries(['2027-01', '2027-02']), insurance] });
   await openYearAhead(page, ledger);
   await expect(page.getByTestId('year-variance')).toHaveText('No frozen target for 2027. The forecast is shown without a variance.');
   await expect(page.getByTestId('year-planned-balance')).toHaveText('No target');
@@ -87,7 +88,11 @@ test('without a frozen target the outlook has no variance and labels months with
   await expect(page.getByTestId('year-partial-months')).toHaveText('Partial estimate for Apr–Dec: history has not been confirmed complete.');
   await expect(page.getByTestId('year-month-2027-03-recorded')).toHaveText('No records');
   await expect(page.getByTestId('year-month-2027-03-expected')).toHaveText('Unavailable');
+  await expect(page.getByTestId('year-month-2027-06-recorded')).toHaveText('−€450.00');
+  await expect(page.getByTestId('year-month-2027-06-recorded').locator('..')).toContainText('Scheduled');
   await expect(page.getByTestId('year-month-2027-04-expected').locator('..')).toContainText('Expected · partial');
+  await expect(page.getByRole('button', { name: /^March 2027\. Plan Not set\. Recorded No records\. Expected Unavailable\./ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^April 2027\. .*Expected · partial / })).toBeVisible();
 });
 
 test('the year outlook stays within narrow screens with long names and large amounts', async ({ page }) => {
@@ -99,6 +104,7 @@ test('the year outlook stays within narrow screens with long names and large amo
     plans: frozenPlan(plannedMonthsFrom(1, { income: 99999999, expense: 98765432, balance: 1234567 }))
   });
   await openYearAhead(page, ledger);
+  await expect(page.getByTestId('year-outlook-drivers').getByText('A very long mortgage name for the family home in the countryside · €98,765.43/month from April 2027 until December 2040', { exact: true })).toBeVisible();
   const viewport = page.viewportSize();
   for (const testId of ['year-outlook-summary', 'year-outlook-drivers', 'year-month-2027-09']) {
     const box = await page.getByTestId(testId).boundingBox();

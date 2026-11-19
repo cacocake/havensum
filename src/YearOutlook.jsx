@@ -7,6 +7,7 @@ import { Squish } from './Playful.jsx';
 import { euro, signedEuro } from './money.js';
 import { yearOutlook } from './yearOutlook.js';
 import { k_monthsPerYear, k_reportingPeriods } from './domainConstants.js';
+import { monthNumberOf } from './calendar.js';
 
 const k_metrics = [
   { key: 'income', label: 'Income', format: euro },
@@ -36,7 +37,7 @@ function monthRangeName(months) {
   if (!months.length) {
     return '';
   }
-  const isConsecutive = months.every((month, index) => index === 0 || Number(month.slice(5)) === Number(months[index - 1].slice(5)) + 1);
+  const isConsecutive = months.every((month, index) => index === 0 || monthNumberOf(month) === monthNumberOf(months[index - 1]) + 1);
   if (isConsecutive && months.length > 2) {
     return `${shortMonthName(months[0])}–${shortMonthName(months.at(-1))}`;
   }
@@ -150,6 +151,7 @@ function OutlookDrivers({ drivers }) {
       {drivers.bills.map(bill => <DriverDetail key={bill.key}>{bill.name} · {euro(bill.expected)}{bill.cancelledSince ? ` · cancelled from ${monthYearName(bill.cancelledSince)}` : ''}</DriverDetail>)}
     </DriverLine>
     <DriverLine label="Loans" amount={drivers.loans}>
+      {drivers.activeLoans.map(loan => <DriverDetail key={loan.id}>{loan.name} · {euro(loan.payment)}/month from {monthYearName(loan.since)} until {monthYearName(loan.end)}</DriverDetail>)}
       {drivers.loanChanges.map(change => <DriverDetail key={`${change.loanId}-${change.since}`}>{change.name} · {euro(change.amount)}/month from {monthYearName(change.since)}</DriverDetail>)}
     </DriverLine>
     <DriverLine label="Everyday spending" amount={drivers.variable}/>
@@ -171,14 +173,32 @@ function expectedText(month) {
   return signedEuro(month.expected.balance);
 }
 
-function recordedText(month) {
+// Future months show registered entries as scheduled (current posting semantics).
+function recordedCell(month, color) {
+  if (month.scheduled) {
+    return { key: 'recorded', label: 'Scheduled', color, text: signedEuro(month.scheduled.balance) };
+  }
   if (month.period === k_reportingPeriods.future) {
-    return '—';
+    return { key: 'recorded', label: 'Recorded', color, text: '—' };
   }
-  if (!month.hasRecords) {
-    return 'No records';
+  if (!month.hasRecords && !month.isConfirmedComplete) {
+    return { key: 'recorded', label: 'Recorded', color, text: 'No records' };
   }
-  return signedEuro(month.recorded.balance);
+  return { key: 'recorded', label: 'Recorded', color, text: signedEuro(month.recorded.balance) };
+}
+
+function monthCells(month, ink) {
+  return [
+    { key: 'plan', label: 'Plan', color: ink.plan, text: month.planned ? signedEuro(month.planned.balance) : 'Not set' },
+    recordedCell(month, ink.actual),
+    { key: 'expected', label: month.partial ? 'Expected · partial' : 'Expected', color: ink.forecast, text: expectedText(month) }
+  ];
+}
+
+// The row's label replaces its children for screen readers, so it carries every value.
+function monthAccessibilityLabel(month, cells) {
+  const values = cells.map(cell => `${cell.label} ${cell.text}`).join('. ');
+  return `${monthYearName(month.month)}. ${values}. Opens this month's plan`;
 }
 
 function OutlookMonths({ outlook, selectedMonth, ink, onSelectMonth }) {
@@ -188,12 +208,8 @@ function OutlookMonths({ outlook, selectedMonth, ink, onSelectMonth }) {
     <T style={{ color: colors.sub, fontSize: 12, marginTop: 8, marginBottom: 15 }}>Purple is planned savings, blue is recorded and amber is expected. Select a month to see its forecast and breakdown.</T>
     {outlook.months.map(month => {
       const isSelected = month.month === selectedMonth;
-      const cells = [
-        { key: 'plan', label: 'Plan', color: ink.plan, text: month.planned ? signedEuro(month.planned.balance) : 'Not set' },
-        { key: 'recorded', label: 'Recorded', color: ink.actual, text: recordedText(month) },
-        { key: 'expected', label: month.partial ? 'Expected · partial' : 'Expected', color: ink.forecast, text: expectedText(month) }
-      ];
-      return <Squish key={month.month} testID={`year-month-${month.month}`} accessibilityLabel={`View ${monthYearName(month.month)} plan`} onPress={() => onSelectMonth(month.month)} style={{ padding: 14, minHeight: 85, marginBottom: 8, borderRadius: 17, borderWidth: 1, borderColor: isSelected ? ink.plan : colors.line, backgroundColor: isSelected ? colors.soft : 'transparent' }}>
+      const cells = monthCells(month, ink);
+      return <Squish key={month.month} testID={`year-month-${month.month}`} accessibilityLabel={monthAccessibilityLabel(month, cells)} onPress={() => onSelectMonth(month.month)} style={{ padding: 14, minHeight: 85, marginBottom: 8, borderRadius: 17, borderWidth: 1, borderColor: isSelected ? ink.plan : colors.line, backgroundColor: isSelected ? colors.soft : 'transparent' }}>
         <Row style={{ justifyContent: 'space-between', gap: 12 }}>
           <H size={20} style={{ flex: 1 }}>{longMonthName(month.month)}</H>
           {month.period === k_reportingPeriods.current && <Badge color={ink.forecast}>THIS MONTH</Badge>}

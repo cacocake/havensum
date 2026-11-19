@@ -365,7 +365,7 @@ test('scheduled rates replace historical interest in expected income and compoun
   const state = scheduledSavingsState();
   const april = expectedSavings(state, '2027-04', '2027-04-10');
   assert.equal(april.income, 200000 + 949);
-  assert.deepEqual(april.interest.map(line => [line.account, line.rate, line.recorded, line.estimated]), [['savings', 12, 0, 949]]);
+  assert.deepEqual(april.interest.map(line => [line.account, line.rate, line.recorded, line.scheduledEstimate]), [['savings', 12, 0, 949]]);
   const may = expectedSavings(state, '2027-05', '2027-04-10');
   assert.equal(may.income, 200000 + 958);
   assert.equal(state.transactions.length, 6, 'estimates stay out of the ledger');
@@ -393,4 +393,16 @@ test('an unscheduled legacy rate keeps its historical interest in expected incom
   const april = expectedSavings(unscheduled, '2027-04', '2027-04-10');
   assert.equal(april.income, 202000);
   assert.deepEqual(april.interest, []);
+});
+
+test('a scheduled rate alone does not make a month without history or activity available', () => {
+  const state = createFinancialState({
+    accounts: [{ id: 'savings', name: 'Rainy day', tag: 'Savings', openingBalance: 100000, interestSchedule: [{ since: '2027-01', rate: 12 }] }]
+  });
+  assert.equal(expectedSavings(state, '2027-04', '2027-04-10'), null);
+});
+
+test('historical interest stays in expected income until the account has a scheduled rate for the month', () => {
+  const state = scheduledSavingsState({ interestSchedule: [{ since: '2027-09', rate: 12 }] });
+  assert.equal(expectedSavings(state, '2027-04', '2027-04-10').income, 202000);
 });

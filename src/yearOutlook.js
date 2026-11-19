@@ -2,47 +2,67 @@ import { monthStats } from './ledger.js';
 import { monthKeyOf, monthOf, k_calendarDateLength } from './calendar.js';
 import { k_monthsPerYear, k_reportingPeriods } from './domainConstants.js';
 import { expectedSavings } from './expectedSavings.js';
+import { interestProjection } from './expectedInterest.js';
+import { sumCents } from './money.js';
 import { plannedMonth } from './planArchive.js';
-import { hasRecordedFinancialActivity } from './reportingHistory.js';
+import { hasRecordedFinancialActivity, reportingPeriod } from './reportingHistory.js';
 import { yearOutlookDrivers } from './yearOutlookDrivers.js';
 
 function totalsOf(income, expense) {
   return { income, expense, balance: income - expense };
 }
 
+function statsTotals(stats) {
+  return totalsOf(stats.income, stats.spent);
+}
+
 function sumTotals(entries) {
-  const income = entries.reduce((total, entry) => total + entry.income, 0);
-  const expense = entries.reduce((total, entry) => total + entry.expense, 0);
+  const income = sumCents(entries.map(entry => entry.income));
+  const expense = sumCents(entries.map(entry => entry.expense));
   return totalsOf(income, expense);
 }
 
-function reportingPeriod(month, currentMonth) {
-  if (month < currentMonth) {
-    return k_reportingPeriods.past;
+function recordedTotals(recordedState, month, period) {
+  if (period === k_reportingPeriods.future) {
+    return null;
   }
-  if (month > currentMonth) {
-    return k_reportingPeriods.future;
-  }
-  return k_reportingPeriods.current;
+  return statsTotals(monthStats(recordedState, month));
 }
 
-function outlookMonth(state, recordedState, month, today, planRevisionId) {
+// Current posting semantics (LEDGER-1 undecided): entries dated in a future
+// month are registered, not recorded, and are shown as scheduled.
+function scheduledTotals(state, month, period) {
+  if (period !== k_reportingPeriods.future || !hasRecordedFinancialActivity(state.transactions, month)) {
+    return null;
+  }
+  return statsTotals(monthStats(state, month));
+}
+
+function outlookMonth(state, recordedState, month, { today, planRevisionId, projectedInterest }) {
   const period = reportingPeriod(month, monthOf(today));
   const hasRecords = hasRecordedFinancialActivity(recordedState.transactions, month);
-  let recorded = null;
-  if (period !== k_reportingPeriods.future) {
-    const stats = monthStats(recordedState, month);
-    recorded = totalsOf(stats.income, stats.spent);
-  }
   const isConfirmedComplete = (state.outlook?.completeMonths ?? []).includes(month);
-  // A past month without records or confirmation has no evidence, not a zero result.
-  const hasEvidence = period !== k_reportingPeriods.past || hasRecords || isConfirmedComplete;
-  const prediction = hasEvidence ? expectedSavings(state, month, today) : null;
-  const expected = prediction ? totalsOf(prediction.income, prediction.expense) : null;
-  const plan = plannedMonth(state, month, planRevisionId);
-  const planned = plan ? totalsOf(plan.income, plan.expense) : null;
   const isForecast = period !== k_reportingPeriods.past;
-  return { month, period, hasRecords, recorded, expected, planned, prediction: isForecast ? prediction : null, partial: isForecast && Boolean(prediction?.partial) };
+  // A past month without records or confirmation has no evidence, not a zero result.
+  const hasEvidence = isForecast || hasRecords || isConfirmedComplete;
+  const prediction = hasEvidence ? expectedSavings(state, month, today, { projectedInterest }) : null;
+  const plan = plannedMonth(state, month, planRevisionId);
+  return {
+    month,
+    period,
+    hasRecords,
+    isConfirmedComplete,
+    recorded: recordedTotals(recordedState, month, period),
+    scheduled: scheduledTotals(state, month, period),
+    expected: prediction ? totalsOf(prediction.income, prediction.expense) : null,
+    planned: plan ? totalsOf(plan.income, plan.expense) : null,
+    prediction: isForecast ? prediction : null,
+    partial: isForecast && Boolean(prediction?.partial)
+  };
+}
+
+function monthKeys(months) {
+  return months.map(month => month.month);
 }
 
 // A read-only full-year outlook: recorded months, expected months (the
@@ -53,27 +73,27 @@ export function yearOutlook(state, year, today = new Date().toISOString().slice(
     ...state,
     transactions: state.transactions.filter(transaction => transaction.date <= today)
   };
+  const projectedInterest = interestProjection(state, monthKeyOf(year, k_monthsPerYear));
+  const monthOptions = { today, planRevisionId, projectedInterest };
   const months = Array.from({ length: k_monthsPerYear }, (_, index) =>
-    outlookMonth(state, recordedState, monthKeyOf(year, index + 1), today, planRevisionId));
-  const recordedMonths = months.filter(month => month.recorded);
-  const expectedMonths = months.filter(month => month.expected);
+    outlookMonth(state, recordedState, monthKeyOf(year, index + 1), monthOptions));
   const plannedMonths = months.filter(month => month.planned);
-  const planned = plannedMonths.length ? sumTotals(plannedMonths.map(month => month.planned)) : null;
   // Only months with both an outlook and a target are compared.
   const comparableMonths = plannedMonths.filter(month => month.expected);
   const expectedOverComparableMonths = sumTotals(comparableMonths.map(month => month.expected));
   const plannedOverComparableMonths = sumTotals(comparableMonths.map(month => month.planned));
+  const variance = comparableMonths.length ? expectedOverComparableMonths.balance - plannedOverComparableMonths.balance : null;
   return {
     year,
     months,
-    recorded: sumTotals(recordedMonths.map(month => month.recorded)),
-    expected: sumTotals(expectedMonths.map(month => month.expected)),
-    planned,
-    plannedMonths: plannedMonths.map(month => month.month),
-    comparableMonths: comparableMonths.map(month => month.month),
-    variance: comparableMonths.length ? expectedOverComparableMonths.balance - plannedOverComparableMonths.balance : null,
-    unavailableMonths: months.filter(month => !month.expected).map(month => month.month),
-    partialMonths: months.filter(month => month.partial).map(month => month.month),
+    recorded: sumTotals(months.filter(month => month.recorded).map(month => month.recorded)),
+    expected: sumTotals(months.filter(month => month.expected).map(month => month.expected)),
+    planned: plannedMonths.length ? sumTotals(plannedMonths.map(month => month.planned)) : null,
+    plannedMonths: monthKeys(plannedMonths),
+    comparableMonths: monthKeys(comparableMonths),
+    variance,
+    unavailableMonths: monthKeys(months.filter(month => !month.expected)),
+    partialMonths: monthKeys(months.filter(month => month.partial)),
     drivers: yearOutlookDrivers(state, year, months.filter(month => month.prediction))
   };
 }
