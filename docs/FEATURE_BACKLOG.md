@@ -514,7 +514,7 @@ The implementation note below records how these were built; it stores only per-y
   - Kept every sibling's DECISIONS and backlog sections, and carried the Android package and SHA-1 into the DRIVE-2b blocker.
   - A merge review found that the joint ledger+link save skipped BUG-1's cross-tab check. Fixed in `f96f18c` with a regression test. The re-review found nothing blocking or should-fix.
   - DRIVE-2b must make the app's own autosave use `writeStateIfUnchanged` while sync is wired (recorded in DRIVE-2b).
-- **Checks (merged tree, `f96f18c` plus docs):** `npm run test:coverage` 600/600 with thresholds met (97.3% lines, 95.0% branches); `npm run test:browser` 477/477; `npm run build`; `npm run check:android` (Hermes compilation only; no device test).
+- **Checks (final merged tree with K13):** `npm run test:coverage` 601/601 with thresholds met (97.3% lines, 95.0% branches); `npm run test:browser` 477/477; `npm run build`; `npm run check:android` (Hermes compilation only; no device test).
 
 ## Session handoff — IMPORT-2 · Extend Cashew verification (19 November 2026)
 
