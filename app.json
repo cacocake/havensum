@@ -10,7 +10,14 @@
       "web"
     ],
     "android": {
-      "package": "com.melo.money",
+      "package": "com.havensum.app",
+      "versionCode": 1,
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/adaptive-foreground.png",
         "backgroundImage": "./assets/brand/adaptive-background.png",
@@ -18,6 +25,9 @@
         "monochromeImage": "./assets/brand/adaptive-monochrome.png"
       }
     },
-    "icon": "./assets/brand/icon.png"
+    "icon": "./assets/brand/icon.png",
+    "plugins": [
+      "./plugins/withHavensumReleaseSigning.cjs"
+    ]
   }
 }
