@@ -89,7 +89,7 @@ Reuse the Real Bank adapter if the second layout matches. Otherwise create a dis
 2. **Scheduled entries:** treated as paid when `amount unpaid` is blank or 0 (v1 exports only paid rows); still need a classification; review shows they came from a scheduled entry.
 3. **Transfers:** a unique opposite `Balance Correction` row with the same amount and timestamp in another account is preselected as a suggested pair; the owner confirms or changes it. (Category rule superseded by K11: legs are recognised by their `Transferred Balance` note.)
 4. **Paybacks:** manual link only, as today.
-5. **Metadata:** ignore color/icon/emoji; show budget/objective read-only in review, never create records; non-zero `amount unpaid` or any `extra` stays a row error.
+5. **Metadata:** ignore color/icon/emoji; show budget/objective read-only in review, never create records; non-zero `amount unpaid` or any `extra` stays a row error. (`extra` superseded by K10: shown read-only.)
 6. **Classification:** ordinary rows still need an explicit choice; nothing prefilled from the sign.
 
 Ordinary EUR rows from v6.7.5+524 are already verified. Check real transfer and payback rows where available. Agree how to handle borrowing, lending, scheduled entries, and populated metadata before widening support. Test both layouts, accents, integer-cent handling, matches after renames and layout changes, account creation only on confirmation, and original-expense links. Unverified entries retain their review status.
@@ -144,7 +144,7 @@ Let the owner move a recurring planned cost's month from a chosen year onward. E
 
 ### IMPORT-2 follow-up · Match the owner's real Cashew test export
 
-**Status (19 November 2026):** In progress on `codex/cashew-real-export` from `f5e71d5`. The owner supplied a small test export (v2 layout with `amount unpaid` and `extra`; kept out of Git as private runtime data). It showed recurrence text in `extra`, a localized transfer category with a `Transferred Balance` note, and loans as objectives on ordinary rows. Owner answers K10–K12 in DECISIONS.md. Synthetic fixtures mirror its structure.
+**Status (19 November 2026):** Done, reviewed and merged into `develop` from `codex/cashew-real-export` (started from `f5e71d5`); see its handoff note at the end. The owner supplied a small test export (v2 layout with `amount unpaid` and `extra`; kept out of Git as private runtime data). It showed recurrence text in `extra`, a localized transfer category with a `Transferred Balance` note, and loans as objectives on ordinary rows. Owner answers K10–K12 in DECISIONS.md. Synthetic fixtures mirror its structure.
 
 ### FORECAST-2 follow-up · Readable year-amount merge conflicts (F20)
 
@@ -450,3 +450,12 @@ The implementation note below records how these were built; it stores only per-y
 - **Checks:** `npm run test:coverage` (449 pass on the tree merged with develop `5b2164d`; all files 96.65% lines), `npm run test:browser` (417 pass), `npm run build`, `npm run check:android` (Hermes export = compilation only).
 - **Review:** separate read-only Claude review found 1 blocking (debt credit usable as a transfer leg) and 4 should-fix items; all fixed test-first, the owner answered the pair-confirmation question (K09), and the re-review found nothing actionable.
 - **Still needs the owner:** a small sanitized Cashew export of their version with a transfer pair, a payback, a scheduled entry, a borrowing row and populated budget/objective, plus the expected Havensum result, to move these cases from synthetic to verified.
+
+## Session handoff — IMPORT-2 follow-up: the owner's real Cashew test export (19 November 2026)
+
+- **Input:** a small test export from the owner's Cashew app (newer layout; version not stated). Kept out of Git and review inputs as private runtime data; `tests/cashewExportShape.test.js` uses synthetic rows with the same structure.
+- **Owner answers:** K10 (`extra` shown read-only, never blocks), K11 (transfer legs recognised by the `Transferred Balance` / `from → to` note, category ignored), K12 (a row with an objective may be recorded against a chosen Havensum loan by its sign, otherwise classified normally).
+- **Result on the real file:** the transfer pair is suggested; paid scheduled rows await a classification; unpaid ones stay row errors; objective rows offer an optional loan; ordinary and payback rows await a classification.
+- **Checks:** `npm run test:coverage`, `npm run test:browser`, `npm run build`, `npm run check:android` on the tree merged with develop (see the merge commit). Hermes export is compilation only.
+- **Review:** separate read-only Claude review: nothing blocking; two should-fix test gaps and doc/style nits fixed; re-review found one stale doc passage, now corrected.
+- **Still unverified:** older `debt`/`credit` type rows (K02), the published v1 layout beyond ordinary rows, and which sign means what for a lending objective in Cashew. No exact Cashew compatibility is claimed.
