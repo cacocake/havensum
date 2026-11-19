@@ -129,7 +129,8 @@ These choices are approved requirements for the upcoming implementation, not cla
 | F13 | Owner approved, implemented | Planned costs compare by the same top category of their linked expenses (subcategories roll up); recurring costs compare with their own past years; a new cost is matched by the owner's one-time "like" choice | No free-text inference; the like choice serves only the draft suggestion and is not stored |
 | F14 | Owner approved, implemented | Evidence skips confirmed months without linked expenses and fully refunded (cancelled) costs; older eventPayments matches don't count | Median and range from 3+ completed comparables, five most recent |
 | F15 | Owner approved, implemented | An expense dated after an occurrence may link to it | Spending follows the occurrence month; cash follows the payment date |
-| F16 | Owner approved; year amount implemented, move not built | Accepting a suggestion sets that draft year's amount only; moving a recurring cost applies from a chosen year | Stored as optional `yearAmounts` in schema v4. No screen moves planned costs yet, so the move-from-year rule waits for one |
+| F16 | Owner approved; year amount implemented, move in progress | Accepting a suggestion sets that draft year's amount only; moving a recurring cost applies from a chosen year | Stored as optional `yearAmounts` in schema v4. The move is built by the FORECAST-2 follow-up (see F17) |
+| F17 | Owner approved (19 November 2026) | Move a recurring planned cost from a *Planned costs* card in Year ahead, from this year or a later year; expenses linked to the old month in a moved year stay linked and are flagged for review | Saved at once; earlier years, frozen plans and recorded transactions are unchanged |
 
 ## LEDGER-1 — posted versus future-dated activity (owner answer, 19 November 2026)
 

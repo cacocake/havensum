@@ -108,11 +108,22 @@ Design a reviewed, explicit correction flow after agreement. Show the affected c
 
 ### FORECAST-2 · Learn from comparable completed costs
 
-**Depends on:** FORECAST-1. **Status:** Done, reviewed and merged into `develop` from `codex/forecast-comparable-costs` (implementation `d1e876f`, `5687b11`, `921cf6d`, `5768766`; review fixes `74f83b7`, `ac36777`); see the FORECAST-2 handoff notes below. Moving a recurring planned cost from a chosen year is decided but not built, because no screen moves planned costs.
+**Depends on:** FORECAST-1. **Status:** Done, reviewed and merged into `develop` from `codex/forecast-comparable-costs` (implementation `d1e876f`, `5687b11`, `921cf6d`, `5768766`; review fixes `74f83b7`, `ac36777`); see the FORECAST-2 handoff notes below. Moving a recurring planned cost from a chosen year (F16) is tracked as **FORECAST-2 follow-up** below.
 
 Check whether completed events and linked actuals improve predictions over a simple baseline. Domestic and international trips are examples of comparable expenses. Test sparse history, outliers, incomplete and partially paid events, moved events, refunds, and reimbursements. Decide what makes events comparable and what evidence the UI can expose. Avoid inferring trip type from free text alone.
 
 If the evidence supports it, design an editable estimate or range that shows its comparable events. When evidence is sparse, ask for an amount. Accepting an estimate is an explicit draft choice and leaves approved snapshots intact.
+
+### FORECAST-2 follow-up · Move a recurring planned cost from a chosen year (F16)
+
+**Depends on:** FORECAST-2. **Status:** In progress on `codex/move-recurring-planned-cost` (started 19 November 2026 from `develop` at `fd658b7`).
+
+Let the owner move a recurring planned cost's month from a chosen year onward. Earlier years keep their original month, and their linked expenses stay valid for validation, comparable-cost evidence, Expected savings, Year ahead and the planned-cost picker. Frozen plan snapshots and recorded transactions are never rewritten.
+
+**Owner answers (19 November 2026, in chat):**
+1. **Where:** a *Planned costs* card in Year Plan › Year ahead lists the year's planned costs; a recurring one offers **Move…** to pick the new month and the first year it applies. It is saved at once: forecasts update and frozen plans stay as approved.
+2. **First year:** this year or a later year. Past years are locked.
+3. **Expenses already linked to the old month in a moved year:** their links stay as recorded and are flagged for review (the existing "This planned cost moved" list). The move dialog says how many. They are not evidence until relinked by hand.
 
 ## Queued delivery and integrations
 
