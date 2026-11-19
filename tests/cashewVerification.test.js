@@ -8,6 +8,7 @@ import { previewImportFile } from '../src/importFileReview.js';
 import { applyTransactionImport, reviseTransactionImport } from '../src/importReview.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 import { accountBalance, monthStats } from '../src/ledger.js';
+import { isSuggestedTransferActive } from '../src/cashewReview.js';
 
 const k_byteOrderMark = '﻿';
 const k_publishedHeader = 'account,amount,currency,title,note,date,income,type,category name,subcategory name,color,icon,emoji,budget,objective';
@@ -313,4 +314,13 @@ test('a Cashew borrowing credit is never suggested or accepted as a transfer leg
   assert.equal(manual.rows[1].status, 'invalid');
   assert.equal(manual.rows[0].pair, undefined);
   assert.match(manual.rows[0].error, /matching credit/i);
+});
+
+test('the transfer suggestion note applies only while the suggested pair is kept (K05 review fix)', async () => {
+  const file = await cashewFile(k_publishedHeader, [balanceCorrection('Carteira', '-36.4'), balanceCorrection('Poupança', '36.4')]);
+  const state = createFinancialState();
+  const preview = previewImportFile(state, file, { accounts: { Carteira: 'everyday', Poupança: 'shared' } });
+  assert.deepEqual(preview.rows.map(row => isSuggestedTransferActive(preview, row)), [true, true]);
+  const changed = reviseTransactionImport(state, preview, 0, { type: 'expense', category: 'groceries' });
+  assert.deepEqual(changed.rows.map(row => isSuggestedTransferActive(changed, row)), [false, false]);
 });

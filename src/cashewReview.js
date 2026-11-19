@@ -15,6 +15,7 @@ const k_borrowingMessages = Object.freeze({
 });
 const k_scheduledNote = 'From a scheduled Cashew entry exported as paid. Unverified against a real export.';
 const k_balanceCorrectionCategory = 'balance correction';
+const k_readOnlySourceFields = ['budget', 'objective'];
 const k_newAccountDefaults = { openingBalance: 0, tag: 'Personal', icon: 'Wallet', color: '#91A4CE' };
 
 function sourceWarning(row) {
@@ -33,7 +34,7 @@ function sourceWarning(row) {
 
 // K07: budget and objective names are read-only source information.
 function sourceDetails(row) {
-  const details = Object.fromEntries(['budget', 'objective'].filter(name => row[name]).map(name => [name, row[name]]));
+  const details = Object.fromEntries(k_readOnlySourceFields.filter(name => row[name]).map(name => [name, row[name]]));
   return Object.keys(details).length > 0 ? details : undefined;
 }
 
@@ -57,7 +58,7 @@ function oppositeLegs(rows, drafts, index) {
 
 // K05: Cashew writes a transfer as two Balance Correction rows. Suggest a
 // pair only when each leg has exactly one opposite leg; the owner can change it.
-function suggestTransferPairs(rows, drafts) {
+function markSuggestedTransferPairs(rows, drafts) {
   const pairs = [];
   for (const [debitIndex, debit] of rows.entries()) {
     if (debit.movement?.direction !== 'debit' || !isTransferLeg(debit, drafts[debitIndex])) {
@@ -118,7 +119,7 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
       }
     };
   });
-  const suggestedTransfers = suggestTransferPairs(data.rows, drafts);
+  const suggestedTransfers = markSuggestedTransferPairs(data.rows, drafts);
   return { drafts, pendingAccounts, suggestedTransfers };
 }
 
@@ -140,4 +141,18 @@ export function validateCashewLoanDraft(state, bank, transaction) {
   if (transaction.type !== k_transactionTypes.expense || transaction.category !== k_systemCategoryIds.loan) {
     throw Error(k_borrowingMessages.repayment);
   }
+}
+
+// A suggestion note applies only while its row is still paired with the
+// suggested counterpart; after the owner changes the pair it no longer shows.
+export function isSuggestedTransferActive(review, row) {
+  const suggestedRow = row.bank?.suggestedCounterpartRow;
+  if (suggestedRow === undefined) {
+    return false;
+  }
+  const counterpartIndex = row.pair?.counterpartIndex ?? row.pairedBy;
+  if (counterpartIndex === undefined) {
+    return false;
+  }
+  return review.rows[counterpartIndex]?.sourceRow === suggestedRow;
 }

@@ -69,6 +69,16 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
     change('linkedId', bank && value !== '' ? JSON.parse(value) : value);
   }
 
+  function reviewedLoanId() {
+    if (bank?.loanRequired) {
+      return selectedId(state.loans, draft.loanId);
+    }
+    if (draft.type !== transaction.type) {
+      return undefined;
+    }
+    return transaction.loanId;
+  }
+
   function update() {
     try {
       const amount = bank && isTransfer ? bank.amount : parseImportAmount(draft.amount, 'euros');
@@ -89,8 +99,7 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
         linkedId: isReimbursement && draft.linkedId !== ''
           ? (bank ? draft.linkedId : selectedId(expenses, draft.linkedId) ?? draft.linkedId)
           : undefined,
-        loanId: bank?.loanRequired ? selectedId(state.loans, draft.loanId)
-          : draft.type === transaction.type ? transaction.loanId : undefined
+        loanId: reviewedLoanId()
       });
     } catch (failure) {
       setError(failure.message);

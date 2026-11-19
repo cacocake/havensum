@@ -1,6 +1,6 @@
 import { test, expect } from '../helpers/browserTest.js';
 import { createFinancialState } from '../helpers/financialFixtures.js';
-import { openMoreSection } from '../helpers/userFlows.js';
+import { editTransaction, openMoreSection } from '../helpers/userFlows.js';
 
 const k_header = 'account,amount,currency,title,note,date,income,type,category name,subcategory name,color,icon,emoji,budget,objective';
 
@@ -82,4 +82,18 @@ test('a Cashew borrowing row imports as loan proceeds once a Havensum loan is ch
   await expect(dialog.getByText('After €3,000.00', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).transactions
     .map(({ type, amount, loanId, linkedId }) => [type, amount, loanId, linkedId]))).toEqual([['reimbursement', 200000, 'car', null]]);
+});
+
+test('editing imported loan proceeds keeps their loan tag', async ({ page }) => {
+  const loan = { id: 'car', name: 'Car loan', remaining: 500000, original: 800000, payment: 18500, start: '2026-01', end: '2029-12', account: 'everyday' };
+  const proceeds = { id: 'imported-proceeds', type: 'reimbursement', title: 'Borrowed', amount: 200000, account: 'everyday', date: '2026-11-10', linkedId: null, loanId: 'car', externalSource: 'cashew' };
+  await page.addInitScript(seed => localStorage.setItem('melo-state-v1', JSON.stringify(seed)),
+    createFinancialState({ loans: [loan], transactions: [proceeds] }));
+  await page.goto('/');
+  const editor = await editTransaction(page, 'Borrowed');
+  await editor.getByLabel('Title', { exact: true }).fill('Borrowed from the bank');
+  await editor.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(editor).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).transactions
+    .map(({ title, loanId, type }) => [title, loanId, type]))).toEqual([['Borrowed from the bank', 'car', 'reimbursement']]);
 });

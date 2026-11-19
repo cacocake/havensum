@@ -10,6 +10,7 @@ import { applyTransactionImport, reviseTransactionImport } from './importReview.
 import ImportRowEditor from './ImportRowEditor.jsx';
 import CashewAccountMapping, { k_createCashewAccount } from './CashewAccountMapping.jsx';
 import { k_cashewOrdinaryType } from './cashewCsv.js';
+import { isSuggestedTransferActive } from './cashewReview.js';
 import ImportResults, { AccountBalanceReview } from './ImportResults.jsx';
 import { formatReviewRowLabel, getImportBalances, getImportResults } from './importOutcomes.js';
 import { bankTransferCounterparts } from './realBankReview.js';
@@ -319,7 +320,7 @@ export default function ImportDialog({ data, onClose }) {
               )}
               {row.bank?.sourceWarning && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.sourceWarning}</T>}
               {row.bank?.scheduledNote && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.scheduledNote}</T>}
-              {row.bank?.suggestedCounterpartRow !== undefined && (
+              {isSuggestedTransferActive(review, row) && (
                 <T style={{ fontSize: 12, color: colors.sub }}>Suggested transfer with row {row.bank.suggestedCounterpartRow} · check or change it before importing</T>
               )}
               {row.bank?.sourceDetails?.budget && <T style={{ fontSize: 12, color: colors.sub }}>Cashew budget · {row.bank.sourceDetails.budget} · not imported</T>}

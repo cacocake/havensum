@@ -64,6 +64,18 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
  const costOptions = plannedCostOptions(state.events ?? [], date, activePlannedCost);
  const canLinkPlannedCost = type === k_transactionTypes.expense && category !== k_systemCategoryIds.loan
    && categorySettings(state.categories, category).parentId !== k_systemCategoryIds.loan;
+ // Loan proceeds imported from Cashew (K03) carry their loan as an unlinked
+ // payback; editing them keeps the tag, as a repayment keeps its loan.
+ function savedLoanId() {
+   if (category === k_systemCategoryIds.loan) {
+     return item?.loanId ?? draft?.loanId;
+   }
+   const isUnlinkedPayback = type === k_transactionTypes.reimbursement && !(link && linkedId !== '');
+   if (isUnlinkedPayback && item?.type === k_transactionTypes.reimbursement) {
+     return item.loanId;
+   }
+   return undefined;
+ }
  function save(confirmClose = false) {
    try {
      if (!k_transactionAmountPattern.test(amount)) {
@@ -78,7 +90,7 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
        counterpartSourceFingerprint: undefined,
        type, title: title.trim(), amount: cents(amount), account, date, note,
        category: isTransfer ? null : category,
-       loanId: category === k_systemCategoryIds.loan ? (item?.loanId ?? draft?.loanId) : undefined,
+       loanId: savedLoanId(),
        kind: kind || undefined
      };
      if (isTransfer) {

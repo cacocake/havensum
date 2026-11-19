@@ -21,14 +21,23 @@ const k_centsPerEuro = 100n;
 const k_floatingPointNoiseDenominator = 10_000_000_000n;
 const k_datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const k_cashewMarkers = ['account', 'income', 'category name', 'subcategory name'];
-// K04/K07: a blank or zero `amount unpaid` marks a paid row; any `extra` value
-// and any unpaid remainder stay row errors.
-const k_unverifiedFields = ['amount unpaid', 'extra'];
-const k_zeroAmount = /^[+-]?0+(?:[.,]0+)?$/;
+// K04/K07: a blank or zero `amount unpaid` marks a paid row; any unpaid
+// remainder and any `extra` value stay row errors.
+const k_zeroAmount = /^[+-]?0+(?:\.0+)?$/;
 
-function isBlankOrZero(value, fieldName) {
-  const text = value.trim();
-  return text === '' || (fieldName === 'amount unpaid' && k_zeroAmount.test(text));
+function hasUnpaidRemainder(amountUnpaidText) {
+  const text = amountUnpaidText.trim();
+  return text !== '' && !k_zeroAmount.test(text);
+}
+
+function unverifiedFieldName(field) {
+  if (hasUnpaidRemainder(field('amount unpaid'))) {
+    return 'amount unpaid';
+  }
+  if (field('extra').trim()) {
+    return 'extra';
+  }
+  return undefined;
 }
 
 // Both layouts serialize a Dart double, so an amount can carry a
@@ -105,7 +114,7 @@ export function readCashewCsv(rows) {
       if (record.slice(headers.length).some(Boolean)) {
         throw Error('This row has extra values beyond the Cashew header.');
       }
-      const unverifiedField = k_unverifiedFields.find(name => !isBlankOrZero(field(name), name));
+      const unverifiedField = unverifiedFieldName(field);
       if (unverifiedField) {
         throw Error(`Cashew "${unverifiedField}" is populated. Review this row outside the import.`);
       }
