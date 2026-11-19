@@ -94,14 +94,20 @@ test.describe('east of UTC just after midnight', () => {
 
   test('the app opens on the local month and counts entries dated today', async ({ page }) => {
     // 00:30 on 1 December in Auckland is still 30 November in UTC.
-    const ledger = createFinancialState({ transactions: [
-      createTransaction({ id: 'coffee', title: 'First coffee', amount: 300, date: '2026-12-01' })
-    ] });
+    const ledger = createFinancialState({
+      accounts: [
+        { id: 'everyday', name: 'Everyday', tag: 'Personal', openingBalance: 100000 },
+        { id: 'savings', name: 'Rainy day', tag: 'Savings', openingBalance: 100000, interestSchedule: [{ since: '2026-11', rate: 12 }] }
+      ],
+      transactions: [createTransaction({ id: 'coffee', title: 'First coffee', amount: 300, date: '2026-12-01' })]
+    });
     await openWithLedger(page, ledger, '2026-11-30T11:30:00Z');
 
     await expect(page.getByTestId('month-pulse-period')).toHaveText('December, so far');
     await expect(page.getByLabel('View net spending transactions')).toContainText('€3.00');
     await expect(page.getByLabel('View First coffee', { exact: true })).toBeVisible();
     await expect(page.getByLabel('View Everyday account').first()).toContainText('€997.00');
+    // November is complete locally, so its interest posts at startup: €1,000 × (1.12^(1/12) − 1).
+    await expect(page.getByLabel('View Rainy day account').first()).toContainText('€1,009.49');
   });
 });
