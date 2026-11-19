@@ -139,3 +139,18 @@ These choices are approved requirements for the upcoming implementation, not cla
 | --- | --- | --- | --- |
 | L01 | Owner approved | An entry dated after today counts in current account balances and monthly reports from its date, by the device's local date | Until its date it is shown as upcoming/scheduled and still feeds forecasts. From that day it is included automatically, with no manual confirmation step |
 | L02 | Derived from L01, owner to confirm | "Today" is the device's local calendar date everywhere a view decides what has posted | Replaces the UTC dates recorded in PLAN-4 Q4 and FORECAST-1 Q3 for balances, reports, forecasts, the starting month and new-entry dates |
+
+## IMPORT-2 — Cashew classifications (owner answers, 19 November 2026)
+
+Built and tested against synthetic rows that mirror the published Cashew export. Everything beyond the verified ordinary EUR rows from v6.7.5+524 is unverified against a real export.
+
+| ID | Status | Decision | Consequence |
+| --- | --- | --- | --- |
+| K01 | Owner approved | Proceed with synthetic rows mirroring the documented Cashew export format | No claim of exact Cashew compatibility; unverified cases keep their review status |
+| K02 | Owner approved | Cashew `debt` (borrowed) rows can be imported only after the owner picks an existing Havensum loan in review; `credit` (lent) rows stay blocked | No loan is created from a CSV row and borrowing never becomes income or spending |
+| K03 | Owner approved | The sign of a linked `debt` row decides its meaning: positive = loan proceeds recorded as an unlinked balance adjustment tagged with the loan, negative = a loan repayment expense tagged with the loan | Proceeds stay out of income; repayments remain recorded transactions |
+| K04 | Owner approved | Cashew scheduled rows (`upcoming`, `subscription`, `repetitive`) are treated as paid ordinary rows when `amount unpaid` is blank or 0 (v1 has no such column and exports only paid rows); review notes they came from a scheduled entry | They still need an explicit classification; a non-zero `amount unpaid` stays a row error |
+| K05 | Owner approved | Two opposite `Balance Correction` rows with the same amount and timestamp in different accounts are preselected as a suggested transfer when the match is unique; the owner confirms or changes it | Ambiguous or non-unique candidates need manual pairing; nothing is paired without confirmation |
+| K06 | Owner approved | Paybacks keep the manual link: the owner classifies a credit as a reimbursement and picks the original expense (recorded or in the same file) | No link is guessed from titles or amounts |
+| K07 | Owner approved | Cashew color/icon/emoji are ignored; budget and objective are shown as read-only source information in review and never create records, budgets, goals or targets; a non-zero `amount unpaid` or any `extra` value stays a row error to skip | Havensum category styling is preserved |
+| K08 | Owner approved | Ordinary Cashew rows keep requiring an explicit classification; nothing is prefilled from the sign | Matches the bank import review |

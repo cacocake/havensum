@@ -84,6 +84,14 @@ Reuse the Real Bank adapter if the second layout matches. Otherwise create a dis
 
 **Status (19 November 2026):** In progress on `codex/cashew-verification` from `75a8108`. The owner chose to proceed with synthetic rows that mirror the documented Cashew export format; every case beyond the verified ordinary EUR rows from v6.7.5+524 stays explicitly unverified against a real export.
 
+**Owner answers (19 November 2026, in chat; recorded as K01–K08 in DECISIONS.md):**
+1. **Borrowing/lending:** a `debt` row is importable only after picking an existing Havensum loan in review; positive = loan proceeds (unlinked balance adjustment tagged with the loan), negative = loan repayment expense tagged with the loan. `credit` (lent) rows stay blocked.
+2. **Scheduled entries:** treated as paid when `amount unpaid` is blank or 0 (v1 exports only paid rows); still need a classification; review shows they came from a scheduled entry.
+3. **Transfers:** a unique opposite `Balance Correction` row with the same amount and timestamp in another account is preselected as a suggested pair; the owner confirms or changes it.
+4. **Paybacks:** manual link only, as today.
+5. **Metadata:** ignore color/icon/emoji; show budget/objective read-only in review, never create records; non-zero `amount unpaid` or any `extra` stays a row error.
+6. **Classification:** ordinary rows still need an explicit choice; nothing prefilled from the sign.
+
 Ordinary EUR rows from v6.7.5+524 are already verified. Check real transfer and payback rows where available. Agree how to handle borrowing, lending, scheduled entries, and populated metadata before widening support. Test both layouts, accents, integer-cent handling, matches after renames and layout changes, account creation only on confirmation, and original-expense links. Unverified entries retain their review status.
 
 ### LEDGER-1 · Posted versus future-dated activity
