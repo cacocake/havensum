@@ -130,7 +130,7 @@ npm run check:android
 
 The browser app is at the Vite URL printed by `npm run dev`. `/phone.html` provides a PC review shell with 320/360/396/412 dp choices. Its iframe uses `?demo=1`, so sample state resets on reload. The normal root persists state per browser origin. Android persists independently.
 
-`npm run android` invokes Expo for Android. Dependencies are pinned around Expo SDK 54 / React Native 0.81.5. Use a matching runtime or development build and verify target-device compatibility. The EAS preview profile requests an APK, but requires the owner's Expo account and build/signing setup. `npm run check:android` produces a Hermes JS bundle, **not an installable package**.
+`npm run android` invokes Expo for Android. Dependencies are pinned around Expo SDK 54 / React Native 0.81.5. Use a matching runtime or development build and verify target-device compatibility. Release packages (`com.havensum.app`) are built and signed locally on the owner's PC with the owner's upload keystore; see [docs/ANDROID_BUILD.md](docs/ANDROID_BUILD.md) and DECISIONS.md A01–A08. EAS is configured but unused. `npm run check:android` produces a Hermes JS bundle, **not an installable package**.
 
 Validation completed during development:
 
