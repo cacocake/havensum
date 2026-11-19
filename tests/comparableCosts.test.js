@@ -81,9 +81,9 @@ test('a confirmed month without linked payments is reported, not counted as a �
   assert.deepEqual(occurrence, { month: '2025-12', status: 'noPayments', actual: 0, paymentIds: [] });
 });
 
-test('only completed months before today are occurrences, starting from the first recorded year', () => {
+test('occurrences are the past months from the first recorded year onwards', () => {
   const state = celebrationsState({
-    transactions: [createTransaction({ id: 'first-record', date: '2024-03-01' })]
+    transactions: [createTransaction({ id: 'later-record', date: '2025-06-01' }), createTransaction({ id: 'first-record', date: '2024-03-01' })]
   });
 
   const months = plannedCostOccurrences(state, k_celebrations, k_today).map(occurrence => occurrence.month);
@@ -150,7 +150,7 @@ test('with fewer than two completed occurrences there is no estimate and the own
 
   const estimate = comparableCostEstimate(comparableOccurrences(state, event, k_today));
 
-  assert.deepEqual(estimate, { enough: false, comparable: [{ month: '2025-12', status: 'completed', actual: 41000, paymentIds: ['celebrations-2025'] }] });
+  assert.deepEqual(estimate, { hasEnoughEvidence: false, comparable: [{ month: '2025-12', status: 'completed', actual: 41000, paymentIds: ['celebrations-2025'] }] });
 });
 
 test('the estimate is the median of completed occurrences with their range, skipping occurrences that are not evidence', () => {
@@ -161,7 +161,7 @@ test('the estimate is the median of completed occurrences with their range, skip
   const withoutLatest = comparableCostEstimate(comparableOccurrences(withUnconfirmedYear, event, k_today));
 
   assert.deepEqual({ ...estimate, comparable: estimate.comparable.map(occurrence => occurrence.month) },
-    { enough: true, estimate: 41500, low: 38000, high: 45000, comparable: ['2022-12', '2023-12', '2024-12', '2025-12'] });
+    { hasEnoughEvidence: true, estimate: 41500, low: 38000, high: 45000, comparable: ['2022-12', '2023-12', '2024-12', '2025-12'] });
   assert.equal(withoutLatest.estimate, 41000);
   assert.deepEqual(withoutLatest.comparable.map(occurrence => occurrence.month), ['2022-12', '2023-12', '2024-12']);
 });
@@ -217,4 +217,105 @@ test('an even number of occurrences gives a median in whole cents', () => {
   const { state, event } = yearlyCelebrations(30000, { 2024: 40000, 2025: 40001 });
 
   assert.equal(comparableCostEstimate(comparableOccurrences(state, event, k_today)).estimate, 40001);
+});
+
+test('an earlier evaluation date ignores payback tasks created after it', () => {
+  const state = celebrationsState({
+    transactions: [linkedPayment({ id: 'dinner', date: '2025-12-24', amount: 18000 })],
+    paybackTasksVersion: 1,
+    paybackTasks: [{ id: 'dinner-task', expenseId: 'dinner', expectedAmount: 6000, person: 'Marina', dueDate: '', note: '',
+      createdAt: '2026-03-01T12:00:00.000Z', updatedAt: '2026-03-01T12:00:00.000Z', manuallyClosed: false, closureHistory: [] }]
+  });
+
+  assert.equal(plannedCostOccurrences(state, k_celebrations, '2026-02-01')[0].status, 'completed');
+  assert.equal(plannedCostOccurrences(state, k_celebrations, k_today)[0].status, 'awaitingPayback');
+});
+
+function dinnerTask(overrides = {}) {
+  return { id: 'dinner-task', expenseId: 'dinner', expectedAmount: 6000, person: 'Marina', dueDate: '', note: '',
+    createdAt: '2025-12-24T12:00:00.000Z', updatedAt: '2025-12-24T12:00:00.000Z', manuallyClosed: false, closureHistory: [],
+    ...overrides };
+}
+
+function share(id, amount, date) {
+  return { id, type: 'reimbursement', linkedId: 'dinner', amount, date, account: 'everyday', title: 'Share' };
+}
+
+test('a partly received payback keeps the occurrence held back until the rest arrives', () => {
+  const dinner = linkedPayment({ id: 'dinner', date: '2025-12-24', amount: 18000 });
+  const partlyReceived = celebrationsState({ transactions: [dinner, share('first-share', 2000, '2026-01-05')],
+    paybackTasksVersion: 1, paybackTasks: [dinnerTask()] });
+  const fullyReceived = { ...partlyReceived, transactions: [...partlyReceived.transactions, share('second-share', 4000, '2026-02-05')] };
+
+  assert.equal(plannedCostOccurrences(partlyReceived, k_celebrations, k_today)[0].status, 'awaitingPayback');
+  assert.deepEqual(plannedCostOccurrences(fullyReceived, k_celebrations, k_today)[0],
+    { month: '2025-12', status: 'completed', actual: 12000, paymentIds: ['dinner'] });
+});
+
+test('a refund that is not linked to a payment does not reduce the cost', () => {
+  const state = celebrationsState({ transactions: [
+    linkedPayment({ id: 'dinner', date: '2025-12-24', amount: 18000 }),
+    { id: 'bank-refund', type: 'reimbursement', amount: 5000, date: '2025-12-28', account: 'everyday', title: 'Refund' },
+    { id: 'salary', type: 'income', amount: 200000, date: '2025-12-28', account: 'everyday', category: 'salary', title: 'Salary' }
+  ] });
+
+  assert.equal(plannedCostOccurrences(state, k_celebrations, k_today)[0].actual, 18000);
+});
+
+test('an unconfirmed month stays unconfirmed even with a payback expected, and review comes first', () => {
+  const unconfirmedWithTask = celebrationsState({ outlook: { completeMonths: [] },
+    transactions: [linkedPayment({ id: 'dinner', date: '2025-12-24', amount: 18000 })], paybackTasksVersion: 1, paybackTasks: [dinnerTask()] });
+  const movedCelebrations = { ...k_celebrations, month: 11 };
+  const unconfirmedToReview = createFinancialState({ events: [movedCelebrations], outlook: { completeMonths: [] },
+    transactions: [linkedPayment({ id: 'gifts', date: '2025-11-20', amount: 25000 })] });
+
+  assert.equal(plannedCostOccurrences(unconfirmedWithTask, k_celebrations, k_today)[0].status, 'unconfirmed');
+  assert.equal(plannedCostOccurrences(unconfirmedToReview, movedCelebrations, k_today)[0].status, 'needsReview');
+});
+
+test('a payment linked to another year of a recurring cost does not ask the next occurrence for review', () => {
+  const movedCelebrations = { ...k_celebrations, month: 11 };
+  const state = createFinancialState({ events: [movedCelebrations], outlook: { completeMonths: ['2024-11', '2025-11'] },
+    transactions: [linkedPayment({ id: 'gifts-2024', date: '2024-12-10', amount: 25000, plannedCost: { eventId: 'celebrations', month: '2024-12' } })] });
+
+  const statuses = plannedCostOccurrences(state, movedCelebrations, k_today).map(occurrence => [occurrence.month, occurrence.status]);
+
+  assert.deepEqual(statuses, [['2024-11', 'needsReview'], ['2025-11', 'noPayments']]);
+});
+
+// Pins current behaviour for owner question 2: a cancelled cost that was fully
+// refunded is a completed €0 occurrence and lowers the median and range.
+test('a fully refunded occurrence currently counts as a completed €0 cost', () => {
+  const state = celebrationsState({ transactions: [
+    linkedPayment({ id: 'dinner', date: '2025-12-02', amount: 18000 }),
+    share('full-refund', 18000, '2025-12-20')
+  ] });
+
+  assert.deepEqual(plannedCostOccurrences(state, k_celebrations, k_today)[0],
+    { month: '2025-12', status: 'completed', actual: 0, paymentIds: ['dinner'] });
+});
+
+// Pins current behaviour for owner question 7: a payment matched through the
+// older "Recorded expense for …" choice is not linked to an occurrence.
+test('a payment matched only through the older recorded-expense choice is not counted', () => {
+  const state = celebrationsState({
+    outlook: { completeMonths: ['2025-12'], eventPayments: { celebrations: 'gifts' } },
+    transactions: [createTransaction({ id: 'gifts', category: 'shopping', date: '2025-12-10', amount: 25000 })]
+  });
+
+  assert.equal(plannedCostOccurrences(state, k_celebrations, k_today)[0].status, 'noPayments');
+});
+
+// Pins current behaviour for owner question 8: moving a recurring cost to an
+// earlier month leaves every earlier year waiting for a review that validation
+// cannot complete (a payment cannot link to a month before its date).
+test('moving a recurring cost to an earlier month removes the earlier years from the evidence', () => {
+  const { state } = yearlyCelebrations(30000, { 2023: 40000, 2024: 41000, 2025: 42000 });
+  const movedCelebrations = { ...k_celebrations, month: 11 };
+  const movedState = { ...state, events: [movedCelebrations] };
+
+  assert.equal(comparableCostEstimate(comparableOccurrences(state, k_celebrations, k_today)).estimate, 41000);
+  assert.deepEqual(plannedCostOccurrences(movedState, movedCelebrations, k_today).map(occurrence => occurrence.status),
+    ['needsReview', 'needsReview', 'needsReview']);
+  assert.equal(comparableCostEstimate(comparableOccurrences(movedState, movedCelebrations, k_today)).hasEnoughEvidence, false);
 });

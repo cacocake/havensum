@@ -1,6 +1,6 @@
 // FORECAST-2 discovery: what a named cost actually came to in its completed
 // occurrences. Nothing here is shown in the app or written to the ledger.
-import { monthOf, yearOfMonth } from './calendar.js';
+import { k_calendarDateLength, monthOf, yearOfMonth } from './calendar.js';
 import { k_transactionTypes } from './domainConstants.js';
 import { netExpenses } from './ledger.js';
 import { paybackTaskSummary } from './paybackTasks.js';
@@ -15,27 +15,40 @@ export const k_occurrenceStatus = Object.freeze({
   noPayments: 'noPayments'
 });
 
+// Fewer completed occurrences than this give no estimate: the owner enters an amount.
+export const k_minimumComparableOccurrences = 2;
+
 const k_openPaybackStatuses = new Set(['open', 'partial']);
+const k_halves = 2;
 
 function occurrenceMonth(year, event) {
   return `${year}-${String(event.month).padStart(2, '0')}`;
 }
 
+function earliestDate(dates) {
+  return dates.reduce((earliest, date) => {
+    if (date < earliest) {
+      return date;
+    }
+    return earliest;
+  });
+}
+
 // A one-off cost has its own year. A recurring cost occurs every year from the
 // first year the ledger records anything.
-function pastOccurrenceMonths(state, event, today) {
-  const currentMonth = monthOf(today);
+function pastOccurrenceMonths(recordedTransactions, event, evaluationDate) {
+  const currentMonth = monthOf(evaluationDate);
   if (event.year) {
     const month = occurrenceMonth(event.year, event);
     return month < currentMonth ? [month] : [];
   }
-  const recordedDates = state.transactions.map(transaction => transaction.date).filter(date => date <= today);
-  if (!recordedDates.length) {
+  if (!recordedTransactions.length) {
     return [];
   }
-  const firstYear = yearOfMonth(monthOf(recordedDates.reduce((earliest, date) => date < earliest ? date : earliest)));
+  const firstRecordedDate = earliestDate(recordedTransactions.map(transaction => transaction.date));
+  const firstRecordedYear = yearOfMonth(monthOf(firstRecordedDate));
   const months = [];
-  for (let year = firstYear; year <= yearOfMonth(currentMonth); year += 1) {
+  for (let year = firstRecordedYear; year <= yearOfMonth(currentMonth); year += 1) {
     const month = occurrenceMonth(year, event);
     if (month < currentMonth) {
       months.push(month);
@@ -44,14 +57,15 @@ function pastOccurrenceMonths(state, event, today) {
   return months;
 }
 
-function hasOpenPayback(state, expenseId, today) {
+// Only tasks that existed by the evaluation date can hold an occurrence back.
+function hasOpenPayback(state, expenseId, evaluationDate) {
   return (state.paybackTasks ?? [])
-    .filter(task => task.expenseId === expenseId)
-    .some(task => k_openPaybackStatuses.has(paybackTaskSummary(state, task.id, today).status));
+    .filter(task => task.expenseId === expenseId && task.createdAt.slice(0, k_calendarDateLength) <= evaluationDate)
+    .some(task => k_openPaybackStatuses.has(paybackTaskSummary(state, task.id, evaluationDate).status));
 }
 
-function occurrenceStatus(state, recordedState, event, month, linkedPayments, today) {
-  const hasPaymentsToReview = recordedState.transactions.some(transaction => transaction.type === k_transactionTypes.expense
+function occurrenceStatus(state, recordedTransactions, event, month, linkedPayments, evaluationDate) {
+  const hasPaymentsToReview = recordedTransactions.some(transaction => transaction.type === k_transactionTypes.expense
     && needsPlannedCostReview(transaction, event, month));
   if (hasPaymentsToReview) {
     return k_occurrenceStatus.needsReview;
@@ -62,56 +76,54 @@ function occurrenceStatus(state, recordedState, event, month, linkedPayments, to
   if (!linkedPayments.length) {
     return k_occurrenceStatus.noPayments;
   }
-  if (linkedPayments.some(payment => hasOpenPayback(state, payment.id, today))) {
+  if (linkedPayments.some(payment => hasOpenPayback(state, payment.id, evaluationDate))) {
     return k_occurrenceStatus.awaitingPayback;
   }
   return k_occurrenceStatus.completed;
 }
 
-// Uses only what was recorded by `today`, so an earlier date gives the
-// evidence that was available then.
-export function plannedCostOccurrences(state, event, today) {
-  const recordedState = { ...state, transactions: state.transactions.filter(transaction => transaction.date <= today) };
-  return pastOccurrenceMonths(recordedState, event, today).map(month => {
-    const linkedPayments = netExpenses(recordedState.transactions, month)
+// Only transactions and payback tasks dated by `evaluationDate` are used. Month
+// confirmations and the cost's current month are read as they are now.
+export function plannedCostOccurrences(state, event, evaluationDate) {
+  const recordedTransactions = state.transactions.filter(transaction => transaction.date <= evaluationDate);
+  return pastOccurrenceMonths(recordedTransactions, event, evaluationDate).map(month => {
+    const linkedPayments = netExpenses(recordedTransactions, month)
       .filter(expense => expense.plannedCost?.eventId === event.id && expense.plannedCost.month === month);
     return {
       month,
-      status: occurrenceStatus(state, recordedState, event, month, linkedPayments, today),
+      status: occurrenceStatus(state, recordedTransactions, event, month, linkedPayments, evaluationDate),
       actual: sumCents(linkedPayments.map(payment => payment.net)),
       paymentIds: linkedPayments.map(payment => payment.id)
     };
   });
 }
 
-// Fewer completed occurrences than this give no estimate: the owner enters an amount.
-export const k_minimumComparableOccurrences = 2;
-const k_middleDivisor = 2;
-
 // Only occurrences of the same recurring cost are comparable. Names, payment
 // categories and free text are not used to match different costs.
-export function comparableOccurrences(state, event, today) {
+export function comparableOccurrences(state, event, evaluationDate) {
   if (event.year) {
     return [];
   }
-  return plannedCostOccurrences(state, event, today).filter(occurrence => occurrence.status === k_occurrenceStatus.completed);
+  return plannedCostOccurrences(state, event, evaluationDate)
+    .filter(occurrence => occurrence.status === k_occurrenceStatus.completed);
 }
 
+// With an even count, the two middle amounts are averaged and a half cent rounds up.
 function medianCents(sortedAmounts) {
-  const middle = Math.floor(sortedAmounts.length / k_middleDivisor);
-  if (sortedAmounts.length % k_middleDivisor) {
+  const middle = Math.floor(sortedAmounts.length / k_halves);
+  if (sortedAmounts.length % k_halves) {
     return sortedAmounts[middle];
   }
-  return Math.round((sortedAmounts[middle - 1] + sortedAmounts[middle]) / k_middleDivisor);
+  return Math.round((sortedAmounts[middle - 1] + sortedAmounts[middle]) / k_halves);
 }
 
 export function comparableCostEstimate(comparable) {
   if (comparable.length < k_minimumComparableOccurrences) {
-    return { enough: false, comparable };
+    return { hasEnoughEvidence: false, comparable };
   }
   const sortedAmounts = comparable.map(occurrence => occurrence.actual).sort((left, right) => left - right);
   return {
-    enough: true,
+    hasEnoughEvidence: true,
     estimate: medianCents(sortedAmounts),
     low: sortedAmounts[0],
     high: sortedAmounts[sortedAmounts.length - 1],
