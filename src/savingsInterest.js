@@ -14,11 +14,15 @@ function monthlyRate(annualPercentage) {
   return Math.pow(1 + annualPercentage / k_percentageScale, 1 / k_monthsPerYear) - 1;
 }
 
+export function isSavingsAccount(account) {
+  return account.tag === k_savingsTag;
+}
+
 // Posts at most one interest entry per savings account and completed month
 // before `through`. Recorded interest entries are never regenerated.
 export function compoundSavings(state, through) {
   const transactions = [...state.transactions];
-  for (const account of state.accounts.filter(candidate => candidate.tag === k_savingsTag)) {
+  for (const account of state.accounts.filter(isSavingsAccount)) {
     const startMonth = firstInterestMonth(account);
     if (!startMonth) {
       continue;

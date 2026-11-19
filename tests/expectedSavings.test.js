@@ -338,3 +338,59 @@ test('a fixed bill inherits behavior from a legacy numeric zero parent category'
   });
   assert.equal(expectedSavings(state, '2026-11', '2026-11-15').expense, 3500);
 });
+
+// €1,000 at a 12% effective annual rate earns €9.49 in one month under the
+// monthly compounding convention; the following month compounds on €1,009.49.
+function scheduledSavingsState({ interestSchedule = [{ since: '2027-01', rate: 12 }], extraTransactions = [], outlook = {} } = {}) {
+  const historyMonths = ['2027-01', '2027-02', '2027-03'];
+  const salaries = historyMonths.map(month => createTransaction({
+    id: `salary-${month}`, type: 'income', title: 'Salary', amount: 200000, date: `${month}-01`, category: 'salary'
+  }));
+  // Recorded interest keeps its posted amounts; it is not recomputed from the rate.
+  const recordedInterest = historyMonths.map(month => createTransaction({
+    id: `interest-savings-${month}`, type: 'income', title: 'Savings interest', amount: 2000,
+    date: `${month}-28`, account: 'savings', category: 'interest'
+  }));
+  return createFinancialState({
+    accounts: [
+      { id: 'everyday', name: 'Everyday', tag: 'Personal', openingBalance: 100000 },
+      { id: 'savings', name: 'Rainy day', tag: 'Savings', openingBalance: 94000, interestSchedule }
+    ],
+    outlook: { window: 3, completeMonths: historyMonths, ...outlook },
+    transactions: [...salaries, ...recordedInterest, ...extraTransactions]
+  });
+}
+
+test('scheduled rates replace historical interest in expected income and compound earlier estimates', () => {
+  const state = scheduledSavingsState();
+  const april = expectedSavings(state, '2027-04', '2027-04-10');
+  assert.equal(april.income, 200000 + 949);
+  assert.deepEqual(april.interest.map(line => [line.account, line.rate, line.recorded, line.estimated]), [['savings', 12, 0, 949]]);
+  const may = expectedSavings(state, '2027-05', '2027-04-10');
+  assert.equal(may.income, 200000 + 958);
+  assert.equal(state.transactions.length, 6, 'estimates stay out of the ledger');
+});
+
+test('recorded interest in a forecast month counts once instead of the estimate', () => {
+  const bankInterest = createTransaction({
+    id: 'bank-interest-april', type: 'income', title: 'Interest', amount: 1500, date: '2027-04-05', account: 'savings', category: 'interest'
+  });
+  const april = expectedSavings(scheduledSavingsState({ extraTransactions: [bankInterest] }), '2027-04', '2027-04-10');
+  assert.equal(april.income, 200000 + 1500);
+  assert.equal(april.interest[0].recorded, 1500);
+});
+
+test('a scheduled 0% successor stops estimated interest from its start month', () => {
+  const state = scheduledSavingsState({ interestSchedule: [{ since: '2027-01', rate: 12 }, { since: '2027-05', rate: 0 }] });
+  assert.equal(expectedSavings(state, '2027-04', '2027-04-10').income, 200000 + 949);
+  assert.equal(expectedSavings(state, '2027-05', '2027-04-10').income, 200000);
+});
+
+test('an unscheduled legacy rate keeps its historical interest in expected income', () => {
+  const state = scheduledSavingsState();
+  const unscheduled = { ...state, accounts: state.accounts.map(account => account.id === 'savings'
+    ? { id: 'savings', name: 'Rainy day', tag: 'Savings', openingBalance: 94000, unscheduledInterest: 12 } : account) };
+  const april = expectedSavings(unscheduled, '2027-04', '2027-04-10');
+  assert.equal(april.income, 202000);
+  assert.deepEqual(april.interest, []);
+});

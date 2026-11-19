@@ -6,6 +6,11 @@ import { expectedBills } from './expectedBills.js';
 import { expectedVariableSpending } from './expectedVariableSpending.js';
 import { expectedLoanSpending } from './expectedLoans.js';
 import { occasionalSpending, expectedOccasionalEvents } from './expectedOccasionalSpending.js';
+import { expectedInterest, scheduledInterestAccounts, scheduledInterestIncome } from './expectedInterest.js';
+
+function sumOf(values) {
+  return values.reduce((total, value) => total + value, 0);
+}
 
 // Prediction inputs are independent of the frozen Year Plan.
 export function expectedSavings(state, month, today = new Date().toISOString().slice(0, k_calendarDateLength)) {
@@ -20,7 +25,11 @@ export function expectedSavings(state, month, today = new Date().toISOString().s
   const { selected: history, partial } = outlookHistory(recordedState, month, today);
   const totals = history.map(historyMonth => monthStats(recordedState, historyMonth));
   const historyCount = Math.max(1, totals.length);
-  const historicalIncome = Math.round(totals.reduce((total, stats) => total + stats.income, 0) / historyCount);
+  // Scheduled rates estimate interest directly, replacing its historical share.
+  const scheduledAccountIds = new Set(scheduledInterestAccounts(state).map(account => account.id));
+  const historicalBaseIncome = history.map((historyMonth, index) =>
+    totals[index].income - scheduledInterestIncome(recordedState.transactions, historyMonth, scheduledAccountIds));
+  const historicalIncome = Math.round(sumOf(historicalBaseIncome) / historyCount);
   const registeredState = {
     ...state,
     transactions: state.transactions.filter(transaction => transaction.type !== k_transactionTypes.reimbursement || transaction.date <= today)
@@ -29,7 +38,9 @@ export function expectedSavings(state, month, today = new Date().toISOString().s
   const incomeChanges = (state.outlook?.incomeChanges || []).filter(change => change.since <= month)
     .sort((first, second) => first.since.localeCompare(second.since));
   const expectedIncome = incomeChanges.at(-1)?.amount ?? historicalIncome;
-  const income = Math.max(expectedIncome, registered.income);
+  const registeredBaseIncome = registered.income - scheduledInterestIncome(registeredState.transactions, month, scheduledAccountIds);
+  const interest = expectedInterest(state, month);
+  const income = Math.max(expectedIncome, registeredBaseIncome) + sumOf(interest.map(line => line.expected));
   const monthlyReserve = Math.round(totals.reduce((total, stats) => total + occasionalSpending(state, stats), 0) / historyCount);
   const days = daysInMonth(month);
   const elapsedDays = month > monthOf(today) ? 0 : Number(today.slice(8, 10));
@@ -47,5 +58,5 @@ export function expectedSavings(state, month, today = new Date().toISOString().s
   if (!totals.length && !income && !expense) {
     return null;
   }
-  return { income, expense, balance: income - expense, occasional, loan, fixed, bills, variableLines, events, monthlyReserve, partial, historyMonths: history };
+  return { income, expense, balance: income - expense, occasional, loan, fixed, bills, variableLines, events, interest, monthlyReserve, partial, historyMonths: history };
 }
