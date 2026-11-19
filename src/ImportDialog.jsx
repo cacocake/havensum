@@ -320,11 +320,13 @@ export default function ImportDialog({ data, onClose }) {
               )}
               {row.bank?.sourceWarning && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.sourceWarning}</T>}
               {row.bank?.scheduledNote && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.scheduledNote}</T>}
+              {row.bank?.objectiveNote && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.objectiveNote}</T>}
               {isSuggestedTransferActive(review, row) && (
                 <T style={{ fontSize: 12, color: colors.sub }}>Suggested transfer with row {row.bank.suggestedCounterpartRow} · check or change it before importing</T>
               )}
               {row.bank?.sourceDetails?.budget && <T style={{ fontSize: 12, color: colors.sub }}>Cashew budget · {row.bank.sourceDetails.budget} · not imported</T>}
               {row.bank?.sourceDetails?.objective && <T style={{ fontSize: 12, color: colors.sub }}>Cashew objective · {row.bank.sourceDetails.objective} · not imported</T>}
+              {row.bank?.sourceDetails?.extra && <T style={{ fontSize: 12, color: colors.sub }}>Cashew extra · {row.bank.sourceDetails.extra} · not imported</T>}
               {row.transaction.amount !== undefined && (
                 <T style={{ fontSize: 12, color: colors.sub }}>
                   {row.transaction.date} · {row.transaction.type || row.bank?.direction} · {displayField(reviewState, 'account', row.transaction.account)}

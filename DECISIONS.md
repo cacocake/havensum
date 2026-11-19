@@ -191,7 +191,7 @@ These are owner decisions for DRIVE-2. They are not claims that Drive works: Hav
 
 ## IMPORT-2 — Cashew classifications (owner answers, 19 November 2026)
 
-Built and tested against synthetic rows that mirror the published Cashew export. Everything beyond the verified ordinary EUR rows from v6.7.5+524 is unverified against a real export.
+Built and tested against synthetic rows that mirror the published Cashew export. Everything beyond the verified ordinary EUR rows from v6.7.5+524 is unverified against a real export. K10–K12 follow the owner's own small test export of 19 November 2026 (newer layout, version not stated); the shapes listed in docs/CASHEW_IMPORT_RESEARCH.md were seen in that one export only.
 
 | ID | Status | Decision | Consequence |
 | --- | --- | --- | --- |
@@ -204,3 +204,6 @@ Built and tested against synthetic rows that mirror the published Cashew export.
 | K07 | Owner approved | Cashew color/icon/emoji are ignored; budget and objective are shown as read-only source information in review and never create records, budgets, goals or targets; a non-zero `amount unpaid` or any `extra` value stays a row error to skip | Havensum category styling is preserved |
 | K08 | Owner approved | Ordinary Cashew rows keep requiring an explicit classification; nothing is prefilled from the sign | Matches the bank import review |
 | K09 | Owner approved (after review) | A preselected Cashew transfer pair needs no separate per-row decision: confirming the import confirms it unless the owner changed it | The suggestion note shows only while the pair is kept; a borrowing (`debt`) credit is never a transfer leg |
+| K10 | Owner approved (after a real test export, 19 November 2026) | Cashew `extra` (observed: recurrence text such as "repeat every 1 month", also on ordinary rows) is shown read-only in review and never blocks a row or creates a recurring entry | Supersedes the `extra` part of K07; a non-zero `amount unpaid` still blocks |
+| K11 | Owner approved (after the real export) | A Cashew transfer leg is recognised by its note: first line `Transferred Balance`, second line `A → B` naming the debit's and the credit's source accounts; the category name is ignored | Supersedes the `Balance Correction` category rule of K05; works in any app language. Uniqueness, amount and timestamp rules of K05/K09 still apply |
+| K12 | Owner approved (after the real export) | A row with a Cashew objective may be a loan (the real export shows borrowing/lending as `default` rows tagged with a loan objective, not `debt`/`credit`): review lets the owner optionally pick a Havensum loan, and then K03 applies; without a loan it is classified normally, with a note | Nothing is created from the objective; `debt`/`credit` type handling (K02) stays for older exports |

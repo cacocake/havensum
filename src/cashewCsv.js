@@ -21,23 +21,13 @@ const k_centsPerEuro = 100n;
 const k_floatingPointNoiseDenominator = 10_000_000_000n;
 const k_datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const k_cashewMarkers = ['account', 'income', 'category name', 'subcategory name'];
-// K04/K07: a blank or zero `amount unpaid` marks a paid row; any unpaid
-// remainder and any `extra` value stay row errors.
+// K04: a blank or zero `amount unpaid` marks a paid row; an unpaid remainder
+// stays a row error. K10: `extra` is read-only source information.
 const k_zeroAmount = /^[+-]?0+(?:\.0+)?$/;
 
 function hasUnpaidRemainder(amountUnpaidText) {
   const text = amountUnpaidText.trim();
   return text !== '' && !k_zeroAmount.test(text);
-}
-
-function unverifiedFieldName(field) {
-  if (hasUnpaidRemainder(field('amount unpaid'))) {
-    return 'amount unpaid';
-  }
-  if (field('extra').trim()) {
-    return 'extra';
-  }
-  return undefined;
 }
 
 // Both layouts serialize a Dart double, so an amount can carry a
@@ -108,15 +98,14 @@ export function readCashewCsv(rows) {
       sourceRow: headerIndex + index + 2, account: field('account').trim(), title: field('title'), note: field('note'),
       income: field('income'), specialType, timestamp: field('date').trim(),
       category: [field('category name'), field('subcategory name')].filter(Boolean).join(' / '),
-      budget: field('budget').trim(), objective: field('objective').trim()
+      budget: field('budget').trim(), objective: field('objective').trim(), extra: field('extra').trim()
     };
     try {
       if (record.slice(headers.length).some(Boolean)) {
         throw Error('This row has extra values beyond the Cashew header.');
       }
-      const unverifiedField = unverifiedFieldName(field);
-      if (unverifiedField) {
-        throw Error(`Cashew "${unverifiedField}" is populated. Review this row outside the import.`);
+      if (hasUnpaidRemainder(field('amount unpaid'))) {
+        throw Error('Cashew "amount unpaid" is populated. Review this row outside the import.');
       }
       return [{ ...row, movement: readMovement(field('amount').trim(), field('currency').trim(), row.timestamp) }];
     } catch (error) {
