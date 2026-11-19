@@ -179,3 +179,9 @@ These are owner decisions for DRIVE-2. They are not claims that Drive works: Hav
 | G08 | Owner approved, not implemented | A partner with existing local entries chooses either to adopt the file (after a local recovery copy) or to merge with a review of every one-sided record | Without a common baseline, `mergeThreeWay` would silently union independently entered duplicates. The current merge UI refuses to run without a baseline. DRIVE-2 designs a dedicated first-join review |
 | G09 | Owner approved, not implemented | Setup offers "Open shared file" before "Create", and Create warns to check with the partner | If two files exist anyway, the person opens the one to keep, picks the other, and merges it in through the G08 one-sided-record review (the files share no baseline). No file is deleted automatically |
 | G10 | Owner approved, not implemented | Sync runs automatically (start, resume, shortly after edits when online) plus a "Sync now" button | Conflicts always wait for review. An expired web token (short-lived, no refresh token in the browser) shows "Reconnect" instead of an unprompted popup |
+
+## BUG-1 — full restore after another tab saved (owner answer, 19 November 2026)
+
+| ID | Status | Decision | Consequence |
+| --- | --- | --- | --- |
+| R01 | Owner approved, implemented on `codex/bug-1-stale-restore-flake` | A full restore is refused when another tab or window saved the ledger after this tab last read or saved it. The refusing tab then reloads the saved ledger and says so | Choosing the backup again previews against the reloaded ledger and can proceed, and the pre-restore copy is the ledger that was actually saved. A restore never overwrites another tab's save. Ordinary saves (App's save on every state change) still overwrite other tabs; that predates BUG-1 and is not changed here |

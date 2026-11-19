@@ -6,6 +6,7 @@ import { buildPlan } from '../../src/planning.js';
 const k_ledgerKey = 'melo-state-v1';
 const k_baselineKey = 'melo-sync-base';
 const k_restoreRecoveryKey = 'havensum-restore-recovery-v1';
+const k_reloadedNotice = 'Your ledger was changed in another tab or window, so it was reloaded here. Choose the backup again to review it against the current ledger.';
 
 function deviceLedger() {
   return createFinancialState({ transactions: [createTransaction({ id: 'device-only', title: 'Device purchase' })] });
@@ -179,10 +180,34 @@ test('a ledger saved by another tab after the preview makes the preview stale', 
   await dialog.getByRole('switch', { name: "Replace this device's ledger", exact: true }).click();
   await dialog.getByRole('button', { name: 'Restore this backup', exact: true }).click();
 
-  await expect(page.getByText('Your ledger changed after this preview. Choose the backup again to review it against the current ledger.', { exact: true })).toBeVisible();
+  await expect(page.getByText(k_reloadedNotice, { exact: true })).toBeVisible();
   await expect(dialog).toHaveCount(0);
   expect(await stored(page, k_ledgerKey)).toBe(otherTabLedger);
   expect(await stored(page, k_restoreRecoveryKey)).toBeNull();
+});
+
+test('after a refusal the other tab\'s ledger is reloaded here and the backup can then replace it', async ({ page }) => {
+  await openSettings(page);
+  await chooseBackupFile(page, JSON.stringify(currentBackup()));
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByTestId('restore-summary')).toBeVisible();
+  const otherTabLedger = deviceLedger();
+  otherTabLedger.transactions.push(createTransaction({ id: 'other-tab-only', title: 'Other tab purchase' }));
+  await page.evaluate(({ key, bytes }) => localStorage.setItem(key, bytes), { key: k_ledgerKey, bytes: JSON.stringify(otherTabLedger) });
+  await dialog.getByRole('switch', { name: "Replace this device's ledger", exact: true }).click();
+  await dialog.getByRole('button', { name: 'Restore this backup', exact: true }).click();
+  await expect(page.getByText(k_reloadedNotice, { exact: true })).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+
+  await chooseBackupFile(page, JSON.stringify(currentBackup()));
+  await expect(dialog.getByLabel('Transactions: 2 on this device, 2 in the backup', { exact: true })).toBeVisible();
+  await dialog.getByRole('switch', { name: "Replace this device's ledger", exact: true }).click();
+  await dialog.getByRole('button', { name: 'Restore this backup', exact: true }).click();
+
+  await expect(page.getByText('Backup restored. Your previous ledger is kept as a pre-restore copy.', { exact: true })).toBeVisible();
+  const preRestoreCopy = JSON.parse(await stored(page, k_restoreRecoveryKey));
+  expect(preRestoreCopy.transactions.map(transaction => transaction.id)).toEqual(['device-only', 'other-tab-only']);
+  expect(JSON.parse(await stored(page, k_ledgerKey)).transactions.some(transaction => transaction.id === 'other-tab-only')).toBe(false);
 });
 
 test('a ledger saved by another tab while the pre-restore copy is written is not replaced by the restore', async ({ page }) => {
@@ -207,7 +232,7 @@ test('a ledger saved by another tab while the pre-restore copy is written is not
   await dialog.getByRole('switch', { name: "Replace this device's ledger", exact: true }).click();
   await dialog.getByRole('button', { name: 'Restore this backup', exact: true }).click();
 
-  await expect(page.getByText('Your ledger changed after this preview. Choose the backup again to review it against the current ledger.', { exact: true })).toBeVisible();
+  await expect(page.getByText(k_reloadedNotice, { exact: true })).toBeVisible();
   await expect(dialog).toHaveCount(0);
   expect(await stored(page, k_ledgerKey)).toBe(otherTabLedger);
 });
@@ -233,7 +258,7 @@ test('a ledger saved by another tab while the backup is read is not replaced by 
   await dialog.getByRole('switch', { name: "Replace this device's ledger", exact: true }).click();
   await dialog.getByRole('button', { name: 'Restore this backup', exact: true }).click();
 
-  await expect(page.getByText('Your ledger changed after this preview. Choose the backup again to review it against the current ledger.', { exact: true })).toBeVisible();
+  await expect(page.getByText(k_reloadedNotice, { exact: true })).toBeVisible();
   await expect(dialog).toHaveCount(0);
   expect(await stored(page, k_ledgerKey)).toBe(otherTabLedger);
   expect(await stored(page, k_restoreRecoveryKey)).toBeNull();
