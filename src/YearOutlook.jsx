@@ -173,12 +173,10 @@ function expectedText(month) {
   return signedEuro(month.expected.balance);
 }
 
-// Future months show registered entries as scheduled (current posting semantics).
+// L01: Recorded is what has posted by today; a future month records only
+// early payments linked to it.
 function recordedCell(month, color) {
-  if (month.scheduled) {
-    return { key: 'recorded', label: 'Scheduled', color, text: signedEuro(month.scheduled.balance) };
-  }
-  if (month.period === k_reportingPeriods.future) {
+  if (month.period === k_reportingPeriods.future && !month.recorded) {
     return { key: 'recorded', label: 'Recorded', color, text: '—', spokenText: 'nothing yet' };
   }
   if (!month.hasRecords && !month.isConfirmedComplete) {
@@ -187,10 +185,19 @@ function recordedCell(month, color) {
   return { key: 'recorded', label: 'Recorded', color, text: signedEuro(month.recorded.balance) };
 }
 
+// Entries dated after today, in any month. They count from their date.
+function scheduledCells(month, color) {
+  if (!month.scheduled) {
+    return [];
+  }
+  return [{ key: 'scheduled', label: 'Scheduled', color, text: signedEuro(month.scheduled.balance) }];
+}
+
 function monthCells(month, ink) {
   return [
     { key: 'plan', label: 'Plan', color: ink.plan, text: month.planned ? signedEuro(month.planned.balance) : 'Not set' },
     recordedCell(month, ink.actual),
+    ...scheduledCells(month, ink.actual),
     { key: 'expected', label: month.partial ? 'Expected · partial' : 'Expected', color: ink.forecast, text: expectedText(month) }
   ];
 }
@@ -205,7 +212,7 @@ function OutlookMonths({ outlook, selectedMonth, ink, onSelectMonth }) {
   const colors = useContext(Theme);
   return <Card style={{ padding: 19 }}>
     <H size={25}>{outlook.year}, month by month</H>
-    <T style={{ color: colors.sub, fontSize: 12, marginTop: 8, marginBottom: 15 }}>Purple is planned savings, blue is recorded and amber is expected. Select a month to see its forecast and breakdown.</T>
+    <T style={{ color: colors.sub, fontSize: 12, marginTop: 8, marginBottom: 15 }}>Purple is planned savings, blue is recorded and amber is expected. Scheduled entries are dated after today and count from their date. Select a month to see its forecast and breakdown.</T>
     {outlook.months.map(month => {
       const isSelected = month.month === selectedMonth;
       const cells = monthCells(month, ink);

@@ -80,7 +80,8 @@ test('the year outlook shows recorded, expected and planned totals with what sha
 
 test('without a frozen target the outlook has no variance and labels months without evidence', async ({ page }) => {
   const insurance = createTransaction({ id: 'insurance', title: 'Car insurance', amount: 45000, date: '2027-06-15', category: 'shopping' });
-  const ledger = createFinancialState({ outlook: { window: 3 }, transactions: [...monthlyEntries(['2027-01', '2027-02']), insurance] });
+  const gift = createTransaction({ id: 'gift', title: 'Gift', amount: 6000, date: '2027-04-22', category: 'shopping' });
+  const ledger = createFinancialState({ outlook: { window: 3 }, transactions: [...monthlyEntries(['2027-01', '2027-02']), insurance, gift] });
   await openYearAhead(page, ledger);
   await expect(page.getByTestId('year-variance')).toHaveText('No frozen target for 2027. The forecast is shown without a variance.');
   await expect(page.getByTestId('year-planned-balance')).toHaveText('No target');
@@ -88,8 +89,13 @@ test('without a frozen target the outlook has no variance and labels months with
   await expect(page.getByTestId('year-partial-months')).toHaveText('Partial estimate for Apr–Dec: history has not been confirmed complete.');
   await expect(page.getByTestId('year-month-2027-03-recorded')).toHaveText('No records');
   await expect(page.getByTestId('year-month-2027-03-expected')).toHaveText('Unavailable');
-  await expect(page.getByTestId('year-month-2027-06-recorded')).toHaveText('−€450.00');
-  await expect(page.getByTestId('year-month-2027-06-recorded').locator('..')).toContainText('Scheduled');
+  // L01: entries dated after today are scheduled in any month, beside what has posted.
+  await expect(page.getByTestId('year-month-2027-06-recorded')).toHaveText('—');
+  await expect(page.getByTestId('year-month-2027-06-scheduled')).toHaveText('−€450.00');
+  await expect(page.getByTestId('year-month-2027-04-recorded')).toHaveText('No records');
+  await expect(page.getByTestId('year-month-2027-04-scheduled')).toHaveText('−€60.00');
+  await expect(page.getByTestId('year-month-2027-05-scheduled')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^June 2027\. Plan Not set\. Recorded nothing yet\. Scheduled −€450\.00\. Expected / })).toBeVisible();
   await expect(page.getByTestId('year-month-2027-04-expected').locator('..')).toContainText('Expected · partial');
   await expect(page.getByRole('button', { name: /^March 2027\. Plan Not set\. Recorded No records\. Expected Unavailable\./ })).toBeVisible();
   await expect(page.getByRole('button', { name: /^April 2027\. .*Expected · partial / })).toBeVisible();
