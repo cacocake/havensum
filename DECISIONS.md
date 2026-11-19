@@ -95,7 +95,6 @@ As of 17 November 2026. Latest requirements in docs/HAVENSUM_REQUIREMENTS.md sup
 | F10 | Working estimate | Current-month outlook uses recorded costs plus remaining variable allowance; fixed/loans/reserves retain at least planned totals | Read-only estimate; never replaces frozen plan; model and limits in docs/UX_UPDATE.md |
 | U14 | Working choice | Crisp 120 ms press feedback and restrained state transitions | Reanimated native and CSS web; routine destination entrance removed; reduced motion supported |
 
-
 ## Latest owner requirements — local-repo handoff
 
 | ID | Status | Decision | Consequence |
@@ -138,7 +137,24 @@ These choices are approved requirements for the upcoming implementation, not cla
 | ID | Status | Decision | Consequence |
 | --- | --- | --- | --- |
 | L01 | Owner approved | An entry dated after today counts in current account balances and monthly reports from its date, by the device's local date | Until its date it is shown as upcoming/scheduled and still feeds forecasts. From that day it is included automatically, with no manual confirmation step |
-| L02 | Derived from L01, owner to confirm | "Today" is the device's local calendar date everywhere a view decides what has posted | Replaces the UTC dates recorded in PLAN-4 Q4 and FORECAST-1 Q3 for balances, reports, forecasts, the starting month and new-entry dates |
+| L02 | Owner confirmed (19 November 2026, in chat) | "Today" is the device's local calendar date everywhere: what has posted, the starting month, and the default dates of new entries and loans | Replaces the UTC dates recorded in PLAN-4 Q4 and FORECAST-1 Q3 for balances, reports, forecasts, the starting month and new-entry dates |
+
+## DRIVE-1 — shared Drive file access (owner answers, 19 November 2026)
+
+These are owner decisions for DRIVE-2. They are not claims that Drive works: Havensum has no Drive code and nothing has been tested with real Google accounts. Who can find, read and update the file, how access changes, what DRIVE-2 must verify and the setup the owner must provide are in [docs/DRIVE_ACCESS_MODEL.md](docs/DRIVE_ACCESS_MODEL.md). These rows settle S01's ownership and discovery, S04 and S05, and questions 2 and 3 above. S03 (the local baseline and revision protocol) stays open for DRIVE-2.
+
+| ID | Status | Decision | Consequence |
+| --- | --- | --- | --- |
+| G01 | Owner approved, not implemented | Request only the `drive.file` scope (supersedes S04's candidate) | Non-sensitive and per file, so no restricted-scope verification or security assessment. The app sees only a file it created or one the person picked. No `drive`, `drive.readonly`, `drive.metadata.readonly` or `drive.appdata` (app-data files cannot be shared) |
+| G02 | Owner approved, not implemented | Either person may create the shared file from the app. The app shares it as editor with the partner's Google email | The partner opens it once through Google's picker (web Picker; Android desktop/mobile Picker), filtered to that file where possible. Each installation stores the file ID and its own baseline |
+| G03 | Owner approved | The creator stays the owner | The app offers no ownership transfer. A manual transfer between personal accounts is a pending-owner request in Drive that the recipient must accept |
+| G04 | Owner approved, not implemented | Sign-out, removed app access, removed sharing or a trashed file keep all local data and pause sync | Nothing is deleted locally or remotely. Unsynced edits wait and merge through the normal review on reconnect. A device that lost access keeps its copy. The app never silently switches, re-creates or overwrites the file |
+| G05 | Owner approved (answers S05 and question 3) | Everything except per-device display preferences is in the shared file, visible to both people: every account and all financial data | It carries the same financial collections as the full backup, not its device keys (theme, preferences, demo). Personal/Joint tags and `preferences.visibility` are labels, not privacy controls. The file is unencrypted JSON in the creator's Drive |
+| G06 | Owner approved, not implemented | Theme and display preferences stay on each device | The shared file carries financial data and plans only. `validateState` requires a theme and `mergeThreeWay` copies local top-level keys, so DRIVE-2 must keep device keys out of the file explicitly. DRIVE-2 must classify every top-level state key and ask the owner if one is unclear |
+| G07 | Owner approved, not implemented | "Create shared file" is blocked while example (demo) data is loaded | Example accounts and records never reach the partner |
+| G08 | Owner approved, not implemented | A partner with existing local entries chooses either to adopt the file (after a local recovery copy) or to merge with a review of every one-sided record | Without a common baseline, `mergeThreeWay` would silently union independently entered duplicates. The current merge UI refuses to run without a baseline. DRIVE-2 designs a dedicated first-join review |
+| G09 | Owner approved, not implemented | Setup offers "Open shared file" before "Create", and Create warns to check with the partner | If two files exist anyway, the person opens the one to keep, picks the other, and merges it in through the G08 one-sided-record review (the files share no baseline). No file is deleted automatically |
+| G10 | Owner approved, not implemented | Sync runs automatically (start, resume, shortly after edits when online) plus a "Sync now" button | Conflicts always wait for review. An expired web token (short-lived, no refresh token in the browser) shows "Reconnect" instead of an unprompted popup |
 
 ## IMPORT-2 — Cashew classifications (owner answers, 19 November 2026)
 
