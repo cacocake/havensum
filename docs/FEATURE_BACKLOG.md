@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**Next implementation ticket: PLAN-3.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**Next implementation ticket: PLAN-4.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -40,7 +40,7 @@ Use integer EUR cents. Cash follows its transaction date, including for early pa
 
 ### PLAN-3 · Review assumptions carried forward
 
-**Status:** Queued. **Depends on:** PLAN-2.
+**Status:** Implemented on `codex/plan-carry-forward`; see the PLAN-3 handoff note below. **Depends on:** PLAN-2.
 
 - Reuse the three-step interview. Prefill recurring income, applicable income and loan changes, history window, and review thresholds from the latest earlier plan. Use amounts effective at the start of the period and show later changes in their applicable months. Preserve deliberately entered zeros.
 - Show earlier manual overrides beside fresh suggestions. Apply the ones the owner chooses to keep. For a same-year revision, prefill that year's current overrides. Surface assumptions for removed categories or closed loans without applying them.
@@ -160,3 +160,8 @@ Start with units and a manually entered EUR price if requested. For automatic pr
 - **Owner questions (non-blocking; current behaviour follows existing conventions):** (1) plan bill targets are net of received paybacks while Expected savings uses each bill's latest gross amount. Should they match? (2) Planning next year in November with a 3-month window uses Aug–Oct, the same anchoring as Expected savings, rather than only October. (3) Drift suggestions now need owner-confirmed complete months, so a ledger that never confirms months gets none. (4) The bill list in the interview shows statuses for the first planned month only.
 - **Checks (on `1ed718a`; `7ed3b0e` only removes an unused import and was rechecked with the Node suite):** `npm run test:coverage` 289/289 with thresholds met, `npm run test:browser` 234/234, `npm run build` and `npm run check:android` (Hermes compilation only).
 - **Review:** separate read-only Claude review, then a focused re-review that confirmed every actionable finding fixed and passed the review gate.
+
+## Session handoff — PLAN-3 (19 November 2026, Claude cloud session)
+
+- **Implementation:** `src/planCarryForward.js` prefills a draft from this year's latest revision, otherwise the nearest earlier year's latest plan: income effective at the period start, later income and loan changes once, a loan change already in effect restated at the period start, history window, tolerance and drift. Zeros survive. Earlier overrides appear beside fresh suggestions with Keep/Drop; a same-year revision keeps that year's overrides. Overrides for removed categories and changes for ended or removed loans are listed as not applied. New named costs can repeat every year (stored without a year) or stay one-off. Step 3 previews each month's planned and expected savings; draft events feed the forecast, draft targets do not.
+- **Checks, review and merge:** recorded below once complete.
