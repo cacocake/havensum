@@ -397,3 +397,25 @@ test('a guarded save refuses to replace saved data this storage has never read o
   await assert.rejects(freshStorage.writeIfUnchanged('melo-state-v1', createFinancialState()), SavedStateChangedError);
   assert.equal(storage.getItem('melo-state-v1'), savedElsewhere);
 });
+
+test('a guarded save is allowed on a fresh install once its empty ledger was read', async context => {
+  const storage = installBrowserStorage(context);
+  const freshStorage = createPersistedStorage(() => storage);
+  assert.equal(await freshStorage.read('melo-state-v1'), null);
+
+  const firstLedger = createFinancialState();
+  await freshStorage.writeIfUnchanged('melo-state-v1', firstLedger);
+  assert.equal(storage.getItem('melo-state-v1'), JSON.stringify(firstLedger));
+});
+
+test('a guarded save is allowed over a legacy ledger this storage migrated when reading it', async context => {
+  const storage = installBrowserStorage(context);
+  const legacyLedger = createFinancialState({ version: 1 });
+  storage.setItem('melo-state-v1', JSON.stringify(legacyLedger, null, 2));
+  const freshStorage = createPersistedStorage(() => storage);
+  assert.deepEqual(await freshStorage.read('melo-state-v1'), expectedMigratedLedger(legacyLedger));
+
+  const replacement = createFinancialState({ theme: 'dark' });
+  await freshStorage.writeIfUnchanged('melo-state-v1', replacement);
+  assert.equal(storage.getItem('melo-state-v1'), JSON.stringify(replacement));
+});

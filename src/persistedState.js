@@ -67,13 +67,16 @@ async function readPersistedState(storage, key, parseState = JSON.parse, recover
   return migratedState;
 }
 
-// Another tab or window saved over the bytes this one last read or saved.
+const k_savedStateChangedMessage = 'The saved data changed in another tab or window.';
+
+// Another tab or window saved over the bytes this storage instance last read
+// or saved.
 export class SavedStateChangedError extends Error {}
 
 export function createPersistedStorage(getStorage) {
   let operationQueue = Promise.resolve();
-  // The bytes this tab last read or saved under each key. A failed save leaves
-  // the entry as it was, because the stored bytes did not change either.
+  // The bytes this storage instance last read or saved under each key. A
+  // failed save leaves the entry as it was: the save never reached storage.
   const _lastKnownBytes = new Map();
 
   async function _isUnchangedSinceLastAccess(storage, key) {
@@ -176,17 +179,18 @@ export function createPersistedStorage(getStorage) {
       const encodedState = JSON.stringify(migrateState(state));
       return enqueue(() => _replaceStoredState(getStorage(), key, encodedState, recoverInvalid));
     },
-    isUnchangedSinceLastAccess(key) {
+    async isUnchangedSinceLastAccess(key) {
       return enqueue(() => _isUnchangedSinceLastAccess(getStorage(), key));
     },
-    // Saves only over the bytes this tab last read or saved, checked in the
-    // same queued step as the save so no other save of this tab can interleave.
+    // Saves only over the bytes this storage instance last read or saved,
+    // checked in the same queued step as the save so no other queued save
+    // can interleave.
     async writeIfUnchanged(key, state) {
       const encodedState = JSON.stringify(migrateState(state));
       return enqueue(async () => {
         const storage = getStorage();
         if (!await _isUnchangedSinceLastAccess(storage, key)) {
-          throw new SavedStateChangedError('The saved data changed in another tab or window.');
+          throw new SavedStateChangedError(k_savedStateChangedMessage);
         }
         await _replaceStoredState(storage, key, encodedState, false);
       });

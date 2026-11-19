@@ -2,6 +2,8 @@ import { k_stateStorageKey, k_snapshotStorageKey, k_importRecoveryStorageKey, k_
 import { parseMergeBaseline, parseStoredYear } from './storageSerialization.js';
 import { createPersistedStorage } from './persistedState.js';
 
+export { SavedStateChangedError } from './persistedState.js';
+
 const k_persistedStorage = createPersistedStorage(() => localStorage);
 
 export async function readSavedLedgerCopy() {

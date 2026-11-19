@@ -7,8 +7,7 @@ import { applyCategoryReviewEdits, categoryReviewRows } from './categoryReview.j
 import { isRestorePreviewCurrent, prepareFullRestore, restoreSummary } from './fullRestore.js';
 import { validateState } from './stateSchema.js';
 import { chooseFile, downloadJSON } from './files';
-import { isDemoSession, isSavedStateUnchanged, readRestoreRecovery, writeRestoreRecovery, writeStateIfUnchanged } from './storage';
-import { SavedStateChangedError } from './persistedState.js';
+import { isDemoSession, isSavedStateUnchanged, readRestoreRecovery, SavedStateChangedError, writeRestoreRecovery, writeStateIfUnchanged } from './storage';
 import { prepareLoadedLedger } from './startupLedger.js';
 import { currentLocalMonth } from './calendar.js';
 
