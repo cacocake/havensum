@@ -94,7 +94,7 @@ test('Cashew rejects unsupported currencies, invalid dates and ambiguous amounts
   assert.deepEqual(file.rows.map(row => row.sourceRow), [2, 3, 4, 6]);
   assert.match(file.rows[0].error, /only EUR/i);
   assert.match(file.rows[1].error, /invalid/);
-  assert.match(file.rows[2].error, /signed EUR amount/);
+  assert.match(file.rows[2].error, /fraction of a cent/);
   assert.equal(file.rows[3].movement.amount, 501);
 });
 
