@@ -82,6 +82,8 @@ Reuse the Real Bank adapter if the second layout matches. Otherwise create a dis
 
 **Needs:** Representative rows and agreed classifications for the cases the owner uses.
 
+**Status (19 November 2026):** In progress on `codex/cashew-verification` from `75a8108`. The owner chose to proceed with synthetic rows that mirror the documented Cashew export format; every case beyond the verified ordinary EUR rows from v6.7.5+524 stays explicitly unverified against a real export.
+
 Ordinary EUR rows from v6.7.5+524 are already verified. Check real transfer and payback rows where available. Agree how to handle borrowing, lending, scheduled entries, and populated metadata before widening support. Test both layouts, accents, integer-cent handling, matches after renames and layout changes, account creation only on confirmation, and original-expense links. Unverified entries retain their review status.
 
 ### LEDGER-1 · Posted versus future-dated activity
