@@ -60,7 +60,7 @@ test('a link saved to a year before the start stays selectable in the picker', (
 
   const labels = plannedCostOptions([k_ski], '2026-11-19', savedLink).map(option => option.label);
 
-  assert.deepEqual(labels, ['Ski week · original month 2026-02', 'Ski week · February 2027']);
+  assert.deepEqual(labels, ['Ski week · 2026-02, before it repeats', 'Ski week · February 2027']);
 });
 
 test('comparable-cost evidence counts a recurring cost only from its start year', () => {
@@ -194,4 +194,33 @@ test('a recurring cost says the year it repeats from only when it has a start ye
   const legacyGifts = { id: 'gifts', name: 'Gifts', month: 12, amount: 30000 };
 
   assert.deepEqual([plannedCostRepeatText(legacyGifts), plannedCostRepeatText(k_ski)], ['every year', 'every year from 2027']);
+});
+
+test('with a cost repeating from 2027, a target-only edit to the 2027 plan leaves Expected savings unchanged', () => {
+  const history = [
+    createTransaction({ id: 'salary-october', type: 'income', category: 'salary', date: '2026-10-25', amount: 200000 }),
+    createTransaction({ id: 'groceries-october', date: '2026-10-12', amount: 30000 })
+  ];
+  const state = createFinancialState({ transactions: history, events: [k_ski], outlook: { completeMonths: ['2026-10'] } });
+  const planOptions = { year: 2027, fromMonth: 1, income: 200000, cushion: 0, window: 3, today: k_today };
+  const approval = { id: 'plan-2027', fromMonth: 1, today: k_today };
+  const suggestedPlan = approvePlanRevision(state, buildPlan(state, planOptions), approval);
+  const editedTargetPlan = approvePlanRevision(state, buildPlan(state, { ...planOptions, overrides: { groceries: 5000 }, cushion: 40000 }), approval);
+
+  const february = candidate => expectedSavings(candidate, '2027-02', k_today);
+
+  // October's €300 groceries and €2,000 salary, plus the €900 ski week in February.
+  assert.deepEqual([february(suggestedPlan).income, february(suggestedPlan).expense], [200000, 120000]);
+  assert.deepEqual(february(editedTargetPlan), february(suggestedPlan));
+  assert.deepEqual(february(editedTargetPlan), february(state));
+});
+
+test("an amount edited on one device and a name on the other keep the cost's start year", () => {
+  const base = createFinancialState({ events: [k_ski] });
+  const local = createFinancialState({ events: [{ ...k_ski, amount: 95000 }] });
+  const remote = createFinancialState({ events: [{ ...k_ski, name: 'Ski trip' }] });
+
+  const { result, conflicts } = mergeThreeWay(base, local, remote);
+
+  assert.deepEqual([conflicts, result.events], [[], [{ ...k_ski, amount: 95000, name: 'Ski trip' }]]);
 });

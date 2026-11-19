@@ -57,8 +57,11 @@ test("a cost that repeats every year from next year's draft is saved from that y
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
 
   await dialog.getByLabel('A trip, a big purchase, a seasonal cost · optional', { exact: true }).fill(k_longName);
-  await dialog.getByRole('switch', { name: 'Repeats every year', exact: true }).click();
+  const repeatSwitch = dialog.getByRole('switch', { name: 'Repeats every year', exact: true });
+  await expect(repeatSwitch).toHaveAccessibleDescription('Off: 2027 only.');
+  await repeatSwitch.click();
   await expect(dialog.getByText('Counts from 2027 onwards. 2026 and earlier stay as they are.', { exact: true })).toBeVisible();
+  await expect(repeatSwitch).toHaveAccessibleDescription('Counts from 2027 onwards. 2026 and earlier stay as they are.');
   await dialog.getByLabel('Amount each year · EUR', { exact: true }).fill('900');
   await dialog.getByLabel('Month', { exact: true }).selectOption({ label: 'February' });
   await dialog.getByRole('button', { name: 'Add another event', exact: true }).click();

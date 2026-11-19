@@ -37,14 +37,14 @@ function SuggestionCard({ estimate, useLabel, onUse }) {
 // For a planned cost being added: the owner says what it is like, then may use the suggestion.
 export function NewPlannedCostSuggestion({ state, evaluationDate, candidate, likeValue, onLikeChange, onUseAmount }) {
   const choices = useMemo(() => comparableLikeChoices(state, evaluationDate), [state, evaluationDate]);
-  // Only the candidate's identity and year affect which costs compare, so typing its name does not recompute.
+  // Only the candidate's identity and timing affect which costs compare, so typing its name does not recompute.
   const estimate = useMemo(() => {
     const like = parseLikeChoice(likeValue);
     if (!like) {
       return null;
     }
     return comparableCostEstimate(comparableOccurrences(state, candidate, evaluationDate, like));
-  }, [state, evaluationDate, candidate.id, candidate.year, likeValue]);
+  }, [state, evaluationDate, candidate.id, candidate.year, candidate.fromYear, likeValue]);
   const options = [
     { value: k_noLikeChoice, label: 'No comparison' },
     ...choices.plannedCosts.map(choice => ({ value: JSON.stringify(choice.like), label: `Like ${choice.name} · ${shortMonthLabel(choice.month)}` })),

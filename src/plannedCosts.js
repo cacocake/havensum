@@ -1,4 +1,4 @@
-import { monthKeyOf, monthOf } from './calendar.js';
+import { monthKeyOf, monthOf, yearOfMonth } from './calendar.js';
 import { longMonthLabel } from './monthLabels.js';
 import { k_monthsPerYear } from './domainConstants.js';
 
@@ -123,6 +123,18 @@ export function needsPlannedCostReview(expense, event, month) {
     && ((link.singleOccurrence && event.year) || link.month.slice(0, 4) === month.slice(0, 4));
 }
 
+// A saved link that no longer matches an occurrence: either before the cost
+// starts repeating (owner decision P04) or to a month it has moved from.
+function savedLinkLabel(event, savedLink) {
+  if (!event) {
+    return `Former planned cost · original month ${savedLink.month}`;
+  }
+  if (!plannedCostOccursInYear(event, yearOfMonth(savedLink.month))) {
+    return `${event.name} · ${savedLink.month}, before it repeats`;
+  }
+  return `${event.name} · original month ${savedLink.month}`;
+}
+
 // Offers occurrences from the year before the payment onwards, so a payment
 // settled after its planned cost can still link to it (owner decision F15).
 export function plannedCostOptions(events, paymentDate, savedLink) {
@@ -152,10 +164,7 @@ export function plannedCostOptions(events, paymentDate, savedLink) {
   }
   if (savedLink && !options.has(JSON.stringify(savedLink))) {
     const event = events.find(candidate => candidate.id === savedLink.eventId);
-    options.set(JSON.stringify(savedLink), {
-      label: `${event?.name ?? 'Former planned cost'} · original month ${savedLink.month}`,
-      month: savedLink.month
-    });
+    options.set(JSON.stringify(savedLink), { label: savedLinkLabel(event, savedLink), month: savedLink.month });
   }
   return [...options].sort(([, left], [, right]) => left.month.localeCompare(right.month) || left.label.localeCompare(right.label))
     .map(([value, option]) => ({ value, label: option.label }));

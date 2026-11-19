@@ -338,7 +338,7 @@ export function PlanForm({onClose}){
      return remainingDrafts;
    });
  }
- const suggestionCandidate=useMemo(()=>({id:k_draftEventId,name:eventName.trim(),year,month:Number(eventMonth),amount:0}),[eventName,year,eventMonth]);
+ const suggestionCandidate=useMemo(()=>draftPlannedCost({name:eventName.trim(),month:Number(eventMonth),amount:0,year,repeatsEveryYear:eventRepeatsEveryYear}),[eventName,year,eventMonth,eventRepeatsEveryYear]);
  const candidateEvent=eventName.trim()&&cents(eventAmount)>0?draftPlannedCost({name:eventName.trim(),month:Number(eventMonth),amount:cents(eventAmount),year,repeatsEveryYear:eventRepeatsEveryYear}):null;
  // Stable between renders so the forecast preview only recomputes for new evidence.
  const plannedEvents=useMemo(()=>[...(state.events||[]).map(event=>withYearAmountDraft(event,year,yearAmountDrafts)),...draftEvents,...(candidateEvent?[candidateEvent]:[])],[state.events,yearAmountDrafts,year,draftEvents,candidateEvent?.name,candidateEvent?.month,candidateEvent?.amount,candidateEvent?.fromYear]);

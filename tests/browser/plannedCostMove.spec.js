@@ -90,8 +90,7 @@ test('a move starts this year at the earliest, and repeating the current month c
   await costs.getByRole('button', { name: 'Move December celebrations', exact: true }).click();
   const dialog = page.getByRole('dialog');
 
-  const firstYears = await dialog.getByLabel('First year', { exact: true }).locator('option').allTextContents();
-  expect(firstYears).toEqual(['2026', '2027', '2028', '2029', '2030', '2031']);
+  await expect(dialog.getByLabel('First year', { exact: true }).locator('option')).toHaveText(['2026', '2027', '2028', '2029', '2030', '2031']);
   await expect(dialog.getByTestId('planned-cost-move-summary')).toHaveText('December celebrations is already in December from 2026.');
   await expect(dialog.getByRole('button', { name: 'Move from 2026', exact: true })).toBeDisabled();
 });
@@ -133,12 +132,12 @@ test('this year offers only the months still ahead, and a cost whose month has p
   const dialog = page.getByRole('dialog');
 
   await costs.getByRole('button', { name: 'Move December celebrations', exact: true }).click();
-  expect(await dialog.getByLabel('New month', { exact: true }).locator('option').allTextContents()).toEqual(['November', 'December']);
+  await expect(dialog.getByLabel('New month', { exact: true }).locator('option')).toHaveText(['November', 'December']);
   await dialog.getByLabel('First year', { exact: true }).selectOption('2027');
-  expect(await dialog.getByLabel('New month', { exact: true }).locator('option').count()).toBe(12);
+  await expect(dialog.getByLabel('New month', { exact: true }).locator('option')).toHaveCount(12);
   await dialog.getByRole('button', { name: 'Keep as it is', exact: true }).click();
 
   await costs.getByRole('button', { name: 'Move Spring cleaning', exact: true }).click();
-  const firstYears = await dialog.getByLabel('First year', { exact: true }).locator('option').allTextContents();
-  expect(firstYears).toEqual(['2027', '2028', '2029', '2030', '2031', '2032']);
+  // Retrying assertion: the dialog can still be rendering its options right after opening.
+  await expect(dialog.getByLabel('First year', { exact: true }).locator('option')).toHaveText(['2027', '2028', '2029', '2030', '2031', '2032']);
 });
