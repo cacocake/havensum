@@ -1,6 +1,6 @@
 # Havensum — developer handoff
 
-For the current task board and session handoff, see [docs/FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md). PLAN-1–4, SAVINGS-1 and BACKUP-1 are integrated in `develop`; the remaining tickets are blocked on owner input, samples, credentials or a device. The dated sections below describe earlier implementation snapshots.
+For the current task board and session handoff, see [docs/FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md). PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are integrated in `develop`; FORECAST-2 discovery is next and the remaining tickets are blocked on owner input, samples, credentials or a device. The dated sections below describe earlier implementation snapshots.
 
 ## Migration foundation — 18 November 2026
 
