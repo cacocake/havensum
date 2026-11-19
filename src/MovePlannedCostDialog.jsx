@@ -4,15 +4,30 @@ import { useApp } from './context.js';
 import { Button, Dialog, Select, T, Theme } from './ui.jsx';
 import { euro } from './money.js';
 import { monthNumberName, shortMonthLabel } from './monthLabels.js';
-import { k_monthsPerYear } from './domainConstants.js';
 import { plannedCostMonth } from './plannedCosts.js';
-import { movePlannedCost, plannedCostMovePreview, plannedCostMoveYears } from './plannedCostMoves.js';
+import { movePlannedCost, plannedCostMoveMonths, plannedCostMovePreview, plannedCostMoveYears } from './plannedCostMoves.js';
 
-const k_monthOptions = Array.from({ length: k_monthsPerYear }, (_, index) => ({ value: String(index + 1), label: monthNumberName(index + 1) }));
+function monthOptions(months) {
+  return months.map(monthNumber => ({ value: String(monthNumber), label: monthNumberName(monthNumber) }));
+}
 
-// The first year offered: the year being viewed, or this year for a past year.
+// The first year offered: the year being viewed when it can be chosen, the
+// earliest allowed year for an earlier one, the latest for a later one.
 function defaultFirstYear(viewedYear, moveYears) {
-  return moveYears.includes(viewedYear) ? viewedYear : moveYears[0];
+  if (moveYears.includes(viewedYear)) {
+    return viewedYear;
+  }
+  if (viewedYear < moveYears[0]) {
+    return moveYears[0];
+  }
+  return moveYears.at(-1);
+}
+
+function summaryText(event, preview, firstYear, month) {
+  if (!preview.isChange) {
+    return `${event.name} is already in ${monthNumberName(month)} from ${firstYear}.`;
+  }
+  return `From ${preview.firstChangedYear}, ${event.name} is planned in ${monthNumberName(preview.newMonth)} instead of ${monthNumberName(preview.previousMonth)}.`;
 }
 
 function ReviewNotice({ expenses }) {
@@ -34,16 +49,32 @@ function ReviewNotice({ expenses }) {
 export default function MovePlannedCostDialog({ event, viewedYear, onClose }) {
   const { state, setState, today, notify } = useApp();
   const colors = useContext(Theme);
-  const moveYears = plannedCostMoveYears(today);
+  const moveYears = plannedCostMoveYears(today, event);
   const initialYear = defaultFirstYear(viewedYear, moveYears);
   const initialMonth = plannedCostMonth(event, initialYear);
   const [firstYear, setFirstYear] = useState(String(initialYear));
   const [month, setMonth] = useState(String(initialMonth));
   const [error, setError] = useState('');
+  const offeredMonths = plannedCostMoveMonths(today, Number(firstYear));
   const move = { eventId: event.id, fromYear: Number(firstYear), month: Number(month) };
   const preview = useMemo(() => plannedCostMovePreview(state, move), [state, event.id, firstYear, month]);
   const isDirty = firstYear !== String(initialYear) || month !== String(initialMonth);
   const earlierYear = move.fromYear - 1;
+
+  function chooseMonth(value) {
+    setMonth(value);
+    setError('');
+  }
+
+  // This year offers only the months still ahead, so an earlier month moves to the first one offered.
+  function chooseFirstYear(value) {
+    setFirstYear(value);
+    setError('');
+    const monthsForYear = plannedCostMoveMonths(today, Number(value));
+    if (!monthsForYear.includes(Number(month))) {
+      setMonth(String(monthsForYear[0]));
+    }
+  }
 
   function confirmMove() {
     try {
@@ -70,13 +101,9 @@ export default function MovePlannedCostDialog({ event, viewedYear, onClose }) {
   </View>;
 
   return <Dialog title={`Move ${event.name}`} subtitle="Choose its new month and the first year it applies." onClose={onClose} dirty={isDirty} footer={footer}>
-    <Select label="New month" value={month} onChange={value => { setMonth(value); setError(''); }} options={k_monthOptions}/>
-    <Select label="First year" value={firstYear} onChange={value => { setFirstYear(value); setError(''); }} options={moveYears.map(year => ({ value: String(year), label: String(year) }))}/>
-    <T testID="planned-cost-move-summary" style={{ fontSize: 12, marginBottom: 10 }}>
-      {preview.isChange
-        ? `From ${firstYear}, ${event.name} is planned in ${monthNumberName(move.month)} instead of ${monthNumberName(preview.previousMonth)}.`
-        : `${event.name} is already in ${monthNumberName(move.month)} from ${firstYear}.`}
-    </T>
+    <Select label="First year" value={firstYear} onChange={chooseFirstYear} options={moveYears.map(year => ({ value: String(year), label: String(year) }))}/>
+    <Select label="New month" value={month} onChange={chooseMonth} options={monthOptions(offeredMonths)}/>
+    <T testID="planned-cost-move-summary" style={{ fontSize: 12, marginBottom: 10 }}>{summaryText(event, preview, firstYear, move.month)}</T>
     <T style={{ fontSize: 12, color: colors.sub, marginBottom: 10 }}>
       {earlierYear} and earlier keep their month and linked expenses. Frozen plans and recorded transactions stay as saved; Expected savings follows the new month.
     </T>

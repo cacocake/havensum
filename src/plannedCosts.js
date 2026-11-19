@@ -1,4 +1,5 @@
 import { monthKeyOf, monthOf } from './calendar.js';
+import { longMonthLabel } from './monthLabels.js';
 
 const k_occurrenceMonth = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -21,12 +22,15 @@ export function plannedCostAmount(event, year) {
   return event.yearAmounts?.[String(year)] ?? event.amount;
 }
 
+function isPlainRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 export function isValidYearAmounts(event) {
   if (event.yearAmounts === undefined) {
     return true;
   }
-  const isRecord = event.yearAmounts !== null && typeof event.yearAmounts === 'object' && !Array.isArray(event.yearAmounts);
-  if (!isRecord || event.year) {
+  if (!isPlainRecord(event.yearAmounts) || event.year) {
     return false;
   }
   return Object.entries(event.yearAmounts)
@@ -65,8 +69,7 @@ export function isValidMonthFromYear(event) {
   if (event.monthFromYear === undefined) {
     return true;
   }
-  const isRecord = event.monthFromYear !== null && typeof event.monthFromYear === 'object' && !Array.isArray(event.monthFromYear);
-  if (!isRecord || event.year) {
+  if (!isPlainRecord(event.monthFromYear) || event.year) {
     return false;
   }
   return Object.entries(event.monthFromYear)
@@ -107,7 +110,7 @@ export function plannedCostOptions(events, paymentDate, savedLink) {
       if (year < earliestYear && !isSavedOccurrence) {
         continue;
       }
-      const monthLabel = new Date(year, plannedCostMonth(event, year) - 1, 1).toLocaleDateString('en', { month: 'long', year: 'numeric' });
+      const monthLabel = longMonthLabel(month);
       const link = { eventId: event.id, month };
       if (event.year) {
         link.singleOccurrence = true;

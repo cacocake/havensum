@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildPlan } from '../src/engine.js';
 import { approvePlanRevision } from '../src/planArchive.js';
-import { movePlannedCost, plannedCostMovePreview, plannedCostMoveYears } from '../src/plannedCostMoves.js';
+import { movePlannedCost, plannedCostMoveMonths, plannedCostMovePreview, plannedCostMoveYears } from '../src/plannedCostMoves.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 
 // Owner decisions F16/F17: a recurring planned cost moves from this year or a
@@ -89,7 +89,7 @@ test('expenses already linked to the new month of a moved year do not need revie
 });
 
 test('a move can start this year or in one of the next five years', () => {
-  assert.deepEqual(plannedCostMoveYears(k_today), [2026, 2027, 2028, 2029, 2030, 2031]);
+  assert.deepEqual(plannedCostMoveYears(k_today, k_celebrations), [2026, 2027, 2028, 2029, 2030, 2031]);
 });
 
 test('the move preview names the later moves it replaces and the month in effect before it', () => {
@@ -98,4 +98,58 @@ test('the move preview names the later moves it replaces and the month in effect
   const preview = plannedCostMovePreview(state, { eventId: 'celebrations', fromYear: 2028, month: 9 });
 
   assert.deepEqual([preview.previousMonth, preview.replacedMoveYears, preview.isChange], [11, [2029], true]);
+});
+
+// Owner answer (19 November 2026): a move from this year needs both its old
+// and its new month to be this month or later; otherwise it starts next year.
+test('a move from this year cannot land in a month that has already passed', () => {
+  const state = plannedState();
+
+  assert.throws(() => movePlannedCost(state, { eventId: 'celebrations', fromYear: 2026, month: 3, today: k_today }), /already passed/);
+  const moved = movePlannedCost(state, { eventId: 'celebrations', fromYear: 2026, month: 11, today: k_today });
+  assert.deepEqual(moved.events[0].monthFromYear, { 2026: 11 });
+});
+
+test('a cost whose month this year has already passed can only move from next year', () => {
+  const state = plannedState({ events: [{ id: 'spring-cleaning', name: 'Spring cleaning', month: 3, amount: 5000 }] });
+
+  assert.throws(() => movePlannedCost(state, { eventId: 'spring-cleaning', fromYear: 2026, month: 12, today: k_today }), /already passed/);
+  assert.deepEqual(plannedCostMoveYears(k_today, state.events[0]), [2027, 2028, 2029, 2030, 2031, 2032]);
+  assert.deepEqual(plannedCostMoveYears(k_today, k_celebrations), [2026, 2027, 2028, 2029, 2030, 2031]);
+});
+
+test('this year offers only the months still ahead; later years offer every month', () => {
+  assert.deepEqual(plannedCostMoveMonths(k_today, 2026), [11, 12]);
+  assert.deepEqual(plannedCostMoveMonths(k_today, 2027), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+});
+
+test('a preview names the first year whose month really changes', () => {
+  const state = plannedState({ events: [{ ...k_celebrations, month: 3, monthFromYear: { 2027: 6, 2029: 9 } }] });
+
+  const preview = plannedCostMovePreview(state, { eventId: 'celebrations', fromYear: 2028, month: 6 });
+
+  assert.deepEqual([preview.isChange, preview.firstChangedYear, preview.previousMonth], [true, 2029, 9]);
+});
+
+test('a redundant stored move is not a change when the move would only tidy it away', () => {
+  const state = plannedState({ events: [{ ...k_celebrations, monthFromYear: { 2027: 12 } }] });
+
+  const preview = plannedCostMovePreview(state, { eventId: 'celebrations', fromYear: 2027, month: 12 });
+
+  assert.equal(preview.isChange, false);
+  assert.throws(() => movePlannedCost(state, { eventId: 'celebrations', fromYear: 2027, month: 12, today: k_today }), /already/);
+});
+
+test('the preview lists only expenses the move itself sends to review', () => {
+  const state = plannedState({
+    events: [{ ...k_celebrations, monthFromYear: { 2028: 11 } }],
+    transactions: [
+      celebrationsPayment('early-booking-2027', '2026-11-12', '2027-12'),
+      celebrationsPayment('already-flagged-2028', '2026-11-13', '2028-12')
+    ]
+  });
+
+  const preview = plannedCostMovePreview(state, { eventId: 'celebrations', fromYear: 2027, month: 10 });
+
+  assert.deepEqual(preview.expensesToReview.map(expense => expense.id), ['early-booking-2027']);
 });

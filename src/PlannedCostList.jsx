@@ -24,7 +24,8 @@ export default function PlannedCostList({ year }) {
   const colors = useContext(Theme);
   const [movingEventId, setMovingEventId] = useState(null);
   const costs = plannedCostsInYear(state.events ?? [], year);
-  const movingEvent = (state.events ?? []).find(event => event.id === movingEventId);
+  // Only a recurring cost can move; a merge or restore may change it while the dialog is open.
+  const movingEvent = (state.events ?? []).find(event => event.id === movingEventId && !event.year);
   if (!costs.length) {
     return null;
   }

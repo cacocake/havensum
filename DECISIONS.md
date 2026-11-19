@@ -131,6 +131,7 @@ These choices are approved requirements for the upcoming implementation, not cla
 | F15 | Owner approved, implemented | An expense dated after an occurrence may link to it | Spending follows the occurrence month; cash follows the payment date |
 | F16 | Owner approved; year amount implemented, move in progress | Accepting a suggestion sets that draft year's amount only; moving a recurring cost applies from a chosen year | Stored as optional `yearAmounts` in schema v4. The move is built by the FORECAST-2 follow-up (see F17) |
 | F17 | Owner approved (19 November 2026) | Move a recurring planned cost from a *Planned costs* card in Year ahead, from this year or a later year; expenses linked to the old month in a moved year stay linked and are flagged for review | Saved at once; earlier years, frozen plans and recorded transactions are unchanged |
+| F18 | Owner approved (19 November 2026) | A move from this year needs both its old and its new month to be this month or later; otherwise it starts next year | Past occurrences are never moved; the dialog offers only allowed years and months |
 
 ## LEDGER-1 — posted versus future-dated activity (owner answer, 19 November 2026)
 

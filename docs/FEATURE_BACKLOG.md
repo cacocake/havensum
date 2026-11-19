@@ -124,6 +124,7 @@ Let the owner move a recurring planned cost's month from a chosen year onward. E
 1. **Where:** a *Planned costs* card in Year Plan › Year ahead lists the year's planned costs; a recurring one offers **Move…** to pick the new month and the first year it applies. It is saved at once: forecasts update and frozen plans stay as approved.
 2. **First year:** this year or a later year. Past years are locked.
 3. **Expenses already linked to the old month in a moved year:** their links stay as recorded and are flagged for review (the existing "This planned cost moved" list). The move dialog says how many. They are not evidence until relinked by hand.
+4. **A move from this year** (asked after review): both the old and the new month must be this month or later; otherwise the move starts next year.
 
 ## Queued delivery and integrations
 

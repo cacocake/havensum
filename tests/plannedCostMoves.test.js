@@ -155,3 +155,16 @@ test("a year's planned costs are listed in month order with the month in effect 
     [['spring-fair', 3], ['celebrations', 11]]
   ]);
 });
+
+test('an expense still linked to the old month of a moved year keeps that link selectable in the picker', () => {
+  const state = createFinancialState({ events: [k_movedFrom2027] });
+
+  const options = plannedCostOptions(state.events, '2026-11-12', { eventId: 'celebrations', month: '2027-12' });
+
+  assert.deepEqual(options.map(option => option.label), [
+    'December celebrations · December 2025',
+    'December celebrations · December 2026',
+    'December celebrations · November 2027',
+    'December celebrations · original month 2027-12'
+  ]);
+});

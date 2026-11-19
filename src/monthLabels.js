@@ -5,6 +5,13 @@ export function shortMonthLabel(month) {
   return new Date(`${month}-01T12:00:00`).toLocaleString('en', k_shortMonthLabelOptions);
 }
 
+const k_longMonthLabelOptions = { month: 'long', year: 'numeric' };
+
+// "December 2025" for a YYYY-MM month key.
+export function longMonthLabel(month) {
+  return new Date(`${month}-01T12:00:00`).toLocaleString('en', k_longMonthLabelOptions);
+}
+
 const k_monthNameOptions = { month: 'long' };
 const k_anyYear = 2000;
 

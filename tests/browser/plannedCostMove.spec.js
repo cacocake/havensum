@@ -125,3 +125,20 @@ test('the planning interview lists a moved planned cost in its month for the dra
 
   await expect(dialog.getByText('December celebrations · month 11 · every year', { exact: true })).toBeVisible();
 });
+
+test('this year offers only the months still ahead, and a cost whose month has passed moves from next year', async ({ page }) => {
+  const ledger = ledgerWithPlannedCosts();
+  ledger.events.push({ id: 'spring-cleaning', name: 'Spring cleaning', month: 3, amount: 5000 });
+  const costs = await openYearAhead(page, ledger);
+  const dialog = page.getByRole('dialog');
+
+  await costs.getByRole('button', { name: 'Move December celebrations', exact: true }).click();
+  expect(await dialog.getByLabel('New month', { exact: true }).locator('option').allTextContents()).toEqual(['November', 'December']);
+  await dialog.getByLabel('First year', { exact: true }).selectOption('2027');
+  expect(await dialog.getByLabel('New month', { exact: true }).locator('option').count()).toBe(12);
+  await dialog.getByRole('button', { name: 'Keep as it is', exact: true }).click();
+
+  await costs.getByRole('button', { name: 'Move Spring cleaning', exact: true }).click();
+  const firstYears = await dialog.getByLabel('First year', { exact: true }).locator('option').allTextContents();
+  expect(firstYears).toEqual(['2027', '2028', '2029', '2030', '2031', '2032']);
+});
