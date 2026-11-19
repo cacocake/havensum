@@ -13,6 +13,26 @@ export function expenseReportingMonth(expense) {
   return isPlannedCostLink(expense.plannedCost) ? expense.plannedCost.month : monthOf(expense.date);
 }
 
+const k_yearKeyPattern = /^\d{4}$/;
+
+// A recurring planned cost can carry an amount for a single year, set when the
+// owner accepts a suggestion in that year's draft (owner decision F16).
+export function plannedCostAmount(event, year) {
+  return event.yearAmounts?.[String(year)] ?? event.amount;
+}
+
+export function isValidYearAmounts(event) {
+  if (event.yearAmounts === undefined) {
+    return true;
+  }
+  const isRecord = event.yearAmounts !== null && typeof event.yearAmounts === 'object' && !Array.isArray(event.yearAmounts);
+  if (!isRecord || event.year) {
+    return false;
+  }
+  return Object.entries(event.yearAmounts)
+    .every(([year, amount]) => k_yearKeyPattern.test(year) && Number.isSafeInteger(amount) && amount >= 0);
+}
+
 export function eventsInMonth(events, month) {
   const [year, monthNumber] = month.split('-').map(Number);
   return events.filter(event => event.month === monthNumber && (!event.year || event.year === year));
