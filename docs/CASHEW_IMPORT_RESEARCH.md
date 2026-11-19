@@ -30,7 +30,7 @@ To verify an adapter, obtain the Cashew app version and a small sanitized CSV ex
 
 ## IMPORT-2 synthetic verification (19 November 2026)
 
-The owner chose to verify against synthetic rows that mirror the published export (K01). **Only the ordinary EUR rows from v6.7.5+524 are verified against a real export. Every behaviour below is unverified against a real export and must not be advertised as exact Cashew compatibility.** Tests: `tests/cashewVerification.test.js`, `tests/cashewImport.test.js` and `tests/browser/cashewImport.spec.js`.
+The owner chose to verify against synthetic rows that mirror the published export (K01). **Only the ordinary EUR rows from v6.7.5+524 are verified against a real export. Every behaviour below is unverified against a real export and must not be advertised as exact Cashew compatibility.** (Several shapes were later seen in the owner's own test export; see the last section.) Tests: `tests/cashewVerification.test.js`, `tests/cashewImport.test.js` and `tests/browser/cashewImport.spec.js`.
 
 - **Both layouts** (`cashew-csv-v1`, `cashew-csv-v2`) keep UTF-8 accents (with or without a byte order mark) and match an accented Havensum account name exactly.
 - **Integer cents:** both layouts serialize a Dart double (`amount.toString()`), so both now accept floating-point tails within EUR 0.0000000001 of a cent (`-5.0`, `-12.340000000000002`). A real fraction of a cent, a comma, a zero-padded fraction such as `1.000` (read as a thousands separator), a currency symbol or a zero amount stays a row error.

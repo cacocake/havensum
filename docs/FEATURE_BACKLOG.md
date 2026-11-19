@@ -80,9 +80,9 @@ Reuse the Real Bank adapter if the second layout matches. Otherwise create a dis
 
 ### IMPORT-2 · Extend Cashew verification
 
-**Status: Done.** Closed on 19 November 2026 with its two follow-ups (the owner's real test export, K10–K12, and the loan-sign confirmation, K13), all reviewed, merged into `develop` and pushed (last merge `e6e026a`). **Originally needed:** representative rows and agreed classifications — supplied as owner answers K01–K13 and the owner's own test export. Remaining unverified cases (older `debt`/`credit` rows) are optional and do not reopen the ticket.
+**Status: Done.** Closed on 19 November 2026 with its two follow-ups (the owner's real test export, K10–K12, and the loan-sign confirmation, K13), all reviewed, merged into `develop` and pushed (last merge `e6e026a`). **Originally needed:** representative rows and agreed classifications — supplied as owner answers K01–K13 and the owner's own test export. Remaining unverified cases (older `debt`/`credit` rows, the published v1 layout beyond ordinary rows, loan objectives used for lending) are optional and do not reopen the ticket.
 
-**Status (19 November 2026):** Done, reviewed and merged into `develop` from `codex/cashew-verification` (started from `75a8108`; implementation `11c9a44`–`b202a16`; review fixes `bc6518b`, `e440610`, `771e7c4`). See the IMPORT-2 handoff note at the end. The owner chose to proceed with synthetic rows that mirror the documented Cashew export format; every case beyond the verified ordinary EUR rows from v6.7.5+524 stays explicitly unverified against a real export.
+**Status (19 November 2026):** Done, reviewed and merged into `develop` from `codex/cashew-verification` (started from `75a8108`; implementation `11c9a44`–`b202a16`; review fixes `bc6518b`, `e440610`, `771e7c4`). See the IMPORT-2 handoff note at the end. The owner chose to proceed with synthetic rows that mirror the documented Cashew export format; every case beyond the verified ordinary EUR rows from v6.7.5+524 stays explicitly unverified against a real export. (Later the owner's own test export confirmed several shapes; see the real-export follow-up.)
 
 **Owner answers (19 November 2026, in chat; recorded as K01–K08 in DECISIONS.md):**
 1. **Borrowing/lending:** a `debt` row is importable only after picking an existing Havensum loan in review; positive = loan proceeds (unlinked balance adjustment tagged with the loan), negative = loan repayment expense tagged with the loan. `credit` (lent) rows stay blocked.
@@ -573,4 +573,4 @@ The implementation note below records how these were built; it stores only per-y
 ## Session handoff — IMPORT-2 closed (19 November 2026)
 
 - **K13 follow-up:** the owner confirmed the loan-objective sign follows the cash (+ = loan money received, − = a payment on the loan). The sign rule stays; the review now spells out what a loan-linked row becomes. Merged and pushed as `e6e026a` after the full gate (523 unit, 468 browser, build, Hermes compile) and a read-only Claude review with nothing blocking.
-- **Board:** IMPORT-2 is closed. Optional only: a real export with older `debt`/`credit` type rows would verify K02.
+- **Board:** IMPORT-2 is closed. Optional only: real exports with older `debt`/`credit` type rows (K02), the published v1 layout beyond ordinary rows, or a loan objective used for lending would verify those cases.
