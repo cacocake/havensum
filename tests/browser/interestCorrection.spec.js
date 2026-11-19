@@ -177,3 +177,69 @@ test('a corrected rate typed but not yet set blocks Apply and asks before discar
   await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
   expect(await savedLedger(page)).toEqual(before);
 });
+
+// LEDGER-2a (L07): corrections start no earlier than the first entry or rate.
+test('a mistyped far-past start year is refused with the earliest correctable month', async ({ page }) => {
+  await openLedger(page, savingsLedger());
+  await openAccount(page);
+  const dialog = await openCorrection(page, 'Correct past interest');
+  await expect(dialog.getByTestId('interest-correction-earliest')).toHaveText('Rates can start from Sep 2026, the account\'s first entry or rate period.');
+
+  await dialog.getByLabel('Corrected rate · %', { exact: true }).fill('6');
+  await dialog.getByLabel('From month · YYYY-MM', { exact: true }).fill('2016-09');
+  await dialog.getByRole('button', { name: 'Set rate from this month', exact: true }).click();
+
+  await expect(dialog.getByRole('alert')).toHaveText('Corrected rates can start from Sep 2026, the account\'s first entry or rate period.');
+  await expect(dialog.getByText('6% from Sep 2016, ongoing', { exact: true })).toHaveCount(0);
+  await expect(dialog.getByText('12% from Sep 2026, ongoing', { exact: true })).toBeVisible();
+  await expectNoPageOverflow(page);
+});
+
+test('a transfer into the account before its first rate lets a correction start from that month', async ({ page }) => {
+  await openLedger(page, {
+    ...savingsLedger([createTransaction({ id: 'move-to-reserve', type: 'transfer', title: 'To reserve', category: null, account: 'everyday', toAccount: 'reserve', date: '2026-08-10', amount: 5000 })]),
+    accounts: [
+      { id: 'everyday', name: 'Everyday', tag: 'Personal', openingBalance: 100000 },
+      { id: 'reserve', name: k_accountName, tag: 'Savings', openingBalance: 100000, interestSchedule: [{ since: '2026-09', rate: 12 }] }
+    ]
+  });
+  await openAccount(page);
+  const dialog = await openCorrection(page, 'Correct past interest');
+  await expect(dialog.getByTestId('interest-correction-earliest')).toHaveText('Rates can start from Aug 2026, the account\'s first entry or rate period.');
+
+  await dialog.getByLabel('Corrected rate · %', { exact: true }).fill('12');
+  await dialog.getByLabel('From month · YYYY-MM', { exact: true }).fill('2026-08');
+  await dialog.getByRole('button', { name: 'Set rate from this month', exact: true }).click();
+
+  await expect(dialog.getByText('12% from Aug 2026, through Aug 2026', { exact: true })).toBeVisible();
+  await expect(dialog.getByTestId('interest-correction-2026-08')).toBeVisible();
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+});
+
+test('a draft rate whose month falls behind the earliest correctable month at month end is explained instead of crashing', async ({ page }) => {
+  const legacyLedger = savingsLedger();
+  delete legacyLedger.accounts[0].interestSchedule;
+  legacyLedger.accounts[0].unscheduledInterest = 12;
+  await page.clock.install({ time: new Date('2026-11-30T23:58:00') });
+  await page.addInitScript(({ key, ledger }) => {
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, JSON.stringify(ledger));
+    }
+  }, { key: k_ledgerKey, ledger: legacyLedger });
+  await page.goto('/');
+  await openAccount(page);
+  const dialog = await openCorrection(page, 'Correct past interest');
+  await expect(dialog.getByTestId('interest-correction-earliest')).toHaveText('Rates can start from Nov 2026, the account\'s first entry or rate period.');
+  await dialog.getByLabel('Corrected rate · %', { exact: true }).fill('12');
+  await dialog.getByLabel('From month · YYYY-MM', { exact: true }).fill('2026-11');
+  await dialog.getByRole('button', { name: 'Set rate from this month', exact: true }).click();
+  await expect(dialog.getByText('12% from Nov 2026, ongoing', { exact: true })).toBeVisible();
+
+  await page.clock.runFor('03:00');
+
+  await expect(dialog.getByTestId('interest-correction-earliest')).toHaveText('Rates can start from Dec 2026, the account\'s first entry or rate period.');
+  await expect(dialog.getByRole('alert')).toHaveText('Corrected rates can start from Dec 2026, the account\'s first entry or rate period.');
+  await expect(dialog.getByRole('button', { name: 'Apply corrections', exact: true })).toBeDisabled();
+  await dialog.getByRole('button', { name: 'Remove the rate from Nov 2026', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+});

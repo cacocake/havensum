@@ -1,8 +1,8 @@
 import { accountBalance } from './ledger.js';
-import { nextMonth } from './calendar.js';
+import { monthOf, nextMonth } from './calendar.js';
 import { sumCents } from './money.js';
 import { shortMonthLabel } from './monthLabels.js';
-import { firstInterestMonth, interestRateForMonth } from './interestSchedule.js';
+import { firstInterestMonth, interestRateForMonth, requireCorrectableStart } from './interestSchedule.js';
 import { appInterestEntry, interestPostingDate, monthlyInterestAmount } from './savingsInterest.js';
 import {
   appInterestEntries, appInterestId, bankInterestEntries, interestCorrectionId, isAccountInterestCorrection, isAppInterestEntry,
@@ -21,13 +21,34 @@ function isAppOrCorrectionInterest(transaction, accountId) {
     && (isAppInterestEntry(transaction, accountId) || isInterestCorrection(transaction));
 }
 
+function isAccountTransaction(transaction, accountId) {
+  return transaction.account === accountId || transaction.toAccount === accountId;
+}
+
+// LEDGER-2a (L07): the earliest month a correction may start in is the
+// account's first recorded entry (a transfer into it included) or its first
+// stored rate period, whichever is earlier. App interest and corrections count
+// for the month they belong to, even when re-dated. An account with neither,
+// or whose first entry is still scheduled, may start from the current month.
+export function earliestCorrectableMonth(state, accountId, currentMonth) {
+  const account = state.accounts.find(candidate => candidate.id === accountId);
+  const entryMonths = state.transactions
+    .filter(transaction => isAccountTransaction(transaction, accountId))
+    .map(transaction => monthOf(transaction.date));
+  const candidates = [currentMonth, firstInterestMonth(account ?? {}), ...entryMonths, ...recordedInterestMonths(state, accountId)].filter(Boolean).sort();
+  return candidates[0];
+}
+
+function recordedInterestMonths(state, accountId) {
+  return state.transactions
+    .filter(transaction => isAppOrCorrectionInterest(transaction, accountId))
+    .map(interestEntryMonth);
+}
+
 // The first completed month the review looks at: the draft's first rate, or
 // an earlier month that already holds app interest or a correction.
 function firstReviewedMonth(state, draftAccount) {
-  const recordedMonths = state.transactions
-    .filter(transaction => isAppOrCorrectionInterest(transaction, draftAccount.id))
-    .map(interestEntryMonth);
-  const candidates = [firstInterestMonth(draftAccount), ...recordedMonths].filter(Boolean).sort();
+  const candidates = [firstInterestMonth(draftAccount), ...recordedInterestMonths(state, draftAccount.id)].filter(Boolean).sort();
   return candidates[0] ?? null;
 }
 
@@ -70,6 +91,10 @@ export function interestCorrectionReview(state, accountId, { currentMonth, sched
     interestSchedule: schedule ?? account.interestSchedule ?? [],
     interestBankChoices: mergedChoices(account.interestBankChoices ?? [], choices ?? [])
   };
+  const firstDraftMonth = firstInterestMonth(draftAccount);
+  if (firstDraftMonth) {
+    requireCorrectableStart(firstDraftMonth, earliestCorrectableMonth(state, accountId, currentMonth));
+  }
   const months = [];
   const bankInterestMonths = [];
   const startMonth = firstReviewedMonth(state, draftAccount);

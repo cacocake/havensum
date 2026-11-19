@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compoundSavings } from '../src/engine.js';
-import { applyInterestCorrection, interestCorrectionReview, StaleInterestCorrectionError, InterestChoiceRequiredError } from '../src/interestCorrection.js';
+import { applyInterestCorrection, earliestCorrectableMonth, interestCorrectionReview, StaleInterestCorrectionError, InterestChoiceRequiredError } from '../src/interestCorrection.js';
 import { validateState } from '../src/stateSchema.js';
 import { correctedSchedule, correctedScheduleWithout, InterestScheduleError } from '../src/interestSchedule.js';
 import { accountBalance, monthStats } from '../src/ledger.js';
@@ -222,8 +222,17 @@ test('stored corrections and bank-interest choices are validated', async context
   }
 });
 
+// The €1,000 arrives by a transfer in November 2025, so corrected rates may
+// start from then even though the first stored rate is January 2026.
+function transferInSavingsState() {
+  const transferIn = createTransaction({ id: 'move-to-savings', type: 'transfer', title: 'To savings', account: 'everyday', toAccount: 'savings', category: null, date: '2025-11-01', amount: 100000 });
+  const state = createSavingsState({ transactions: [transferIn] });
+  state.accounts[0].openingBalance = 0;
+  return compoundSavings(state, '2026-03');
+}
+
 test('an earlier first rate posts ordinary interest for months that had none and corrects the later ones', () => {
-  const state = postedSavingsState();
+  const state = transferInSavingsState();
   const schedule = correctedSchedule([{ since: '2026-01', rate: 12 }], { since: '2025-11', rate: 12 });
   const draft = { currentMonth: '2026-03', schedule };
 
@@ -236,6 +245,8 @@ test('an earlier first rate posts ordinary interest for months that had none and
     { id: 'interest-correction-savings-2026-02-1', date: '2026-02-28', amount: 18 }
   ]);
   assert.equal(accountBalance(corrected, 'savings', '2026-02-28'), 100000 + 949 + 958 + 967 + 976);
+  assert.equal(earliestCorrectableMonth(state, 'savings', '2026-03'), '2025-11');
+  assert.throws(() => correctedSchedule(state.accounts[0].interestSchedule, { since: '2025-10', rate: 12 }, { earliestMonth: '2025-11' }), InterestScheduleError);
 });
 
 test('removing a past rate offsets the interest it earned', () => {
@@ -269,7 +280,9 @@ test('a correction changes only its own account, and a removed account cannot be
 });
 
 test('setting the first rate of an unscheduled legacy account through a correction leaves a valid ledger', () => {
-  const state = createSavingsState();
+  const deposit = createTransaction({ id: 'first-deposit', type: 'income', title: 'First deposit', account: 'savings', category: 'salary', date: '2026-01-01', amount: 100000 });
+  const state = createSavingsState({ transactions: [deposit] });
+  state.accounts[0].openingBalance = 0;
   delete state.accounts[0].interestSchedule;
   state.accounts[0].unscheduledInterest = 12;
   const draft = { currentMonth: '2026-03', schedule: [{ since: '2026-01', rate: 12 }] };
@@ -356,4 +369,57 @@ test('an app entry re-dated into a later month is still reviewed for the month i
     { month: '2026-01', difference: -949 },
     { month: '2026-02', difference: -9 }
   ]);
+});
+
+// LEDGER-2a (L07): a correction cannot start before the account's first
+// recorded entry or its first rate period.
+test('a mistyped far-past start year is refused instead of reviewing every month since then', () => {
+  const state = postedSavingsState();
+  const draft = { currentMonth: '2026-03', schedule: [{ since: '1026-01', rate: 12 }] };
+
+  assert.throws(() => interestCorrectionReview(state, 'savings', draft), error => error instanceof InterestScheduleError
+    && error.message === 'Corrected rates can start from Jan 2026, the account\'s first entry or rate period.');
+});
+
+test('an account with no entries and no rate periods can only be corrected from the current month', () => {
+  const state = createSavingsState();
+  delete state.accounts[0].interestSchedule;
+  state.accounts[0].unscheduledInterest = 12;
+
+  assert.equal(earliestCorrectableMonth(state, 'savings', '2026-03'), '2026-03');
+  assert.throws(() => interestCorrectionReview(state, 'savings', { currentMonth: '2026-03', schedule: [{ since: '2026-02', rate: 12 }] }),
+    error => error instanceof InterestScheduleError && error.message.includes('Mar 2026'));
+  assert.deepEqual(interestCorrectionReview(state, 'savings', { currentMonth: '2026-03', schedule: [{ since: '2026-03', rate: 12 }] }).months, []);
+});
+
+test('a first entry that is still scheduled does not push the earliest correctable month past the current month', () => {
+  const scheduledDeposit = createTransaction({ id: 'later-deposit', type: 'income', account: 'savings', category: 'salary', date: '2026-06-01', amount: 5000 });
+  const state = createSavingsState({ transactions: [scheduledDeposit] });
+  delete state.accounts[0].interestSchedule;
+
+  assert.equal(earliestCorrectableMonth(state, 'savings', '2026-03'), '2026-03');
+});
+
+test('a stored first rate earlier than the first entry still bounds the correction', () => {
+  const state = postedSavingsState();
+  state.accounts[0].interestSchedule = [{ since: '2025-12', rate: 12 }];
+
+  assert.equal(earliestCorrectableMonth(state, 'savings', '2026-03'), '2025-12');
+  assert.throws(() => correctedSchedule([], { since: '2025-11', rate: 12 }, { earliestMonth: '2025-12' }), InterestScheduleError);
+  assert.doesNotThrow(() => interestCorrectionReview(state, 'savings', { currentMonth: '2026-03', schedule: [{ since: '2025-12', rate: 6 }] }));
+});
+
+test('entries of other accounts do not move the earliest correctable month', () => {
+  const otherDeposit = createTransaction({ id: 'old-everyday', type: 'income', account: 'everyday', category: 'salary', date: '2020-01-15', amount: 5000 });
+  const state = postedSavingsState({ transactions: [otherDeposit] });
+
+  assert.equal(earliestCorrectableMonth(state, 'savings', '2026-03'), '2026-01');
+});
+
+test('an app entry re-dated into a later month still lets a correction start from the month it belongs to', () => {
+  const state = postedSavingsState();
+  state.transactions.find(transaction => transaction.id === 'interest-savings-2026-01').date = '2026-02-01';
+  delete state.accounts[0].interestSchedule;
+
+  assert.equal(earliestCorrectableMonth(state, 'savings', '2026-03'), '2026-01');
 });
