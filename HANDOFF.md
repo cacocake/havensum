@@ -68,7 +68,7 @@ The prior narrow-layout defects were reproduced and repaired: a fixed wheel plus
 | Interview | Three-step form in Year Plan → Revise remaining year | Not an automatic first-launch or annual interview; not a conversational adviser |
 | Persistence | Browser localStorage; native AsyncStorage with serialized state writes | Local-only, unencrypted by this application; no cross-device sync |
 | File merge | Manual JSON baseline and three-way merge; field conflicts and edit-vs-delete review | Not Google Drive sync; no cross-device revision protocol |
-| Import | CSV/XLSX/transaction-array JSON mapping, preview, validation and rerun deduplication | Exact Cashew export compatibility is unverified; real export not supplied |
+| Import | CSV/XLSX/transaction-array JSON mapping, preview, validation and rerun deduplication | Cashew import (IMPORT-2) is checked against synthetic rows and one owner test export (K01–K13); exact compatibility is not claimed |
 | Export | Styled Excel summary, raw transactions, accounts/categories; full JSON backup | Excel is not a full-state restore; a dedicated full-JSON restore flow is missing |
 | Android delivery | Expo source, native file/date/share ports, bundled fonts, Hermes bundle compilation | No APK/AAB delivered, no physical Android test, no EAS account or signing setup |
 
@@ -116,7 +116,7 @@ These are grounded in the present code; they have not been fixed by the handoff 
 8. **Persistence schema:** JSON loading has limited structural validation. Add explicit migrations and robust invalid-data recovery before release.
 9. **Repository maintainability:** several large components remain densely formatted. Split by feature as work proceeds; do not replace the shared React Native implementation with a separate web mockup.
 
-Other unimplemented pieces include Drive OAuth/read-write retry handling, automatic annual onboarding, a real Cashew adapter/fixture, EOD investment pricing, and on-device accessibility/keyboard/back-button validation.
+Other unimplemented pieces include Drive OAuth/read-write retry handling, automatic annual onboarding, EOD investment pricing, and on-device accessibility/keyboard/back-button validation.
 
 ## Run and validate
 
