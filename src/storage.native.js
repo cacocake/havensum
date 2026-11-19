@@ -7,7 +7,7 @@ import { createPersistedStorage } from './persistedState.js';
 const k_persistedStorage = createPersistedStorage(() => AsyncStorage);
 
 export async function readSavedLedgerCopy() {
-  return AsyncStorage.getItem(k_stateStorageKey);
+  return k_persistedStorage.readRaw(k_stateStorageKey);
 }
 
 export function isDemoSession() {

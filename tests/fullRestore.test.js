@@ -128,3 +128,25 @@ test('category warnings carried in a backup join the restore review and are clea
   assert.deepEqual(preview.missingCategories, [{ transactionId: 'two', categoryId: 'old-category' }]);
   assert.equal(preview.restoredState.migrationCategoryWarnings, undefined);
 });
+
+test('the newest pre-restore copy is the ledger replaced last, even when it matches an older copy', async context => {
+  installBrowserStorage(context);
+  const original = createFinancialState({ transactions: [createTransaction({ id: 'original' })] });
+  const otherBackup = createFinancialState({ transactions: [createTransaction({ id: 'other' })] });
+
+  await writeRestoreRecovery(original);
+  await writeRestoreRecovery(otherBackup);
+  await writeRestoreRecovery(original);
+
+  assert.deepEqual(await readRestoreRecovery(), original);
+});
+
+test('a corrupt newest copy falls back to the previous readable one', async context => {
+  const storage = installBrowserStorage(context);
+  const original = createFinancialState({ transactions: [createTransaction({ id: 'original' })] });
+  await writeRestoreRecovery(original);
+  await writeRestoreRecovery(createFinancialState({ theme: 'dark' }));
+  storage.setItem('havensum-restore-recovery-v1:1', '{damaged copy');
+
+  assert.deepEqual(await readRestoreRecovery(), original);
+});
