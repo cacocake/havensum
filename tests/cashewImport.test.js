@@ -189,17 +189,3 @@ test('a Cashew layout upgrade still finds the original transaction after it was 
   const repeated = previewImportFile(saved, upgraded, options);
   assert.deepEqual(repeated.rows[0].possibleMatches.map(match => match.id), ['recorded-purchase']);
 });
-
-test('Cashew scheduled entries with no verified payment status cannot add cash movements', async () => {
-  const rows = ['upcoming', 'subscription', 'repetitive'].map(type =>
-    k_expense.replace(',false,null,', ',false,TransactionSpecialType.' + type + ','));
-  const file = await parseImportContent('synthetic.csv', [k_header, ...rows].join('\n'));
-  const state = createFinancialState();
-  let review = previewImportFile(state, file, { accounts: { Wallet: 'everyday' } });
-  for (const index of rows.keys()) {
-    review = reviseTransactionImport(state, review, index, { type: 'expense', category: 'groceries' });
-    assert.equal(review.rows[index].status, 'invalid');
-    assert.match(review.rows[index].error, /payment status/i);
-  }
-  assert.deepEqual(applyTransactionImport(state, review, { 0: 'skip', 1: 'skip', 2: 'skip' }).transactions, []);
-});

@@ -6,7 +6,7 @@ const k_cashewSource = 'cashew';
 const k_loanTypes = new Set(['credit', 'debt']);
 const k_scheduledTypes = new Set(['upcoming', 'subscription', 'repetitive']);
 const k_reviewLoanMessage = 'Review this outside the import. Cashew borrowing and lending cannot be brought in as ordinary transactions.';
-const k_reviewScheduledMessage = 'The payment status of this scheduled Cashew entry cannot be verified. Review it outside the import.';
+const k_scheduledNote = 'From a scheduled Cashew entry exported as paid. Unverified against a real export.';
 const k_newAccountDefaults = { openingBalance: 0, tag: 'Personal', icon: 'Wallet', color: '#91A4CE' };
 
 function sourceWarning(row) {
@@ -44,14 +44,14 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
     const account = mapped ? matching[0] : pending ?? matching[0];
     const categories = state.categories.filter(category => categoryPath(state.categories, category.id) === row.category);
     const specialType = row.specialType.trim().toLowerCase().split('.').at(-1);
-    const specialTypeError = k_loanTypes.has(specialType) ? k_reviewLoanMessage
-      : k_scheduledTypes.has(specialType) ? k_reviewScheduledMessage : undefined;
+    const specialTypeError = k_loanTypes.has(specialType) ? k_reviewLoanMessage : undefined;
     return {
       bank: {
         profile: data.cashew.profile, sourceRow: row.sourceRow, statementNumber: 1,
         statementName: data.name, category: row.category, direction: row.movement?.direction,
         valueDate: row.movement?.date, amount: row.movement?.amount,
         specialType: row.specialType, sourceWarning: sourceWarning(row),
+        scheduledNote: k_scheduledTypes.has(specialType) ? k_scheduledNote : undefined,
         error: row.error ?? specialTypeError ?? (!row.account || matching.length > 1 || !account
           ? 'Map this Cashew account or approve creating it.' : undefined)
       },

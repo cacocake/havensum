@@ -318,6 +318,7 @@ export default function ImportDialog({ data, onClose }) {
                 <T style={{ fontSize: 12, color: colors.sub }}>Cashew type · {row.bank.specialType}</T>
               )}
               {row.bank?.sourceWarning && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.sourceWarning}</T>}
+              {row.bank?.scheduledNote && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.scheduledNote}</T>}
               {row.transaction.amount !== undefined && (
                 <T style={{ fontSize: 12, color: colors.sub }}>
                   {row.transaction.date} · {row.transaction.type || row.bank?.direction} · {displayField(reviewState, 'account', row.transaction.account)}

@@ -122,3 +122,30 @@ test('a Cashew payback links to an original expense later in the same file and o
   assert.equal(monthStats(saved, '2026-11').spent, 0);
   assert.equal(accountBalance(saved, 'everyday', '2026-11-30'), 100000 - 3000 + 120);
 });
+
+test('a paid Cashew scheduled entry needs a classification and then imports like an ordinary row (K04)', async () => {
+  const scheduledTypes = ['TransactionSpecialType.upcoming', 'TransactionSpecialType.subscription', 'TransactionSpecialType.repetitive'];
+  const published = scheduledTypes.map(type => publishedRow({ ...k_cafe, type }));
+  const beta = [['upcoming', ''], ['subscription', '0'], ['repetitive', '0.0'], ['upcoming', '4.21']]
+    .map(([type, unpaid]) => betaRow({ ...k_cafe, type, 'amount unpaid': unpaid }));
+  const state = createFinancialState();
+  const options = { accounts: { 'Conta Poupança': 'everyday' } };
+  for (const file of [await cashewFile(k_publishedHeader, published), await cashewFile(k_betaHeader, beta)]) {
+    let review = previewImportFile(state, file, options);
+    for (const index of scheduledTypes.keys()) {
+      assert.match(review.rows[index].bank.scheduledNote, /scheduled cashew entry/i);
+      assert.match(review.rows[index].error, /classification/i);
+      review = reviseTransactionImport(state, review, index, { type: 'expense', category: 'groceries' });
+      assert.equal(review.rows[index].status, 'new');
+    }
+    const choices = { 3: 'skip' };
+    const saved = applyTransactionImport(state, review, choices, (() => {
+      let next = 0;
+      return () => `scheduled-${next++}`;
+    })());
+    assert.equal(saved.transactions.length, 3);
+    assert.equal(monthStats(saved, '2026-11').spent, 960);
+  }
+  const unpaid = (await cashewFile(k_betaHeader, beta)).rows[3];
+  assert.match(unpaid.error, /amount unpaid/i);
+});
