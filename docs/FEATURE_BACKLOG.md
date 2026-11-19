@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**LEDGER-1 is done, reviewed and merged into `develop`** (see its handoff note at the end). **FORECAST-2 is done, reviewed and merged into `develop`** after the owner's answers (see "FORECAST-2 owner answers" and the implementation handoff at the end). No other ticket is unblocked: each needs owner input, samples, credentials or a device. PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**The FORECAST-2 follow-up (move a recurring planned cost from a chosen year, F16–F18) is done, reviewed and merged into `develop`** (see its handoff note at the end). **LEDGER-1 is done, reviewed and merged into `develop`**. **FORECAST-2 is done, reviewed and merged into `develop`** after the owner's answers (see "FORECAST-2 owner answers" and the implementation handoff at the end). No other ticket is unblocked: each needs owner input, samples, credentials or a device. PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -108,11 +108,23 @@ Design a reviewed, explicit correction flow after agreement. Show the affected c
 
 ### FORECAST-2 · Learn from comparable completed costs
 
-**Depends on:** FORECAST-1. **Status:** Done, reviewed and merged into `develop` from `codex/forecast-comparable-costs` (implementation `d1e876f`, `5687b11`, `921cf6d`, `5768766`; review fixes `74f83b7`, `ac36777`); see the FORECAST-2 handoff notes below. Moving a recurring planned cost from a chosen year is decided but not built, because no screen moves planned costs.
+**Depends on:** FORECAST-1. **Status:** Done, reviewed and merged into `develop` from `codex/forecast-comparable-costs` (implementation `d1e876f`, `5687b11`, `921cf6d`, `5768766`; review fixes `74f83b7`, `ac36777`); see the FORECAST-2 handoff notes below. Moving a recurring planned cost from a chosen year (F16) is tracked as **FORECAST-2 follow-up** below.
 
 Check whether completed events and linked actuals improve predictions over a simple baseline. Domestic and international trips are examples of comparable expenses. Test sparse history, outliers, incomplete and partially paid events, moved events, refunds, and reimbursements. Decide what makes events comparable and what evidence the UI can expose. Avoid inferring trip type from free text alone.
 
 If the evidence supports it, design an editable estimate or range that shows its comparable events. When evidence is sparse, ask for an amount. Accepting an estimate is an explicit draft choice and leaves approved snapshots intact.
+
+### FORECAST-2 follow-up · Move a recurring planned cost from a chosen year (F16)
+
+**Depends on:** FORECAST-2. **Status:** Done, reviewed and merged into `develop` from `codex/move-recurring-planned-cost` (started from `fd658b7`; implementation `864b7c4`, `cf2ecc5`, `3380a33`; review fixes `e1c3798`, `25e2351`, `a8c5f0e`); see the handoff note at the end.
+
+Let the owner move a recurring planned cost's month from a chosen year onward. Earlier years keep their original month, and their linked expenses stay valid for validation, comparable-cost evidence, Expected savings, Year ahead and the planned-cost picker. Frozen plan snapshots and recorded transactions are never rewritten.
+
+**Owner answers (19 November 2026, in chat):**
+1. **Where:** a *Planned costs* card in Year Plan › Year ahead lists the year's planned costs; a recurring one offers **Move…** to pick the new month and the first year it applies. It is saved at once: forecasts update and frozen plans stay as approved.
+2. **First year:** this year or a later year. Past years are locked.
+3. **Expenses already linked to the old month in a moved year:** their links stay as recorded and are flagged for review (the existing "This planned cost moved" list). The move dialog says how many. They are not evidence until relinked by hand.
+4. **A move from this year** (asked after review): both the old and the new month must be this month or later; otherwise the move starts next year.
 
 ## Queued delivery and integrations
 
@@ -303,3 +315,13 @@ The implementation note below records how these were built; it stores only per-y
 - **Checks (`b9bfbfd`):** `npm run test:coverage` 404/404 with thresholds met (96.3% lines, 94.5% branches), `npm run test:browser` 384/384, `npm run build`, `npm run check:android` (Hermes compilation only; no device test).
 - **Review:** separate read-only Claude review (one blocking defect: expense rows and details counted a later payback as received; should-fix items for drift alerts, the workbook summary, loan defaults, the import preview, a stale Year ahead after a day change and style), then three focused re-reviews. They found two more items: a second "today" source that could disagree after midnight, and the same payback defect on the Paybacks screen. All were fixed test-first. The last re-review found no blocking defects.
 - **Not done (nits):** backup and CSV file names still use the UTC date; a scheduled payback's amount stays green on the Paybacks screen; a payback task's creation day is a UTC day (accepted in FORECAST-2); the future-month Home label reads "December · posted so far".
+
+## Session handoff — FORECAST-2 follow-up: move a recurring planned cost (19 November 2026, Claude cloud session)
+
+- **Owner answers:** F17 (a *Planned costs* card in Year ahead with **Move…**; first year this year or later; expenses linked to the old month in a moved year stay linked and are flagged for review) and F18 (a move from this year needs its old and new month to be this month or later; otherwise it starts next year). Recorded in DECISIONS.md and in the ticket above.
+- **Storage:** optional `monthFromYear` (`{ "YYYY": month }`) on recurring planned costs, schema v4, no migration; `month` stays the original month. Validated, kept by full restore, merged as one field (conflict when two devices move one cost differently). Documented in docs/STATE_MIGRATIONS.md. Risk: an older app version ignores it and keeps the original month every year.
+- **Implementation:** `plannedCostMonth`, `plannedCostOccurrenceMonth` and `plannedCostsInYear` in `src/plannedCosts.js` give each year's month; plans, Expected costs/Expected savings, Year ahead, comparable-cost evidence, the planned-cost picker and the interview's planned-cost list use them. `src/plannedCostMoves.js` holds the move rules (allowed years and months, normalization that replaces later moves and drops repeats, a preview naming the first year that really changes, the later moves replaced, and only the expenses the move itself sends to review). UI: `src/PlannedCostList.jsx` and `src/MovePlannedCostDialog.jsx`, shared by web and Android; the move saves at once and never touches frozen plans or transactions.
+- **Checks:** `npm run test:coverage` 432/432 with thresholds met (96.4% lines, 94.6% branches) on `a8c5f0e`; `npm run test:browser` 402/402 on `e1c3798` (later commits only add a unit test and two small nits, rechecked with the planned-cost, suggestion and Year ahead specs on all three viewports, 45/45); `npm run build`; `npm run check:android` (Hermes compilation only; no device test).
+- **Review:** separate read-only Claude review (one blocking product gap: moving into or away from a month already past this year, answered by the owner as F18; should-fix items for the preview summary, the review count, redundant moves and a render guard), a focused re-review of the fixes (no blocking defects; boundary tests and two nits added) and a final re-review of the last commit (no findings).
+- **Accepted nits:** the success notice is shown even if a concurrent change makes the functional state update a no-op (the existing PlanForm pattern); first years are capped at five years after the first allowed year; if the date rolls over while the dialog is open, confirming shows the past-month error instead of re-clamping; a field-level merge could in theory pair `year` from one device with `monthFromYear` from the other (same pre-existing exposure as `yearAmounts`; no UI makes a recurring cost one-off).
+- **Owner questions (non-blocking):** none new.

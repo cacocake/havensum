@@ -8,6 +8,7 @@ import { euro, signedEuro } from './money.js';
 import { yearOutlook } from './yearOutlook.js';
 import { k_monthsPerYear, k_reportingPeriods } from './domainConstants.js';
 import { monthNumberOf } from './calendar.js';
+import PlannedCostList from './PlannedCostList.jsx';
 
 const k_metrics = [
   { key: 'income', label: 'Income', format: euro },
@@ -53,6 +54,7 @@ export default function YearOutlook({ year, selectedMonth, planRevisionId, ink, 
     <YearSummary outlook={outlook} ink={ink}/>
     <OutlookDrivers drivers={outlook.drivers}/>
     <OutlookMonths outlook={outlook} selectedMonth={selectedMonth} ink={ink} onSelectMonth={onSelectMonth}/>
+    <PlannedCostList year={year}/>
   </View>;
 }
 

@@ -5,7 +5,7 @@ import { k_calendarDateLength, monthOf, yearOfMonth } from './calendar.js';
 import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
 import { hasCategoryParent, netExpenses } from './ledger.js';
 import { paybackTaskSummary } from './paybackTasks.js';
-import { needsPlannedCostReview } from './plannedCosts.js';
+import { needsPlannedCostReview, plannedCostOccurrenceMonth } from './plannedCosts.js';
 import { sumCents } from './money.js';
 
 export const k_occurrenceStatus = Object.freeze({
@@ -25,10 +25,6 @@ export const k_maximumComparableOccurrences = 5;
 const k_openPaybackStatuses = new Set(['open', 'partial']);
 const k_halves = 2;
 
-function occurrenceMonth(year, event) {
-  return `${year}-${String(event.month).padStart(2, '0')}`;
-}
-
 function earliestDate(dates) {
   return dates.reduce((earliest, date) => {
     if (date < earliest) {
@@ -43,7 +39,7 @@ function earliestDate(dates) {
 function pastOccurrenceMonths(recordedTransactions, event, evaluationDate) {
   const currentMonth = monthOf(evaluationDate);
   if (event.year) {
-    const month = occurrenceMonth(event.year, event);
+    const month = plannedCostOccurrenceMonth(event, event.year);
     return month < currentMonth ? [month] : [];
   }
   if (!recordedTransactions.length) {
@@ -53,7 +49,7 @@ function pastOccurrenceMonths(recordedTransactions, event, evaluationDate) {
   const firstRecordedYear = yearOfMonth(monthOf(firstRecordedDate));
   const months = [];
   for (let year = firstRecordedYear; year <= yearOfMonth(currentMonth); year += 1) {
-    const month = occurrenceMonth(year, event);
+    const month = plannedCostOccurrenceMonth(event, year);
     if (month < currentMonth) {
       months.push(month);
     }

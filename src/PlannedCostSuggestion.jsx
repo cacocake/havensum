@@ -1,7 +1,7 @@
 import React, { useContext, useMemo } from 'react';
 import { View } from 'react-native';
 import { Button, Row, Select, T, Theme } from './ui.jsx';
-import { plannedCostAmount } from './plannedCosts.js';
+import { plannedCostAmount, plannedCostsInYear } from './plannedCosts.js';
 import { euro, k_centsPerEuro } from './money.js';
 import { comparableCostEstimate, comparableLikeChoices, comparableOccurrences, k_minimumComparableOccurrences } from './comparableCosts.js';
 import { shortMonthLabel } from './monthLabels.js';
@@ -74,12 +74,12 @@ export function RecurringPlannedCostSuggestion({ state, evaluationDate, event, y
 // The draft's planned costs for the revised months, with this year's amount.
 // Recurring costs offer a suggestion that applies to this year only.
 export function DraftPlannedCosts({ state, evaluationDate, events, year, fromMonth, onAccept, onRevert }) {
-  const draftYearEvents = events.filter(event => event.month >= fromMonth && (!event.year || event.year === year));
-  return draftYearEvents.map(event => {
+  const draftYearCosts = plannedCostsInYear(events, year).filter(cost => cost.month >= fromMonth);
+  return draftYearCosts.map(({ event, month }) => {
     const storedEvent = state.events.find(candidate => candidate.id === event.id);
     return <View key={event.id}>
       <Row style={{ justifyContent: 'space-between', paddingVertical: 9 }}>
-        <T style={{ fontSize: 12, flexShrink: 1 }}>{event.name} · month {event.month}{event.year ? '' : ' · every year'}</T>
+        <T style={{ fontSize: 12, flexShrink: 1 }}>{event.name} · month {month}{event.year ? '' : ' · every year'}</T>
         <T style={{ fontSize: 12 }}>{euro(plannedCostAmount(event, year))}</T>
       </Row>
       {storedEvent && !storedEvent.year && <RecurringPlannedCostSuggestion state={state} evaluationDate={evaluationDate} event={storedEvent} year={year}
