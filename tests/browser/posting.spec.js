@@ -79,18 +79,25 @@ test('an app left open counts an entry once it returns on the entry\'s date', as
 test('an app kept in the foreground across local midnight agrees everywhere that the entry has posted', async ({ page }) => {
   const ledger = createFinancialState({ transactions: [
     createTransaction({ id: 'bakery', title: 'Bakery', amount: 1000, date: '2026-11-10' }),
-    createTransaction({ id: 'concert', title: 'Concert tickets', amount: 4000, date: '2026-11-20', category: 'shopping' })
+    createTransaction({ id: 'concert', title: 'Concert tickets', amount: 4000, date: '2026-11-20', category: 'shopping' }),
+    createTransaction({ id: 'flowers', title: 'Flowers', amount: 1000, date: '2026-11-21', category: 'shopping' })
   ] });
   await openWithLedger(page, ledger, '2026-11-19T23:50:00');
-  await expect(page.getByTestId('month-scheduled')).toHaveText('1 scheduled entry · −€40.00 when it posts');
+  await expect(page.getByTestId('month-scheduled')).toHaveText('2 scheduled entries · −€50.00 when they post');
 
   await page.clock.runFor('00:20:00');
-  await expect(page.getByTestId('month-scheduled')).toHaveCount(0);
+  await expect(page.getByTestId('month-scheduled')).toHaveText('1 scheduled entry · −€10.00 when it posts');
   await expect(page.getByLabel('View net spending transactions')).toContainText('€50.00');
   await expect(page.getByLabel('View Concert tickets', { exact: true })).not.toContainText('Scheduled');
   await expect(page.getByLabel('View Everyday account').first()).toContainText('€950.00');
   await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
   await page.getByRole('button', { name: 'Plan Year ahead', exact: true }).click();
+  await expect(page.getByTestId('year-month-2026-11-scheduled')).toHaveText('−€10.00');
+
+  // The next midnight is picked up as well.
+  await expect(page.getByTestId('year-month-2026-11-recorded')).toHaveText('−€50.00');
+  await page.clock.runFor('24:00:00');
+  await expect(page.getByTestId('year-month-2026-11-recorded')).toHaveText('−€60.00');
   await expect(page.getByTestId('year-month-2026-11-scheduled')).toHaveCount(0);
 });
 
@@ -167,6 +174,27 @@ test.describe('east of UTC just after midnight', () => {
     // November is complete locally, so its interest posts at startup: €1,000 × (1.12^(1/12) − 1).
     await expect(page.getByLabel('View Rainy day account').first()).toContainText('€1,009.49');
   });
+});
+
+test('the paybacks screen shows a later payback as scheduled and nets it only from its date', async ({ page }) => {
+  const ledger = createFinancialState({ transactions: [
+    createTransaction({ id: 'dinner', title: 'Dinner out', amount: 12000, date: '2026-10-08' }),
+    createTransaction({ id: 'friend-pays', type: 'reimbursement', title: 'Friend pays back', account: 'shared', amount: 4000, date: '2026-11-25', linkedId: 'dinner', category: undefined })
+  ] });
+  await openWithLedger(page, ledger, '2026-11-17T12:00:00');
+  await openMoreSection(page, 'Reimbursements');
+  const card = page.getByTestId('payback-friend-pays');
+  await expect(card).toContainText('SCHEDULED PAYBACK');
+  await expect(card).not.toContainText('PAYBACK RECEIVED');
+  await expect(card.getByTestId('payback-original-net')).toHaveText('€120.00');
+  await expect(page.getByTestId('paybacks-received-total')).toHaveText('€0.00');
+
+  await page.clock.setSystemTime(new Date('2026-11-25T09:00:00'));
+  await page.reload();
+  await openMoreSection(page, 'Reimbursements');
+  await expect(page.getByTestId('payback-friend-pays')).toContainText('PAYBACK RECEIVED');
+  await expect(page.getByTestId('payback-friend-pays').getByTestId('payback-original-net')).toHaveText('€80.00');
+  await expect(page.getByTestId('paybacks-received-total')).toHaveText('€40.00');
 });
 
 test('an expense counts a payback dated later as scheduled, not received, until its date', async ({ page }) => {

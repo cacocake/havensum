@@ -17,9 +17,17 @@ function millisecondsUntilNextLocalDay(now = new Date()) {
 export function useLocalDate() {
   const [today, setToday] = useState(localCalendarDate);
   useEffect(() => {
-    const timer = setTimeout(() => setToday(localCalendarDate()), millisecondsUntilNextLocalDay());
+    let timer = null;
+    // Re-armed on every firing, even if the clock was set back and the date did not change.
+    function scheduleNextDay() {
+      timer = setTimeout(() => {
+        setToday(localCalendarDate());
+        scheduleNextDay();
+      }, millisecondsUntilNextLocalDay());
+    }
+    scheduleNextDay();
     return () => clearTimeout(timer);
-  }, [today]);
+  }, []);
   useEffect(() => {
     const subscription = AppState.addEventListener('change', appState => {
       if (appState !== k_activeAppState) {
