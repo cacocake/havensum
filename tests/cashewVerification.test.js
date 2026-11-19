@@ -202,7 +202,7 @@ test('a unique opposite Balance Correction row is preselected as a suggested tra
 });
 
 test('Cashew suggests no transfer when the opposite Balance Correction row is ambiguous or differs (K05)', async () => {
-  const options = { accounts: { Carteira: 'everyday', Poupança: 'shared', Outra: 'shared' } };
+  const options = { accounts: { Carteira: 'everyday', Poupança: 'shared' } };
   const state = createFinancialState();
   const cases = [
     [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Poupança', '10.0'), balanceCorrection('Poupança', '10.0')],

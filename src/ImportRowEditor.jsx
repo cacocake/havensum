@@ -77,8 +77,11 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
   }
 
   function reviewedLoanId() {
-    if (bank?.loanRequired || bank?.loanOptional) {
+    if (bank?.loanRequired) {
       return selectedId(state.loans, draft.loanId);
+    }
+    if (bank?.loanOptional) {
+      return isTransfer ? undefined : selectedId(state.loans, draft.loanId);
     }
     if (draft.type !== transaction.type) {
       return undefined;
@@ -164,7 +167,7 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
         <Select label="Original expense" value={bank ? (JSON.stringify(draft.linkedId) ?? '') : (draft.linkedId ?? '')}
           onChange={changeLinkedExpense} options={linkedExpenseOptions} />
       )}
-      {(bank?.loanRequired || bank?.loanOptional) && (
+      {(bank?.loanRequired || (bank?.loanOptional && !isTransfer)) && (
         <Select label="Havensum loan" value={draft.loanId ?? ''} onChange={value => change('loanId', value)} options={[
           { value: '', label: loanPlaceholder(bank, state.loans.length > 0) },
           ...state.loans.map(loan => ({ value: loan.id, label: loan.name }))

@@ -2,6 +2,7 @@ import { categoryPath } from './csvExchange.js';
 import { isRecordIdentifier } from './recordIdentity.js';
 import { movementFingerprint } from './movementFingerprint.js';
 import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
+import { hasLoanLink } from './expectedBills.js';
 
 const k_cashewSource = 'cashew';
 const k_lendingType = 'credit';
@@ -14,7 +15,7 @@ const k_borrowingMessages = Object.freeze({
   repayment: 'Record a borrowing repayment as an expense in the loan category.'
 });
 const k_objectiveLoanNote = 'This Cashew objective may be a loan. Pick the Havensum loan to record proceeds or a repayment, or classify it normally.';
-const k_scheduledNote = 'From a scheduled Cashew entry exported as paid. Unverified against a real export.';
+const k_scheduledNote = 'From a scheduled Cashew entry exported as paid.';
 const k_transferNoteHeading = 'Transferred Balance';
 const k_transferRouteSeparator = '→';
 const k_readOnlySourceFields = ['budget', 'objective', 'extra'];
@@ -125,6 +126,7 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
     const categories = state.categories.filter(category => categoryPath(state.categories, category.id) === row.category);
     const specialType = row.specialType.trim().toLowerCase().split('.').at(-1);
     const specialTypeError = specialType === k_lendingType ? k_lendingMessage : undefined;
+    const isObjectiveLoanCandidate = specialType !== k_borrowingType && Boolean(row.objective);
     return {
       bank: {
         profile: data.cashew.profile, sourceRow: row.sourceRow, statementNumber: 1,
@@ -133,8 +135,8 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
         specialType: row.specialType, sourceWarning: sourceWarning(row),
         sourceDetails: sourceDetails(row),
         loanRequired: specialType === k_borrowingType ? true : undefined,
-        loanOptional: specialType !== k_borrowingType && row.objective ? true : undefined,
-        objectiveNote: specialType !== k_borrowingType && row.objective ? k_objectiveLoanNote : undefined,
+        loanOptional: isObjectiveLoanCandidate ? true : undefined,
+        objectiveNote: isObjectiveLoanCandidate ? k_objectiveLoanNote : undefined,
         scheduledNote: k_scheduledTypes.has(specialType) ? k_scheduledNote : undefined,
         error: row.error ?? specialTypeError ?? (!row.account || matching.length > 1 || !account
           ? 'Map this Cashew account or approve creating it.' : undefined)
@@ -154,14 +156,10 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
 
 // K02/K03: a Cashew borrowing row needs an existing Havensum loan. A credit is
 // loan proceeds (an unlinked balance adjustment); a debit is a repayment expense.
-function hasChosenLoan(transaction) {
-  return transaction.loanId !== undefined && transaction.loanId !== null && transaction.loanId !== '';
-}
-
-// K12: a row with an objective may be a loan; once a loan is chosen the
-// K03 sign rule applies just as for a `debt` row.
+// K12: a row with an objective may be a loan; once a loan is chosen the same
+// sign rule applies.
 export function validateCashewLoanDraft(state, bank, transaction) {
-  const isLoanEntry = bank.loanRequired || (bank.loanOptional && hasChosenLoan(transaction));
+  const isLoanEntry = bank.loanRequired || (bank.loanOptional && hasLoanLink(transaction));
   if (!isLoanEntry) {
     return;
   }

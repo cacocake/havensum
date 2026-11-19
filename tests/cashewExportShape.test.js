@@ -79,12 +79,28 @@ test('a Cashew transfer note must name both legs in the right direction, and the
     [transferLeg('Carteira', '-25.0', transferNote('Cartão Vale', 'Carteira')), transferLeg('Cartão Vale', '25.0', transferNote('Cartão Vale', 'Carteira'))],
     [transferLeg('Carteira', '-25.0', transferNote('Carteira', 'Outra')), transferLeg('Cartão Vale', '25.0', transferNote('Carteira', 'Outra'))],
     [transferLeg('Carteira', '-25.0', '', 'Balance Correction'), transferLeg('Cartão Vale', '25.0', '', 'Balance Correction')],
-    [transferLeg('Carteira', '-25.0', 'Carteira → Cartão Vale'), transferLeg('Cartão Vale', '25.0', 'Carteira → Cartão Vale')]
+    [transferLeg('Carteira', '-25.0', 'Carteira → Cartão Vale'), transferLeg('Cartão Vale', '25.0', 'Carteira → Cartão Vale')],
+    [transferLeg('Carteira', '-25.0', `${transferNote('Carteira', 'Cartão Vale')}\nPaid back lunch`), transferLeg('Cartão Vale', '25.0', transferNote('Carteira', 'Cartão Vale'))],
+    [transferLeg('Carteira', '-25.0', transferNote('Carteira', 'Cartão Vale')), transferLeg('Carteira', '-25.0', transferNote('Carteira', 'Cartão Vale')), transferLeg('Cartão Vale', '25.0', transferNote('Carteira', 'Cartão Vale'))]
   ];
   for (const rows of cases) {
     const preview = previewImportFile(state, await exportFile(rows), k_accountOptions);
-    assert.deepEqual(preview.rows.map(row => row.transaction.type), [undefined, undefined]);
+    assert.deepEqual(preview.rows.map(row => row.transaction.type), rows.map(() => undefined));
   }
+});
+
+test('a Cashew transfer note tolerates CRLF and a trailing blank line, but not an arrow inside an account name (K11)', async () => {
+  const state = createFinancialState();
+  const tolerated = [`Transferred Balance\r\nCarteira → Cartão Vale`, `${transferNote('Carteira', 'Cartão Vale')}\n`];
+  for (const note of tolerated) {
+    const preview = previewImportFile(state, await exportFile([transferLeg('Carteira', '-25.0', note), transferLeg('Cartão Vale', '25.0', note)]), k_accountOptions);
+    assert.deepEqual(preview.rows.map(row => row.status), ['new', 'paired']);
+  }
+  const arrowNote = transferNote('Carteira', 'Vale → Novo');
+  const arrowOptions = { accounts: { Carteira: 'everyday', 'Vale → Novo': 'shared' } };
+  const arrowFile = await exportFile([transferLeg('Carteira', '-25.0', arrowNote), transferLeg('Vale → Novo', '25.0', arrowNote)]);
+  const arrowPreview = previewImportFile(state, arrowFile, arrowOptions);
+  assert.deepEqual(arrowPreview.rows.map(row => row.transaction.type), [undefined, undefined]);
 });
 
 const k_carLoan = { id: 'car', name: 'Car loan', remaining: 500000, original: 800000, payment: 18500, start: '2026-01', end: '2029-12', account: 'everyday' };
@@ -133,4 +149,17 @@ test('a row with a Cashew objective and no loan picked is classified like an ord
   const saved = applyTransactionImport(state, reviewed, {}, () => 'ordinary');
   assert.equal(saved.transactions[0].loanId, undefined);
   assert.equal(monthStats(saved, '2026-11').spent, 5000);
+});
+
+test('switching the loan off again classifies a Cashew objective row as an ordinary entry (K12)', async () => {
+  const state = createFinancialState({ loans: [k_carLoan] });
+  const file = await exportFile([objectiveRow('-50.0', 'Prestação')]);
+  let review = previewImportFile(state, file, k_accountOptions);
+  review = reviseTransactionImport(state, review, 0, { type: 'expense', category: 'loan', loanId: 'car' });
+  assert.equal(review.rows[0].transaction.loanId, 'car');
+  review = reviseTransactionImport(state, review, 0, { type: 'expense', category: 'groceries', loanId: undefined });
+  assert.equal(review.rows[0].status, 'new');
+  const saved = applyTransactionImport(state, review, {}, () => 'switched-off');
+  assert.equal(saved.transactions[0].loanId, undefined);
+  assert.equal(saved.transactions[0].category, 'groceries');
 });

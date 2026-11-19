@@ -42,11 +42,11 @@ The owner chose to verify against synthetic rows that mirror the published expor
 - **Transfers:** when a `Balance Correction` debit has exactly one opposite `Balance Correction` credit with the same amount and timestamp in another mapped account (and vice versa), the pair is preselected as a transfer with a visible suggestion note; the owner can change it, and confirming the import confirms it (K05/K09). The note shows only while the pair is kept. Known limit: a repeat import suggests the pair again even if the owner recorded the legs differently last time; the debit then lists those records as possible matches for an explicit Skip/Add decision. Ambiguous, differently timed or same-account legs are not suggested.
 - **Metadata:** color, icon and emoji are ignored; budget and objective are shown read-only in review and never create records (K07). Classification is never prefilled from the sign (K08).
 
-Still needed to move any of these from synthetic to verified: a small sanitized Cashew export of the owner's version containing a transfer pair, a payback, a scheduled entry, a borrowing row and populated budget/objective, with the expected Havensum result for each.
+Some of these shapes were later seen in the owner's own test export (see the last section). Still needed to move the rest from synthetic to verified: a small sanitized Cashew export of the owner's version containing a transfer pair, a payback, a scheduled entry, a borrowing row and populated budget/objective, with the expected Havensum result for each.
 
 ## Owner's real test export (19 November 2026)
 
-The owner exported a small test file from their Cashew app (the newer layout with `amount unpaid` and `extra`; app version not stated). It is private runtime data and is not in Git; `tests/cashewExportShape.test.js` uses synthetic rows with the same structure. Running the file through the importer confirmed, against a real export:
+The owner exported a small test file from their Cashew app (the newer layout with `amount unpaid` and `extra`; app version not stated). It is private runtime data and is not in Git; `tests/cashewExportShape.test.js` uses synthetic rows with the same structure. Running the file through the importer showed these shapes in that one real export (not proof that every version writes them):
 
 - Scheduled types are written bare (`repetitive`, `subscription`, `upcoming`), ordinary rows as `default`. A paid scheduled row has a negative `amount` and a blank `amount unpaid`; an unpaid one has a blank `amount` and the value in `amount unpaid`, and stays a row error (K04).
 - `extra` carries recurrence text such as `repeat every 1 month`, even on ordinary rows. It is now shown read-only and never blocks a row (K10).

@@ -190,7 +190,7 @@ These are owner decisions for DRIVE-2. They are not claims that Drive works: Hav
 
 ## IMPORT-2 — Cashew classifications (owner answers, 19 November 2026)
 
-Built and tested against synthetic rows that mirror the published Cashew export. Everything beyond the verified ordinary EUR rows from v6.7.5+524 is unverified against a real export.
+Built and tested against synthetic rows that mirror the published Cashew export. Everything beyond the verified ordinary EUR rows from v6.7.5+524 is unverified against a real export. K10–K12 follow the owner's own small test export of 19 November 2026 (newer layout, version not stated); the shapes listed in docs/CASHEW_IMPORT_RESEARCH.md were seen in that one export only.
 
 | ID | Status | Decision | Consequence |
 | --- | --- | --- | --- |
