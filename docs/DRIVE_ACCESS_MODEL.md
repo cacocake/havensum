@@ -1,6 +1,6 @@
 # Shared Drive file — access model (DRIVE-1)
 
-Status: **decided on paper, not implemented and not verified.** Havensum has no Google Drive code. Nothing here has been tested with real Google accounts. The decisions are recorded as G01–G06 in [DECISIONS.md](../DECISIONS.md). DRIVE-2 implements the transport. Before shipping, DRIVE-2 must verify every item in "What DRIVE-2 must verify".
+Status: **decided on paper, not implemented and not verified.** Havensum has no Google Drive code. Nothing here has been tested with real Google accounts. The decisions are recorded as G01–G10 in [DECISIONS.md](../DECISIONS.md). DRIVE-2 implements the transport. Before shipping, DRIVE-2 must verify every item in "What DRIVE-2 must verify".
 
 ## Decisions in brief
 
@@ -10,8 +10,12 @@ Status: **decided on paper, not implemented and not verified.** Havensum has no 
 | Creation and ownership | Either person may create the shared file from their app. The app creates it in that person's My Drive and shares it with the partner's Google account as editor. The creator stays the owner. |
 | Discovery | The partner opens it once in their app through Google's file picker, filtered to that file where the picker allows it. The app then stores the file ID locally. |
 | Sign-out and revocation | Keep everything on the device and pause sync. Nothing is deleted locally or remotely. Unsynced edits wait and merge through the normal review on reconnect. |
-| Visibility | Everything financial is shared: all accounts (Personal, Joint, Savings, Investment), transactions, loans, categories, planned costs, plans, outlook and payback tasks. Account tags remain labels, not privacy controls. |
+| Visibility | Everything is shared except per-device display preferences: all accounts (Personal, Joint, Savings, Investment), transactions, loans, categories, planned costs, plans, outlook and payback tasks. Account tags remain labels, not privacy controls. |
 | Display preferences | Stay on each device. The theme and other display settings do not go into the shared file. |
+| Example data | "Create shared file" is unavailable while the example (demo) data is loaded (G07). |
+| First join | A partner who already has local entries chooses: adopt the shared file (after a local recovery copy) or merge with a review that lists every record found on only one side (G08). |
+| Two files | Setup offers "Open shared file" first. "Create" warns to check with the partner. If two files exist anyway, the person opens the one to keep and merges the other in through review (G09). |
+| Sync timing | Automatic on app start and resume and shortly after edits when online, plus a "Sync now" button. Conflicts always wait for review. An expired web sign-in shows "Reconnect" rather than an unprompted popup (G10). |
 
 ## Why `drive.file`
 
@@ -36,22 +40,46 @@ The cost of `drive.file` is the one-time pick. Sharing a file with someone does 
 | Anyone else | No | No | No | The app shares only with the partner email the creator enters. If an owner adds other people in Drive, those people can read everything. The app does not prevent that, and the file is not encrypted. |
 | Havensum on a third device of either person | After picking it on that device | Yes | Yes | Each installation (Android, each browser origin) keeps its own file ID and baseline. A new installation picks the file once. |
 
-What the file contains: the same versioned full-state JSON as today's backup (schema version 4: accounts, categories, transactions, loans, events, plans, outlook, payback tasks, interest schedules). Device-only data stays out of it: theme and display preferences (G06), the merge baseline (`melo-sync-base`), recovery copies and the plan-invitation deferral. Today `preferences` holds `visibility` and `cushion`. No code reads either value. DRIVE-2 must list every top-level state key and mark it shared or device-only. If any key is unclear, ask the owner.
+What the file contains: the same financial collections as today's versioned backup (schema version 4: accounts, categories, transactions, loans, events, plans, outlook, payback tasks, interest schedules). It is **not** byte-for-byte the backup.
+
+Device-only data stays out of the file:
+
+- the theme and display preferences (G06);
+- the `demo` flag;
+- the merge baseline (`melo-sync-base`);
+- recovery copies;
+- the plan-invitation deferral.
+
+Two things in the code work against this today:
+
+- The full state requires a `theme` of light or dark (`validateState`).
+- `mergeThreeWay` starts from `{...local}`, so it would copy the device's top-level keys into the merged result.
+
+DRIVE-2 therefore needs either a shared-file shape that leaves these keys out and is validated separately, or a rule that overwrites them with the reading device's own values. Either way, one person's theme must never reach the other.
+
+Today `preferences` holds `visibility: 'shared'` and `cushion` (seed data). No code reads either value. `visibility` is not a privacy control (G05). DRIVE-2 must list every top-level state key and mark it shared or device-only. If any key is unclear, ask the owner.
 
 ## How access is set up
 
 1. **Sign-in and consent.** Each person authorizes Havensum for `drive.file` with their own Google account.
    - Android: Google's `AuthorizationClient` (`Identity.getAuthorizationClient(...).authorize(...)`).
    - Web: the Google Identity Services token model. It issues a short-lived access token and no refresh token in the browser.
-2. **Create (first person).** "Create shared file":
+2. **Create (first person).** Setup offers "Open shared file" first. "Create shared file" warns the person to check that their partner has not already created one (G09), and it is unavailable while example data is loaded (G07). Create:
    - uploads the current local state as a new JSON file in the creator's My Drive;
    - shares it as **writer** with the partner's Google email (Drive `permissions.create`);
    - stores the file ID and records the uploaded state as this device's baseline.
 3. **Open (partner).** "Open shared file" launches Google's picker:
    - On the web it uses the Picker with `setAppId` set to the Cloud project number, which `drive.file` requires.
    - On Android it uses the desktop/mobile Picker in the system browser. It returns `picked_file_ids` to the redirect. Google documents an optional `file_ids` filter that can limit the picker to the shared file.
-   - The app then reads the file and validates it (schema validation and migration, as restore does today). It does not replace the partner's local data. A partner who already has entries merges them through the existing three-way review. Their baseline is empty, so overlapping records appear for review and nothing is silently dropped. DRIVE-2 must design that first-join review.
+   - The app then reads the file and validates it (schema validation and migration, as restore does today).
+   - A partner with no data of their own adopts the file.
+   - A partner who already has entries chooses between two options (G08):
+     - **Adopt the file.** The app first saves their local state as a recovery copy, as restore does.
+     - **Merge with review.** There is no common baseline, and `mergeThreeWay` with an empty base would silently union records found on only one side. The same real expense entered by both people has two IDs, so it would appear twice. A field present on only one side of a shared record would also be taken without asking. The current merge screen refuses to run without a baseline (`missingBaseline`). DRIVE-2 therefore needs a separate first-join review that lists every one-sided record so the person can drop duplicates.
 4. **Steady state.** Each device reads the file, runs `mergeThreeWay(baseline, local, remote)`, asks the person about conflicts and writes the merged result. Then it updates its local baseline.
+   - Sync runs on app start and resume, shortly after edits when online, and from "Sync now" (G10).
+   - A web access token lasts about an hour and the browser has no refresh token. When it expires, the web build shows "Reconnect" instead of opening a popup unprompted.
+5. **Two files by mistake.** If both people created a file, each opens the one to keep. The app merges the other one's contents in through the review (G09) and never deletes either file.
 
 ## How access changes
 
@@ -79,13 +107,15 @@ The app never silently picks a different file, re-creates the file, or overwrite
 1. The owner's Cloud setup (below) works on both platforms with `drive.file` alone. Check whether an unverified-app screen appears with only the non-sensitive scope in Production. A community report says it can appear even with a verified brand.
 2. The creator's app creates the file, shares it with the partner as writer, and can read and update it.
 3. Before the pick, the partner's app **cannot** read the file by ID. After picking it on web and on Android, it can read and update it.
-4. Android: the desktop/mobile Picker flow, including the redirect and its client type, returns the file ID and grants access. Check whether it needs an API key.
+4. Android: the desktop/mobile Picker flow, including the redirect and its client type, returns the file ID and grants access. Check whether it needs an API key, and whether the Picker is generally available or a preview that needs enrolment.
 5. Revocation: after sign-out or removal in Google Account settings, check whether the stored file ID still works on re-consent or the file must be picked again. Check that the app pauses rather than deleting anything.
 6. Permission removal, "remove from Shared with me", trash and restore behave as in the table above on both devices.
 7. Two devices: independent edits merge silently; same-field and edit/delete conflicts and concurrent plan revisions are reviewed; interrupted and stale writes cannot lose data (DRIVE-2 acceptance in the backlog).
 8. A manually corrupted or older-schema remote file is rejected or migrated without changing local data.
 9. Theme and display preferences do not travel between devices.
 10. Testing-status token expiry (seven days) is either avoided by publishing to Production or documented as a known reconnect.
+11. First join: on adopt, a recovery copy is saved before local data is replaced. The merge review lists every one-sided record (G08). "Create" is blocked while example data is loaded (G07).
+12. Web token expiry leads to "Reconnect" without losing local edits (G10).
 
 ## DRIVE-2 blocker: setup the owner must provide
 

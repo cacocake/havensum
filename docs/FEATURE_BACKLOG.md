@@ -130,9 +130,9 @@ Test installation and upgrade, offline startup, storage recovery, file picker an
 
 ### DRIVE-1 · Shared-file decisions
 
-**Status:** Decided (owner answers G01–G06 in DECISIONS.md, 19 November 2026); see the DRIVE-1 handoff at the end. The access model is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md). Verifying it with real accounts moves to DRIVE-2.
+**Status:** Decided (owner answers G01–G10 in DECISIONS.md, 19 November 2026); see the DRIVE-1 handoff at the end. The access model is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md). Real-account verification of the access model moves to DRIVE-2, before any transport is implemented.
 
-Document who can find, read, and update the file and how access changes. Verify the agreed access model before implementing transport.
+Document who can find, read, and update the file and how access changes.
 
 ### DRIVE-2 · Shared Drive sync
 
@@ -310,10 +310,15 @@ The implementation note below records how these were built; it stores only per-y
   - `drive.file` only (G01).
   - Either person creates the file and shares it with the partner as editor. The partner picks it once in Google's picker (G02). The creator stays owner (G03).
   - Sign-out or revocation keeps local data and pauses sync (G04).
-  - Everything financial is shared with both people (G05).
+  - Everything except per-device display preferences is shared with both people (G05).
   - Theme and display preferences stay per device (G06).
+- **Follow-up answers after review:**
+  - Create is blocked while example data is loaded (G07).
+  - A joining partner with local entries either adopts the file (after a recovery copy) or merges with a review of every one-sided record (G08).
+  - Setup offers Open first, and Create warns to check with the partner (G09).
+  - Sync runs automatically, with a Sync now button and a web Reconnect state (G10).
 - **Documents:**
-  - DECISIONS.md section "DRIVE-1" (G01–G06).
+  - DECISIONS.md section "DRIVE-1" (G01–G10).
   - [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md): who can find, read and update the file; how access changes; transport constraints; what DRIVE-2 must verify; the owner's Cloud setup.
 - **Research limits:**
   - Google's facts came from search results of the official pages. This session's network could not open developers.google.com or support.google.com directly.
