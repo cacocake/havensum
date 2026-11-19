@@ -21,7 +21,7 @@ export function AccountBalanceReview({ balances, afterLabel }) {
             <T style={{ fontSize: 12 }}>
               {balance.after === null ? 'Projected balance pending review' : `${afterLabel} ${euro(balance.after)}`}
             </T>
-            {Boolean(balance.scheduledByImport) && <T style={{ fontSize: 12 }}>Scheduled by this import {signedEuro(balance.scheduledByImport)}</T>}
+            {Boolean(balance.scheduledByImport) && <T style={{ fontSize: 12 }}>Scheduled change from this import {signedEuro(balance.scheduledByImport)}</T>}
           </Row>
         </View>
       ))}

@@ -33,6 +33,9 @@ test('a future-dated expense leaves today\'s balance and report alone, shows as 
   await expect(page.getByTestId('month-scheduled')).toHaveText('1 scheduled entry · −€40.00 when it posts');
   await expect(page.getByLabel('View Concert tickets, scheduled', { exact: true })).toContainText('Scheduled');
   await expect(page.getByLabel('View Bakery', { exact: true })).not.toContainText('Scheduled');
+  await page.getByLabel('View Concert tickets, scheduled', { exact: true }).click();
+  await expect(page.getByRole('dialog').getByTestId('transaction-scheduled')).toHaveText('Scheduled · counts from 2026-11-20');
+  await page.getByRole('dialog').getByLabel('Close dialog', { exact: true }).click();
 
   await page.getByLabel('View Everyday account').first().click();
   await expect(page.getByTestId('account-balance-today')).toHaveText('€990.00');
@@ -71,6 +74,24 @@ test('an app left open counts an entry once it returns on the entry\'s date', as
   await expect(page.getByTestId('year-month-2026-11-recorded')).toHaveText('−€50.00');
   await returnHome(page);
   await expect(page.getByLabel('View Everyday account').first()).toContainText('€950.00');
+});
+
+test('an app kept in the foreground across local midnight agrees everywhere that the entry has posted', async ({ page }) => {
+  const ledger = createFinancialState({ transactions: [
+    createTransaction({ id: 'bakery', title: 'Bakery', amount: 1000, date: '2026-11-10' }),
+    createTransaction({ id: 'concert', title: 'Concert tickets', amount: 4000, date: '2026-11-20', category: 'shopping' })
+  ] });
+  await openWithLedger(page, ledger, '2026-11-19T23:50:00');
+  await expect(page.getByTestId('month-scheduled')).toHaveText('1 scheduled entry · −€40.00 when it posts');
+
+  await page.clock.runFor('00:20:00');
+  await expect(page.getByTestId('month-scheduled')).toHaveCount(0);
+  await expect(page.getByLabel('View net spending transactions')).toContainText('€50.00');
+  await expect(page.getByLabel('View Concert tickets', { exact: true })).not.toContainText('Scheduled');
+  await expect(page.getByLabel('View Everyday account').first()).toContainText('€950.00');
+  await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Plan Year ahead', exact: true }).click();
+  await expect(page.getByTestId('year-month-2026-11-scheduled')).toHaveCount(0);
 });
 
 test('a future month reports nothing until its entries post and lists them as scheduled', async ({ page }) => {

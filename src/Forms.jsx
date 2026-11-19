@@ -222,7 +222,7 @@ function defaultLoanEnd(startMonth) {
 }
 
 export function LoanForm({item,onClose}){
- const {setState,state,notify}=useApp(),c=useContext(Theme);const [name,setName]=useState(item?.name||''),[remaining,setRemaining]=useState(item?String(item.remaining/k_centsPerEuro):''),[payment,setPayment]=useState(item?String(item.payment/k_centsPerEuro):''),[account,setAccount]=useState(item?.account||state.accounts[0]?.id||''),[start,setStart]=useState(item?.start||currentLocalMonth()),[end,setEnd]=useState(item?.end||defaultLoanEnd(currentLocalMonth())),[credit,setCredit]=useState(false),[error,setError]=useState('');
+ const {setState,state,notify}=useApp(),c=useContext(Theme);const [name,setName]=useState(item?.name||''),[remaining,setRemaining]=useState(item?String(item.remaining/k_centsPerEuro):''),[payment,setPayment]=useState(item?String(item.payment/k_centsPerEuro):''),[account,setAccount]=useState(item?.account||state.accounts[0]?.id||''),[start,setStart]=useState(()=>item?.start||currentLocalMonth()),[end,setEnd]=useState(()=>item?.end||defaultLoanEnd(currentLocalMonth())),[credit,setCredit]=useState(false),[error,setError]=useState('');
  function save() {
    const remainingInCents = cents(remaining);
    const paymentInCents = cents(payment);

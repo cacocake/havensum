@@ -8,6 +8,7 @@ import Icon from './Icon';
 import {Squish} from './Playful.jsx';
 import { expenseReportingMonth, isPlannedCostLink } from './plannedCosts.js';
 import { expensePaybacks, scheduledAccountMovement } from './ledger.js';
+import { isScheduledEntry } from './posting.js';
 import { signedEuro } from './money.js';
 
 export function AccountDetail(){
@@ -62,7 +63,7 @@ export function TransactionDetail({transactionId,onClose}){
  const cat=categorySettings(state.categories,tx.category),account=state.accounts.find(a=>a.id===tx.account),original=state.transactions.find(t=>t.id===tx.linkedId),paybacks=expensePaybacks(state.transactions,tx.id,today);
  const linkRow=(t,label)=><Squish key={t.id} accessibilityLabel={`View ${t.title}`} onPress={()=>setModal({type:'transaction-detail',id:t.id})} style={{minHeight:56,paddingVertical:12,borderTopWidth:1,borderColor:c.line}}><Row style={{gap:10}}><Icon name="Link2" size={17} color={c.sub}/><View style={{flex:1,minWidth:0}}><T>{t.title}</T><T style={{fontSize:12,color:c.sub}}>{label} · {t.date}</T></View><Icon name="ChevronRight" size={16} color={c.sub}/></Row></Squish>;
  return <Dialog title="Transaction details" onClose={onClose} footer={<Button icon="Pencil" onPress={()=>setModal({type:'transaction',item:tx})}>Edit transaction</Button>}>
-  <Row style={{gap:13,marginBottom:18}}><TileIcon name={tx.type==='transfer'?'ArrowLeftRight':cat.icon} color={cat.color} size={48}/><View style={{flex:1,minWidth:0}}><H size={24}>{tx.title}</H><Badge style={{marginTop:7}}>{tx.type==='reimbursement'?'Payback':tx.type}</Badge></View></Row>
+  <Row style={{gap:13,marginBottom:18}}><TileIcon name={tx.type==='transfer'?'ArrowLeftRight':cat.icon} color={cat.color} size={48}/><View style={{flex:1,minWidth:0}}><H size={24}>{tx.title}</H><Badge style={{marginTop:7}}>{tx.type==='reimbursement'?'Payback':tx.type}</Badge>{isScheduledEntry(tx,today)&&<T testID="transaction-scheduled" style={{fontSize:12,color:c.sub,marginTop:6}}>Scheduled · counts from {tx.date}</T>}</View></Row>
   <H size={37} style={{marginBottom:20,color:['income','reimbursement'].includes(tx.type)?c.positive:c.text}}>{euro(tx.amount)}</H>
   {[['Date',tx.date],['Account',account?.name||'Unknown account'],...(tx.type==='transfer'?[['To account',state.accounts.find(a=>a.id===tx.toAccount)?.name]]:[['Category',cat.name],['Behaviour',tx.kind||cat.kind]])].map(([label,value])=><Row key={label} style={{justifyContent:'space-between',alignItems:'flex-start',gap:16,marginBottom:13}}><T style={{color:c.sub}}>{label}</T><T style={{flex:1,textAlign:'right'}}>{value}</T></Row>)}
   {!!tx.note&&<View style={{backgroundColor:c.soft,padding:15,borderRadius:15,marginVertical:10}}><T style={{color:c.sub,fontSize:12}}>Note</T><T style={{marginTop:6}}>{tx.note}</T></View>}

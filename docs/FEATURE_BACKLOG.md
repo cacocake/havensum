@@ -281,7 +281,7 @@ The implementation note below records how these were built; it stores only per-y
   - `scheduledMonthStats` and `scheduledAccountMovement` total scheduled entries apart. `expensePaybacks` splits received from scheduled paybacks.
   - Forecasts (`expectedSavings`, `yearOutlook`, `planInsights`, `planDraftEstimates`), drift alerts and the workbook summary use the posted ledger and the local date.
   - The app's starting month, startup and restore interest posting, the new-entry date, loan start/end defaults, rate editors and payback tasks all use the local date (`localCalendarDate`, `currentLocalMonth`). This replaces the UTC dates noted in PLAN-4 Q4 and FORECAST-1 Q3.
-  - `useLocalDate` refreshes "today" when the app returns to the foreground, so an app left open counts an entry on its date.
+  - `useLocalDate` holds one "today" for the app (shared through the app context). It changes at local midnight while the app stays open and is checked again when the app returns to the foreground, so an entry counts on its date without a restart. Forms and a few one-off helpers still read the clock directly when they open.
 - **UI (shared web/Android components):**
   - Activity rows say *Scheduled*.
   - Home shows today's balances and "N scheduled entries · ±€ when they post".

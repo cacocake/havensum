@@ -4,18 +4,16 @@ import { useApp } from './context.js';
 import { Badge, Button, Card, Dialog, Field, H, Row, T, Theme } from './ui.jsx';
 import { closePaybackTask, createPaybackDraft, paybackTaskSummary, reopenPaybackTask } from './paybackTasks.js';
 import { euro } from './money.js';
-import { localCalendarDate } from './calendar.js';
 
 const k_statusLabels = { open: 'Awaiting payback', partial: 'Partially received', received: 'Received', closed: 'Closed without further payment' };
 
 export default function AwaitingPaybacks() {
-  const { state, setState, setModal, notify } = useApp();
+  const { state, today, setState, setModal, notify } = useApp();
   const colors = useContext(Theme);
   const [showHistory, setShowHistory] = useState(false);
   const [closingTask, setClosingTask] = useState(null);
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
-  const today = localCalendarDate();
   const rows = (state.paybackTasks ?? []).map(task => ({
     task,
     expense: state.transactions.find(transaction => transaction.id === task.expenseId),
