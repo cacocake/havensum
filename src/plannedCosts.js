@@ -54,11 +54,11 @@ export function plannedCostOptions(events, paymentDate, savedLink) {
   const options = new Map();
   for (const event of events) {
     for (const year of event.year ? [event.year] : years) {
-      const isSavedOccurrence = savedLink?.eventId === event.id && year === savedYear;
+      const month = `${year}-${String(event.month).padStart(2, '0')}`;
+      const isSavedOccurrence = savedLink?.eventId === event.id && month === savedLink.month;
       if (year < earliestYear && !isSavedOccurrence) {
         continue;
       }
-      const month = `${year}-${String(event.month).padStart(2, '0')}`;
       const monthLabel = new Date(year, event.month - 1, 1).toLocaleDateString('en', { month: 'long', year: 'numeric' });
       const link = { eventId: event.id, month };
       if (event.year) {

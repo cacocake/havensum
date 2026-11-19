@@ -169,3 +169,14 @@ test('a year amount from an earlier revision is shown and can be returned to the
   expect(saved.events.find(event => event.id === 'celebrations').yearAmounts).toEqual({ 2028: 45000 });
   expect(saved.plans['2027'][0].months['2027-12'].event).toBe(30000);
 });
+
+test('using a suggestion and then keeping the usual amount leaves nothing to discard', async ({ page }) => {
+  const dialog = await openNextYearCosts(page, ledgerWithCompletedCosts());
+
+  await dialog.getByRole('button', { name: 'Use €410.00 for 2027', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Keep usual €300.00', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Back', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+
+  await expect(dialog).toHaveCount(0);
+});

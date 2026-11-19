@@ -297,8 +297,18 @@ export function PlanForm({onClose}){
  function acceptYearAmount(eventId, amount) {
    setYearAmountDrafts(drafts => ({ ...drafts, [eventId]: amount }));
  }
+ // Clears a year amount saved by an earlier revision; with none saved, undoes the draft.
  function keepUsualAmount(eventId) {
-   setYearAmountDrafts(drafts => ({ ...drafts, [eventId]: null }));
+   const storedEvent = state.events.find(event => event.id === eventId);
+   const hasStoredYearAmount = storedEvent?.yearAmounts?.[String(year)] !== undefined;
+   setYearAmountDrafts(drafts => {
+     if (hasStoredYearAmount) {
+       return { ...drafts, [eventId]: null };
+     }
+     const remainingDrafts = { ...drafts };
+     delete remainingDrafts[eventId];
+     return remainingDrafts;
+   });
  }
  const suggestionCandidate=useMemo(()=>({id:k_draftEventId,name:eventName.trim(),year,month:Number(eventMonth),amount:0}),[eventName,year,eventMonth]);
  const candidateEvent=eventName.trim()&&cents(eventAmount)>0?{id:k_draftEventId,name:eventName.trim(),year,month:Number(eventMonth),amount:cents(eventAmount)}:null;
