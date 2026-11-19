@@ -159,7 +159,7 @@ test('Cashew beta normalizes representation noise on either side of a cent and f
   assert.match(file.rows[2].error, /fraction of a cent/i);
 });
 
-test('unverified Cashew beta metadata stays visible as a row error', async () => {
+test('an unpaid Cashew remainder stays a row error and extra is shown read-only (K04/K10)', async () => {
   const header = k_header.replace('amount,currency', 'amount,amount unpaid,currency') + ',extra';
   const betaRow = ['Wallet', '-12.34', '', 'EUR', 'Example', '', '2026-11-12 12:00:00.000',
     'false', 'default', 'Food', '', '', '', '', '', '', ''];
@@ -169,7 +169,8 @@ test('unverified Cashew beta metadata stays visible as a row error', async () =>
   const state = createFinancialState();
   const review = previewImportFile(state, file, { accounts: { Wallet: 'everyday' } });
   assert.match(review.rows[0].error, /amount unpaid/i);
-  assert.match(review.rows[1].error, /extra/i);
+  assert.equal(review.rows[1].bank.sourceDetails.extra, 'unknown metadata');
+  assert.match(review.rows[1].error, /classification/i);
   assert.deepEqual(applyTransactionImport(state, review, { 0: 'skip', 1: 'skip' }).transactions, []);
 });
 

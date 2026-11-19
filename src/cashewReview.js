@@ -15,7 +15,7 @@ const k_borrowingMessages = Object.freeze({
 });
 const k_scheduledNote = 'From a scheduled Cashew entry exported as paid. Unverified against a real export.';
 const k_balanceCorrectionCategory = 'balance correction';
-const k_readOnlySourceFields = ['budget', 'objective'];
+const k_readOnlySourceFields = ['budget', 'objective', 'extra'];
 const k_newAccountDefaults = { openingBalance: 0, tag: 'Personal', icon: 'Wallet', color: '#91A4CE' };
 
 function sourceWarning(row) {
@@ -32,7 +32,7 @@ function sourceWarning(row) {
   return undefined;
 }
 
-// K07: budget and objective names are read-only source information.
+// K07/K10: budget, objective and extra are read-only source information.
 function sourceDetails(row) {
   const details = Object.fromEntries(k_readOnlySourceFields.filter(name => row[name]).map(name => [name, row[name]]));
   return Object.keys(details).length > 0 ? details : undefined;
