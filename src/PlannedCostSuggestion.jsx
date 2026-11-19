@@ -4,13 +4,9 @@ import { Button, Row, Select, T, Theme } from './ui.jsx';
 import { plannedCostAmount } from './plannedCosts.js';
 import { euro, k_centsPerEuro } from './money.js';
 import { comparableCostEstimate, comparableLikeChoices, comparableOccurrences, k_minimumComparableOccurrences } from './comparableCosts.js';
+import { shortMonthLabel } from './monthLabels.js';
 
 const k_noLikeChoice = '';
-const k_monthLabelOptions = { month: 'short', year: 'numeric' };
-
-function monthLabel(month) {
-  return new Date(`${month}-01T12:00:00`).toLocaleString('en', k_monthLabelOptions);
-}
 
 export function parseLikeChoice(value) {
   return value === k_noLikeChoice ? undefined : JSON.parse(value);
@@ -30,7 +26,7 @@ function SuggestionCard({ estimate, useLabel, onUse }) {
       Similar past costs suggest {euro(estimate.estimate)} (between {euro(estimate.low)} and {euro(estimate.high)}).
     </T>
     {estimate.comparable.map(occurrence => <T key={`${occurrence.eventId}-${occurrence.month}`} style={{ fontSize: 10, color: colors.muted }}>
-      {occurrence.name} · {monthLabel(occurrence.month)} · {euro(occurrence.actual)}
+      {occurrence.name} · {shortMonthLabel(occurrence.month)} · {euro(occurrence.actual)}
     </T>)}
     <View style={{ alignSelf: 'flex-start', marginTop: 4 }}>
       <Button small kind="soft" icon="Sparkles" onPress={() => onUse(estimate.estimate)}>{useLabel}</Button>
@@ -41,17 +37,18 @@ function SuggestionCard({ estimate, useLabel, onUse }) {
 // For a planned cost being added: the owner says what it is like, then may use the suggestion.
 export function NewPlannedCostSuggestion({ state, evaluationDate, candidate, likeValue, onLikeChange, onUseAmount }) {
   const choices = useMemo(() => comparableLikeChoices(state, evaluationDate), [state, evaluationDate]);
-  const like = parseLikeChoice(likeValue);
+  // Only the candidate's identity and year affect which costs compare, so typing its name does not recompute.
   const estimate = useMemo(() => {
+    const like = parseLikeChoice(likeValue);
     if (!like) {
       return null;
     }
     return comparableCostEstimate(comparableOccurrences(state, candidate, evaluationDate, like));
-  }, [state, evaluationDate, candidate, likeValue]);
+  }, [state, evaluationDate, candidate.id, candidate.year, likeValue]);
   const options = [
     { value: k_noLikeChoice, label: 'No comparison' },
-    ...choices.plannedCosts.map(choice => ({ value: JSON.stringify(choice.like), label: `Like ${choice.label}` })),
-    ...choices.categories.map(choice => ({ value: JSON.stringify(choice.like), label: `Like other ${choice.label} costs` }))
+    ...choices.plannedCosts.map(choice => ({ value: JSON.stringify(choice.like), label: `Like ${choice.name} · ${shortMonthLabel(choice.month)}` })),
+    ...choices.categories.map(choice => ({ value: JSON.stringify(choice.like), label: `Like other ${choice.name} costs` }))
   ];
   return <View>
     <Select label="Compare with past costs · optional" value={likeValue} onChange={onLikeChange} options={options} />
@@ -60,7 +57,8 @@ export function NewPlannedCostSuggestion({ state, evaluationDate, candidate, lik
   </View>;
 }
 
-// For a recurring planned cost already in the plan: accepting sets this year's amount only.
+// For a recurring planned cost already in the plan: accepting sets this year's
+// amount only. `acceptedAmount` is the year amount in effect for the draft.
 export function RecurringPlannedCostSuggestion({ state, evaluationDate, event, year, acceptedAmount, onAccept, onRevert }) {
   const colors = useContext(Theme);
   const estimate = useMemo(() => comparableCostEstimate(comparableOccurrences(state, event, evaluationDate)), [state, event, evaluationDate]);
@@ -75,7 +73,7 @@ export function RecurringPlannedCostSuggestion({ state, evaluationDate, event, y
 
 // The draft's planned costs for the revised months, with this year's amount.
 // Recurring costs offer a suggestion that applies to this year only.
-export function DraftPlannedCosts({ state, evaluationDate, events, year, fromMonth, yearAmountDrafts, onAccept, onRevert }) {
+export function DraftPlannedCosts({ state, evaluationDate, events, year, fromMonth, onAccept, onRevert }) {
   const draftYearEvents = events.filter(event => event.month >= fromMonth && (!event.year || event.year === year));
   return draftYearEvents.map(event => {
     const storedEvent = state.events.find(candidate => candidate.id === event.id);
@@ -85,7 +83,7 @@ export function DraftPlannedCosts({ state, evaluationDate, events, year, fromMon
         <T style={{ fontSize: 12 }}>{euro(plannedCostAmount(event, year))}</T>
       </Row>
       {storedEvent && !storedEvent.year && <RecurringPlannedCostSuggestion state={state} evaluationDate={evaluationDate} event={storedEvent} year={year}
-        acceptedAmount={yearAmountDrafts[event.id]} onAccept={amount => onAccept(event.id, amount)} onRevert={() => onRevert(event.id)} />}
+        acceptedAmount={event.yearAmounts?.[String(year)]} onAccept={amount => onAccept(event.id, amount)} onRevert={() => onRevert(event.id)} />}
     </View>;
   });
 }

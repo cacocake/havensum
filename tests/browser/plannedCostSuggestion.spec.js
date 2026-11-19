@@ -82,7 +82,7 @@ test('a recurring planned cost shows its past years and an accepted suggestion a
   expect(saved.plans['2026']).toEqual(ledgerWithCompletedCosts().plans['2026']);
 });
 
-test('keeping the usual amount or cancelling leaves the planned cost unchanged', async ({ page }) => {
+test('keeping the usual amount, or cancelling after confirming the discard, leaves the planned cost unchanged', async ({ page }) => {
   const dialog = await openNextYearCosts(page, ledgerWithCompletedCosts());
   const before = await page.evaluate(key => localStorage.getItem(key), k_ledgerKey);
 
@@ -92,6 +92,8 @@ test('keeping the usual amount or cancelling leaves the planned cost unchanged',
   await dialog.getByRole('button', { name: 'Use €410.00 for 2027', exact: true }).click();
   await dialog.getByRole('button', { name: 'Back', exact: true }).click();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog.getByText('Discard your changes?', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Discard changes', exact: true }).click();
 
   await expect(dialog).toHaveCount(0);
   expect(await page.evaluate(key => localStorage.getItem(key), k_ledgerKey)).toBe(before);
@@ -111,6 +113,18 @@ test('a new planned cost compared with past travel uses the suggestion only when
   await expect(dialog.getByLabel('One-off amount · EUR', { exact: true })).toHaveValue('');
   await dialog.getByRole('button', { name: 'Use €350.00', exact: true }).click();
   await expect(dialog.getByLabel('One-off amount · EUR', { exact: true })).toHaveValue('350');
+  await dialog.getByRole('button', { name: 'Add another event', exact: true }).click();
+  await expect(comparison).toHaveCount(0);
+  await dialog.getByLabel('A trip, a big purchase, a seasonal cost · optional', { exact: true }).fill('Second trip');
+  await expect(comparison).toHaveValue('');
+  await dialog.getByLabel('A trip, a big purchase, a seasonal cost · optional', { exact: true }).fill('');
+  await dialog.getByLabel('A trip, a big purchase, a seasonal cost · optional', { exact: true }).fill('Madeira trip');
+  await comparison.selectOption({ label: 'Like other Travel costs' });
+  await dialog.getByLabel('A trip, a big purchase, a seasonal cost · optional', { exact: true }).fill('');
+  await dialog.getByLabel('A trip, a big purchase, a seasonal cost · optional', { exact: true }).fill('Madeira trip');
+  await expect(comparison).toHaveValue('');
+  await comparison.selectOption({ label: 'Like other Travel costs' });
+  await dialog.getByRole('button', { name: 'Use €350.00', exact: true }).click();
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
   await dialog.getByRole('button', { name: 'Freeze my plan', exact: true }).click();
   await expect(dialog).toHaveCount(0);
@@ -137,4 +151,21 @@ test('the suggestion stays within a 320 px screen with a long name and a large a
     expect(box.x + box.width).toBeLessThanOrEqual(320);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+
+test('a year amount from an earlier revision is shown and can be returned to the usual amount', async ({ page }) => {
+  const ledger = ledgerWithCompletedCosts();
+  ledger.events[0].yearAmounts = { 2027: 41000, 2028: 45000 };
+  const dialog = await openNextYearCosts(page, ledger);
+
+  await expect(dialog.getByText('Using €410.00 for 2027 only.', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Keep usual €300.00', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Use €410.00 for 2027', exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Freeze my plan', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+
+  const saved = await savedLedger(page);
+  expect(saved.events.find(event => event.id === 'celebrations').yearAmounts).toEqual({ 2028: 45000 });
+  expect(saved.plans['2027'][0].months['2027-12'].event).toBe(30000);
 });

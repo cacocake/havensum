@@ -54,7 +54,8 @@ export function plannedCostOptions(events, paymentDate, savedLink) {
   const options = new Map();
   for (const event of events) {
     for (const year of event.year ? [event.year] : years) {
-      if (year < earliestYear) {
+      const isSavedOccurrence = savedLink?.eventId === event.id && year === savedYear;
+      if (year < earliestYear && !isSavedOccurrence) {
         continue;
       }
       const month = `${year}-${String(event.month).padStart(2, '0')}`;

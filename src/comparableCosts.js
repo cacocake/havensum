@@ -1,5 +1,6 @@
-// FORECAST-2 discovery: what a named cost actually came to in its completed
-// occurrences. Nothing here is shown in the app or written to the ledger.
+// FORECAST-2: what planned costs actually came to in their completed
+// occurrences, which ones compare, and the suggested amount. Read-only: the
+// planning interview shows suggestions and nothing here writes the ledger.
 import { k_calendarDateLength, monthOf, yearOfMonth } from './calendar.js';
 import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
 import { hasCategoryParent, netExpenses } from './ledger.js';
@@ -68,8 +69,8 @@ function hasOpenPayback(state, expenseId, evaluationDate) {
     .some(task => k_openPaybackStatuses.has(paybackTaskSummary(state, task.id, evaluationDate).status));
 }
 
-function occurrenceStatus(state, recordedTransactions, event, month, linkedPayments, evaluationDate) {
-  const hasPaymentsToReview = recordedTransactions.some(transaction => transaction.type === k_transactionTypes.expense
+function occurrenceStatus(state, eventTransactions, event, month, linkedPayments, evaluationDate) {
+  const hasPaymentsToReview = eventTransactions.some(transaction => transaction.type === k_transactionTypes.expense
     && needsPlannedCostReview(transaction, event, month));
   if (hasPaymentsToReview) {
     return k_occurrenceStatus.needsReview;
@@ -91,14 +92,26 @@ function occurrenceStatus(state, recordedTransactions, event, month, linkedPayme
 
 // Only transactions and payback tasks dated by `evaluationDate` are used. Month
 // confirmations and the cost's current month are read as they are now.
+// The expenses linked to any occurrence of the cost and the paybacks linked to
+// them: all that its evidence depends on, so the rest of the ledger is skipped.
+function plannedCostTransactions(recordedTransactions, event) {
+  const linkedExpenses = recordedTransactions.filter(transaction => transaction.type === k_transactionTypes.expense
+    && transaction.plannedCost?.eventId === event.id);
+  const linkedExpenseIds = new Set(linkedExpenses.map(expense => expense.id));
+  const linkedPaybacks = recordedTransactions.filter(transaction => transaction.type === k_transactionTypes.reimbursement
+    && linkedExpenseIds.has(transaction.linkedId));
+  return [...linkedExpenses, ...linkedPaybacks];
+}
+
 function occurrencesWithPayments(state, event, evaluationDate) {
   const recordedTransactions = state.transactions.filter(transaction => transaction.date <= evaluationDate);
+  const eventTransactions = plannedCostTransactions(recordedTransactions, event);
   return pastOccurrenceMonths(recordedTransactions, event, evaluationDate).map(month => {
-    const linkedPayments = netExpenses(recordedTransactions, month)
-      .filter(expense => expense.plannedCost?.eventId === event.id && expense.plannedCost.month === month);
+    const linkedPayments = netExpenses(eventTransactions, month)
+      .filter(expense => expense.plannedCost.month === month);
     return {
       month,
-      status: occurrenceStatus(state, recordedTransactions, event, month, linkedPayments, evaluationDate),
+      status: occurrenceStatus(state, eventTransactions, event, month, linkedPayments, evaluationDate),
       actual: sumCents(linkedPayments.map(payment => payment.net)),
       linkedPayments
     };
@@ -201,27 +214,21 @@ export function comparableCostEstimate(allComparable) {
   };
 }
 
-const k_likeMonthLabelOptions = { month: 'short', year: 'numeric' };
 const k_systemCategories = new Set(Object.values(k_systemCategoryIds));
 
-function likeMonthLabel(month) {
-  return new Date(`${month}-01T12:00:00`).toLocaleString('en', k_likeMonthLabelOptions);
-}
-
 // What a new planned cost can be "like": a past planned cost with completed
-// evidence (its latest occurrence) or a top-level spending category.
+// evidence (named with its latest occurrence) or a top-level spending category.
 export function comparableLikeChoices(state, evaluationDate) {
   const plannedCosts = state.events.flatMap(event => {
     const occurrences = completedOccurrences(state, event, evaluationDate);
     if (!occurrences.length) {
       return [];
     }
-    const latest = occurrences[occurrences.length - 1];
-    return [{ like: { eventId: event.id }, label: `${event.name} · ${likeMonthLabel(latest.month)}` }];
-  }).sort((left, right) => left.label.localeCompare(right.label));
+    return [{ like: { eventId: event.id }, name: event.name, month: occurrences[occurrences.length - 1].month }];
+  }).sort((left, right) => left.name.localeCompare(right.name) || left.month.localeCompare(right.month));
   const categories = state.categories
     .filter(category => !hasCategoryParent(category) && !k_systemCategories.has(category.id))
-    .map(category => ({ like: { categoryId: category.id }, label: category.name }))
-    .sort((left, right) => left.label.localeCompare(right.label));
+    .map(category => ({ like: { categoryId: category.id }, name: category.name }))
+    .sort((left, right) => left.name.localeCompare(right.name));
   return { plannedCosts, categories };
 }

@@ -257,13 +257,22 @@ function initialPlanCushion(state, carried, { year, fromMonth }) {
   return estimates.evidence.months.length ? estimates.suggestedCushion : k_defaultPlanCushion;
 }
 
-// A suggestion accepted in the draft sets this year's amount only (owner decision F16).
+// A suggestion accepted in the draft sets this year's amount only (owner
+// decision F16). A null draft returns the year to the usual amount.
 function withYearAmountDraft(event, year, yearAmountDrafts) {
   const draftAmount = yearAmountDrafts[event.id];
   if (draftAmount === undefined) {
     return event;
   }
-  return { ...event, yearAmounts: { ...event.yearAmounts, [String(year)]: draftAmount } };
+  const yearKey = String(year);
+  const otherYearAmounts = Object.fromEntries(Object.entries(event.yearAmounts ?? {}).filter(([amountYear]) => amountYear !== yearKey));
+  const yearAmounts = draftAmount === null ? otherYearAmounts : { ...otherYearAmounts, [yearKey]: draftAmount };
+  if (Object.keys(yearAmounts).length) {
+    return { ...event, yearAmounts };
+  }
+  const eventWithUsualAmount = { ...event };
+  delete eventWithUsualAmount.yearAmounts;
+  return eventWithUsualAmount;
 }
 
 export function PlanForm({onClose}){
@@ -279,6 +288,18 @@ export function PlanForm({onClose}){
  const [eventLike,setEventLike]=useState('');
  const [yearAmountDrafts,setYearAmountDrafts]=useState({});
  const [evaluationDate]=useState(()=>localCalendarDate());
+ function changeEventName(name) {
+   setEventName(name);
+   if (!name.trim()) {
+     setEventLike('');
+   }
+ }
+ function acceptYearAmount(eventId, amount) {
+   setYearAmountDrafts(drafts => ({ ...drafts, [eventId]: amount }));
+ }
+ function keepUsualAmount(eventId) {
+   setYearAmountDrafts(drafts => ({ ...drafts, [eventId]: null }));
+ }
  const suggestionCandidate=useMemo(()=>({id:k_draftEventId,name:eventName.trim(),year,month:Number(eventMonth),amount:0}),[eventName,year,eventMonth]);
  const candidateEvent=eventName.trim()&&cents(eventAmount)>0?{id:k_draftEventId,name:eventName.trim(),year,month:Number(eventMonth),amount:cents(eventAmount)}:null;
  // Stable between renders so the forecast preview only recomputes for new evidence.
@@ -344,16 +365,14 @@ export function PlanForm({onClose}){
    notify(`Plan frozen · ${firstRevisedMonthName} onwards`);
    onClose();
  }
- const isDirty = useDirtyForm([income,cushion,window,eventName,eventAmount,eventMonth,carriedIncomeChanges,carriedLoanChanges,overrides,incomeChangeFrom,incomeChangeAmount,loanEdits,loanChangeFrom,tolerance,drift,draftEvents]);
+ const isDirty = useDirtyForm([income,cushion,window,eventName,eventAmount,eventMonth,carriedIncomeChanges,carriedLoanChanges,overrides,incomeChangeFrom,incomeChangeAmount,loanEdits,loanChangeFrom,tolerance,drift,draftEvents,yearAmountDrafts]);
  return <Dialog dismissRef={dismissRef} dirty={isDirty} title={step===0?'Make room for your year':step===1?'The things coming up':'Your plan, your call'} subtitle={`Step ${step+1} of 3 · Only ${new Date(year,from-1,1).toLocaleString('en',{month:'long'})}–December will change.`} onClose={onClose} width={550}>
  <Row style={{gap:6,marginBottom:25}}>{[0,1,2].map(i=><View key={i} style={{height:4,flex:1,borderRadius:4,backgroundColor:i<=step?c.accent:c.line}}/>)}</Row>
  {step===0&&<><PlanDraftEvidence evidence={preview.evidence} suggestedCushion={preview.suggestedCushion}/><Field label="Expected monthly income · EUR" value={income} onChangeText={setIncome} keyboardType="decimal-pad"/><Field label="Monthly occasional-spending cushion · EUR" value={cushion} onChangeText={setCushion} keyboardType="decimal-pad"/><Select label="Variable spending history" value={window} onChange={setWindow} options={[{value:'3',label:'3 completed months'},{value:'6',label:'6 completed months · recommended'},{value:'12',label:'12 completed months'}]}/><Row style={{gap:12}}><Field label="Fixed tolerance · ± EUR" value={tolerance} onChangeText={setTolerance} style={{flex:1}}/><Field label="Variable drift trigger · %" value={drift} onChangeText={setDrift} style={{flex:1}}/></Row><View style={{backgroundColor:c.soft,padding:15,borderRadius:12}}><T style={{fontSize:12,color:c.sub}}>Fixed costs use each bill's latest observed amount until you cancel it. Variable costs use your rolling net average. Occasional spending uses its own cushion. Loan repayments get a separate line.</T></View></>}
- {step===1&&<><H size={19} style={{marginBottom:16}}>Changes to your regular income</H><Select label="Income changes from" value={incomeChangeFrom} onChange={setIncomeChangeFrom} options={[{value:'',label:'No change planned'},...Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))]}/>{incomeChangeFrom&&<Field label="New monthly income · EUR" value={incomeChangeAmount} onChangeText={setIncomeChangeAmount} placeholder="e.g. 2600"/>}<Divider/><H size={19} style={{marginBottom:16}}>The bigger things</H><Field label="A trip, a big purchase, a seasonal cost · optional" value={eventName} onChangeText={setEventName} placeholder="e.g. Summer in the Azores"/><Row style={{gap:14}}><Field label="One-off amount · EUR" value={eventAmount} onChangeText={setEventAmount} style={{flex:1}}/><Select label="Month" value={eventMonth} onChange={setEventMonth} options={Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))} style={{flex:1}}/></Row>
+ {step===1&&<><H size={19} style={{marginBottom:16}}>Changes to your regular income</H><Select label="Income changes from" value={incomeChangeFrom} onChange={setIncomeChangeFrom} options={[{value:'',label:'No change planned'},...Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))]}/>{incomeChangeFrom&&<Field label="New monthly income · EUR" value={incomeChangeAmount} onChangeText={setIncomeChangeAmount} placeholder="e.g. 2600"/>}<Divider/><H size={19} style={{marginBottom:16}}>The bigger things</H><Field label="A trip, a big purchase, a seasonal cost · optional" value={eventName} onChangeText={changeEventName} placeholder="e.g. Summer in the Azores"/><Row style={{gap:14}}><Field label="One-off amount · EUR" value={eventAmount} onChangeText={setEventAmount} style={{flex:1}}/><Select label="Month" value={eventMonth} onChange={setEventMonth} options={Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))} style={{flex:1}}/></Row>
  {eventName.trim()&&<NewPlannedCostSuggestion state={state} evaluationDate={evaluationDate} candidate={suggestionCandidate} likeValue={eventLike} onLikeChange={setEventLike} onUseAmount={setEventAmount}/>}
  {candidateEvent&&<Button small kind="soft" icon="Plus" onPress={addPlannedEvent}>Add another event</Button>}
- <DraftPlannedCosts state={state} evaluationDate={evaluationDate} events={[...plannedEvents.filter(event=>event.id!==k_draftEventId)]} year={year} fromMonth={from} yearAmountDrafts={yearAmountDrafts}
-   onAccept={(eventId,amount)=>setYearAmountDrafts(drafts=>({...drafts,[eventId]:amount}))}
-   onRevert={eventId=>setYearAmountDrafts(drafts=>Object.fromEntries(Object.entries(drafts).filter(([draftEventId])=>draftEventId!==eventId)))}/><Divider/><H size={18} style={{marginBottom:10}}>Loans and changes already accounted for</H><CarriedChanges loans={state.loans} startMonth={`${year}-${String(from).padStart(2,'0')}`} incomeChanges={carriedIncomeChanges} loanChanges={carriedLoanChanges} onRemoveIncomeChange={change=>setCarriedIncomeChanges(changes=>changes.filter(candidate=>candidate!==change))} onRemoveLoanChange={change=>setCarriedLoanChanges(changes=>changes.filter(candidate=>candidate!==change))}/>{state.loans.length>0&&<><Select label="Loan payment changes from" value={loanChangeFrom} onChange={setLoanChangeFrom} options={Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))}/>{state.loans.map(l=><Field key={l.id} label={`${l.name} · new monthly payment, optional`} value={loanEdits[l.id]||''} onChangeText={v=>setLoanEdits(es=>({...es,[l.id]:v}))} placeholder={`${(carriedLoanChanges.find(change=>change.loanId===l.id&&change.since===`${year}-${String(from).padStart(2,'0')}`)?.amount??l.payment)/k_centsPerEuro} · unchanged`}/>)}</>}</>}
+ <DraftPlannedCosts state={state} evaluationDate={evaluationDate} events={[...plannedEvents.filter(event=>event.id!==k_draftEventId)]} year={year} fromMonth={from} onAccept={acceptYearAmount} onRevert={keepUsualAmount}/><Divider/><H size={18} style={{marginBottom:10}}>Loans and changes already accounted for</H><CarriedChanges loans={state.loans} startMonth={`${year}-${String(from).padStart(2,'0')}`} incomeChanges={carriedIncomeChanges} loanChanges={carriedLoanChanges} onRemoveIncomeChange={change=>setCarriedIncomeChanges(changes=>changes.filter(candidate=>candidate!==change))} onRemoveLoanChange={change=>setCarriedLoanChanges(changes=>changes.filter(candidate=>candidate!==change))}/>{state.loans.length>0&&<><Select label="Loan payment changes from" value={loanChangeFrom} onChange={setLoanChangeFrom} options={Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))}/>{state.loans.map(l=><Field key={l.id} label={`${l.name} · new monthly payment, optional`} value={loanEdits[l.id]||''} onChangeText={v=>setLoanEdits(es=>({...es,[l.id]:v}))} placeholder={`${(carriedLoanChanges.find(change=>change.loanId===l.id&&change.since===`${year}-${String(from).padStart(2,'0')}`)?.amount??l.payment)/k_centsPerEuro} · unchanged`}/>)}</>}</>}
  {step===2&&<><H size={18} style={{marginBottom:15}}>Fine-tune the monthly amounts</H><PlanDraftEvidence evidence={preview.evidence} suggestedCushion={preview.suggestedCushion}/>{preview.months[`${year}-${String(from).padStart(2,'0')}`]?.lines.filter(l=>!['salary','interest','loan'].includes(l.category)).map(l=><Row key={l.id||l.category} style={{gap:14,marginBottom:6}}><View style={{flex:1}}><T style={{fontSize:12}}>{l.name}</T><T style={{fontSize:10,color:c.muted}}>{l.kind} · calculated {euro(l.amount)}</T>{l.kind===k_spendingBehaviors.fixed&&<PlanBillList bills={draftBills.filter(bill=>bill.category===l.category)} month={`${year}-${String(from).padStart(2,'0')}`}/>}<EarlierOverride override={carried.overrides.find(override=>override.lineId===(l.id||l.category)&&!override.stale)} value={overrides[l.id||l.category]} onKeep={amount=>setOverrides(o=>({...o,[l.id||l.category]:String(amount/k_centsPerEuro)}))} onDrop={()=>setOverrides(o=>({...o,[l.id||l.category]:''}))}/></View><Field value={overrides[l.id||l.category]??''} onChangeText={v=>setOverrides(o=>({...o,[l.id||l.category]:v}))} placeholder={(l.amount/k_centsPerEuro).toFixed(2)} label={`Override ${l.name}`} style={{width:150,marginBottom:6}}/></Row>)}<CarriedAssumptionNotes carried={carried} loans={state.loans} lineIds={(preview.months[`${year}-${String(from).padStart(2,'0')}`]?.lines||[]).map(line=>line.id||line.category)}/><PlanDraftPreview plan={preview} state={{...state,events:plannedEvents}} year={year} fromMonth={from}/><Divider/><Row style={{justifyContent:'space-between',marginBottom:15}}><T style={{fontSize:12}}>First revised month's balance</T><H size={24}>{euro(preview.months[`${year}-${String(from).padStart(2,'0')}`]?.balance||0)}</H></Row><T style={{fontSize:12,color:c.sub}}>Overrides take priority and are marked in the plan. Past months stay untouched. New transactions never silently rewrite this snapshot.</T></>}
  {error&&<T style={{color:c.negative,marginTop:15}}>{error}</T>}<Row style={{justifyContent:'space-between',marginTop:25}}><Button kind="soft" onPress={()=>step?setStep(step-1):dismissRef.current?.()}>{step?'Back':'Cancel'}</Button><Button icon={step===2?'LockKeyhole':'ArrowRight'} onPress={()=>step<2?setStep(step+1):save()}>{step===2?'Freeze my plan':'Continue'}</Button></Row>
  </Dialog>;

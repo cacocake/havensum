@@ -2,18 +2,13 @@ import React, { useContext } from 'react';
 import { View } from 'react-native';
 import { Theme, T } from './ui.jsx';
 import { euro } from './money.js';
-
-const k_monthLabelOptions = { month: 'short', year: 'numeric' };
-
-function monthLabel(month) {
-  return new Date(`${month}-01T12:00:00`).toLocaleString('en', k_monthLabelOptions);
-}
+import { shortMonthLabel } from './monthLabels.js';
 
 export function planEvidenceSummary(evidence) {
   if (!evidence?.months.length) {
     return 'No usable history yet. Enter the amounts you expect.';
   }
-  const months = evidence.months.map(monthLabel).join(', ');
+  const months = evidence.months.map(shortMonthLabel).join(', ');
   if (evidence.partial) {
     return `Partial estimate from recorded months not yet confirmed complete: ${months}.`;
   }
@@ -36,7 +31,7 @@ export function PlanBillList({ bills, month }) {
   return <View style={{ marginBottom: 8, gap: 2 }}>
     {bills.map(bill => {
       const isCancelled = Boolean(bill.cancelledSince && bill.cancelledSince <= month);
-      const status = isCancelled ? `cancelled from ${monthLabel(bill.cancelledSince)}` : `latest ${euro(bill.amount)}`;
+      const status = isCancelled ? `cancelled from ${shortMonthLabel(bill.cancelledSince)}` : `latest ${euro(bill.amount)}`;
       return <T key={bill.key} style={{ fontSize: 10, color: colors.muted }}>{bill.name || 'Untitled bill'} · {status}</T>;
     })}
   </View>;

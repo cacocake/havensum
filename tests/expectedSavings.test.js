@@ -28,6 +28,16 @@ test('the planned-cost picker offers occurrences from the previous year onwards 
   assert.match(options[2].label, /original month 2027-05/);
 });
 
+test('a saved link to an occurrence more than a year before the payment keeps its own label', () => {
+  const events = [{ id: 'gifts', name: 'Gifts', month: 12 }, { id: 'old-trip', name: 'Old trip', year: 2025, month: 6 }];
+  const saved = { eventId: 'gifts', month: '2025-12' };
+
+  const options = plannedCostOptions(events, '2027-03-12', saved);
+
+  assert.equal(options.some(option => option.label.startsWith('Old trip')), false);
+  assert.equal(options.find(option => option.value === JSON.stringify(saved)).label, 'Gifts · December 2025');
+});
+
 test('two early payments count once in their specific planned month and keep their cash dates', () => {
   const plannedCost = { eventId: 'trip', month: '2027-11' };
   const state = createFinancialState({

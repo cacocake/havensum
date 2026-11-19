@@ -437,11 +437,23 @@ test('like choices list past planned costs with completed evidence and top-level
   const choices = comparableLikeChoices(state, k_today);
 
   assert.deepEqual(choices.plannedCosts, [
-    { like: { eventId: 'azores' }, label: 'Trip azores · Mar 2025' },
-    { like: { eventId: 'lisbon' }, label: 'Trip lisbon · May 2024' },
-    { like: { eventId: 'porto' }, label: 'Trip porto · Sep 2025' }
+    { like: { eventId: 'azores' }, name: 'Trip azores', month: '2025-03' },
+    { like: { eventId: 'lisbon' }, name: 'Trip lisbon', month: '2024-05' },
+    { like: { eventId: 'porto' }, name: 'Trip porto', month: '2025-09' }
   ]);
   assert.deepEqual(choices.categories.map(choice => choice.like.categoryId),
     ['groceries', 'rent', 'shopping', 'travel']);
-  assert.equal(choices.categories.find(choice => choice.like.categoryId === 'travel').label, 'Travel');
+  assert.equal(choices.categories.find(choice => choice.like.categoryId === 'travel').name, 'Travel');
+});
+
+// Owner decision F15: an expense settled after its planned cost links back to it.
+test('a payment settled after the occurrence counts toward it once it is recorded', () => {
+  const state = celebrationsState({ transactions: [
+    linkedPayment({ id: 'gifts', date: '2025-12-10', amount: 25000 }),
+    linkedPayment({ id: 'card-bill', date: '2026-01-10', amount: 8000 })
+  ] });
+
+  assert.equal(plannedCostOccurrences(state, k_celebrations, '2026-01-05')[0].actual, 25000);
+  assert.deepEqual(plannedCostOccurrences(state, k_celebrations, k_today)[0],
+    { month: '2025-12', status: 'completed', actual: 33000, paymentIds: ['gifts', 'card-bill'] });
 });
