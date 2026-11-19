@@ -65,21 +65,21 @@ Today `preferences` holds `visibility: 'shared'` and `cushion` (seed data). No c
    - Android: Google's `AuthorizationClient` (`Identity.getAuthorizationClient(...).authorize(...)`).
    - Web: the Google Identity Services token model. It issues a short-lived access token and no refresh token in the browser.
 2. **Create (first person).** Setup offers "Open shared file" first. "Create shared file" warns the person to check that their partner has not already created one (G09), and it is unavailable while example data is loaded (G07). Create:
-   - uploads the current local state as a new JSON file in the creator's My Drive;
+   - uploads the shared financial collections of the current local state (no device keys) as a new JSON file in the creator's My Drive;
    - shares it as **writer** with the partner's Google email (Drive `permissions.create`);
    - stores the file ID and records the uploaded state as this device's baseline.
 3. **Open (partner).** "Open shared file" launches Google's picker:
    - On the web it uses the Picker with `setAppId` set to the Cloud project number, which `drive.file` requires.
    - On Android it uses the desktop/mobile Picker in the system browser. It returns `picked_file_ids` to the redirect. Google documents an optional `file_ids` filter that can limit the picker to the shared file.
    - The app then reads the file and validates it (schema validation and migration, as restore does today).
-   - A partner with no data of their own adopts the file.
+   - A partner with no data of their own adopts the file. Whether a device that still holds only the example data counts as "no data" (adopt without asking) is not decided; DRIVE-2 must confirm it with the owner.
    - A partner who already has entries chooses between two options (G08):
      - **Adopt the file.** The app first saves their local state as a recovery copy, as restore does.
      - **Merge with review.** There is no common baseline, and `mergeThreeWay` with an empty base would silently union records found on only one side. The same real expense entered by both people has two IDs, so it would appear twice. A field present on only one side of a shared record would also be taken without asking. The current merge screen refuses to run without a baseline (`missingBaseline`). DRIVE-2 therefore needs a separate first-join review that lists every one-sided record so the person can drop duplicates.
 4. **Steady state.** Each device reads the file, runs `mergeThreeWay(baseline, local, remote)`, asks the person about conflicts and writes the merged result. Then it updates its local baseline.
    - Sync runs on app start and resume, shortly after edits when online, and from "Sync now" (G10).
    - A web access token lasts about an hour and the browser has no refresh token. When it expires, the web build shows "Reconnect" instead of opening a popup unprompted.
-5. **Two files by mistake.** If both people created a file, each opens the one to keep. The app merges the other one's contents in through the review (G09) and never deletes either file.
+5. **Two files by mistake.** If both people created a file, each opens the one to keep. To merge the other in, the person must first pick that file too, because under `drive.file` the app cannot see the partner's file until it is picked. The two files share no baseline, so this uses the G08 first-join review of every one-sided record, not the normal three-way review (G09). The app never deletes either file.
 
 ## How access changes
 

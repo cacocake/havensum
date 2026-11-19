@@ -327,5 +327,6 @@ The implementation note below records how these were built; it stores only per-y
     - the Android desktop/mobile Picker's redirect and client requirements;
     - whether an unverified-app screen appears with only a non-sensitive scope.
   - Drive v3 documents no conditional (If-Match) writes, so the write protocol cannot assume compare-and-swap.
+- **Open for DRIVE-2 (owner to confirm):** does a joining device that holds only the example data adopt the shared file without the adopt-or-merge choice?
 - **Not done:** no Drive code was written (out of scope for this ticket). Nothing is verified with real accounts. S03 (baseline/revision protocol) and the first-join merge for a partner who already has local data are DRIVE-2 design work.
 - **Checks:** docs only, so no app code, tests or build inputs changed. The test, browser, build and Hermes checks are unaffected and were not rerun. Link targets and Markdown were checked by hand.
