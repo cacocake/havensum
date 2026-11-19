@@ -73,15 +73,27 @@ function PlanRevisionPicker({ revisions, shownId, onSelect, color }) {
 
 // Offers the yearly interview when the current year has no plan. Later hides it
 // for this calendar year on this installation; no financial record changes.
+const k_deferralNotSavedMessage = 'Hidden for now. This device could not remember the choice, so the invitation may return.';
+
 function PlanInvitation() {
   const { state, setMonth, setModal, notify } = useApp();
   const colors = useContext(Theme);
   const [deferral, setDeferral] = useState({ loaded: false, year: null });
   useEffect(() => {
     let active = true;
-    readPlanInvitationDeferral()
-      .then(year => active && setDeferral({ loaded: true, year }))
-      .catch(() => active && setDeferral({ loaded: true, year: null }));
+    async function loadDeferral() {
+      let year = null;
+      try {
+        year = await readPlanInvitationDeferral();
+      } catch {
+        // Without a readable preference, offering the invitation is the safe default.
+      }
+      if (!active) {
+        return;
+      }
+      setDeferral({ loaded: true, year });
+    }
+    loadDeferral();
     return () => {
       active = false;
     };
@@ -99,12 +111,13 @@ function PlanInvitation() {
     setModal({ type: 'plan' });
   }
   async function deferInterview() {
+    // Hide it for this session either way; only the saved choice can fail.
+    setDeferral({ loaded: true, year: invitedYear });
     try {
       await writePlanInvitationDeferral(invitedYear);
-      setDeferral({ loaded: true, year: invitedYear });
       notify(`Plan invitation hidden for ${invitedYear}. You can still build a plan any time.`);
-    } catch (error) {
-      notify(error.message);
+    } catch {
+      notify(k_deferralNotSavedMessage);
     }
   }
   return <Card testID="plan-invitation" style={{ padding: 21, backgroundColor: colors.soft, borderColor: 'transparent' }}>
