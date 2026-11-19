@@ -1,12 +1,12 @@
 import { accountBalance } from './ledger.js';
-import { monthOf, nextMonth } from './calendar.js';
+import { nextMonth } from './calendar.js';
 import { sumCents } from './money.js';
 import { shortMonthLabel } from './monthLabels.js';
 import { firstInterestMonth, interestRateForMonth } from './interestSchedule.js';
 import { appInterestEntry, interestPostingDate, monthlyInterestAmount } from './savingsInterest.js';
 import {
   appInterestEntries, appInterestId, bankInterestEntries, interestCorrectionId, isAccountInterestCorrection, isAppInterestEntry,
-  isInterestCorrection, isInterestIncome, k_interestBankChoices
+  interestEntryMonth, isInterestCorrection, isInterestIncome, k_interestBankChoices
 } from './interestEntries.js';
 
 const k_correctionTitle = 'Interest correction';
@@ -26,7 +26,7 @@ function isAppOrCorrectionInterest(transaction, accountId) {
 function firstReviewedMonth(state, draftAccount) {
   const recordedMonths = state.transactions
     .filter(transaction => isAppOrCorrectionInterest(transaction, draftAccount.id))
-    .map(transaction => monthOf(transaction.date));
+    .map(interestEntryMonth);
   const candidates = [firstInterestMonth(draftAccount), ...recordedMonths].filter(Boolean).sort();
   return candidates[0] ?? null;
 }

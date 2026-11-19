@@ -325,3 +325,21 @@ test('a month waiting for a bank-interest choice expects the bank amount, and a 
   assert.equal(expectedInterest(corrected, '2026-01')[0].expected, 0);
   assert.equal(monthStats(corrected, '2026-01').income, 0);
 });
+
+test('an app entry re-categorised as something else no longer counts as that month\'s interest', () => {
+  const state = compoundSavings(createSavingsState(), '2026-04');
+  state.transactions.find(transaction => transaction.id === 'interest-savings-2026-01').category = 'salary';
+
+  const review = interestCorrectionReview(state, 'savings', { currentMonth: '2026-04' });
+
+  assert.deepEqual(review.months.map(({ month, recorded, difference }) => ({ month, recorded, difference }))[0], { month: '2026-01', recorded: 0, difference: 958 });
+});
+
+test('an app entry re-dated into a later month is still reviewed for the month it belongs to', () => {
+  const state = postedSavingsState();
+  state.transactions.find(transaction => transaction.id === 'interest-savings-2026-01').date = '2026-02-01';
+
+  const review = interestCorrectionReview(state, 'savings', { currentMonth: '2026-03', schedule: [{ since: '2026-02', rate: 12 }] });
+
+  assert.deepEqual(review.months.map(({ month, difference }) => ({ month, difference })).slice(0, 1), [{ month: '2026-01', difference: -949 }]);
+});

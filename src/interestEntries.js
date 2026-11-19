@@ -30,10 +30,19 @@ function isAccountInterestInMonth(transaction, accountId, month) {
   return isInterestIncome(transaction) && transaction.account === accountId && monthOf(transaction.date) === month;
 }
 
-// An app entry is recognised by its ID, even if it was later re-dated.
+function appInterestIdMonth(transaction) {
+  return String(transaction.id).slice(-k_monthKeyLength);
+}
+
+// An app entry is interest income recognised by its ID, even if re-dated.
 export function isAppInterestEntry(transaction, accountId) {
-  const idMonth = String(transaction.id).slice(-k_monthKeyLength);
-  return transaction.account === accountId && transaction.id === appInterestId(accountId, idMonth);
+  return isInterestIncome(transaction) && transaction.account === accountId
+    && transaction.id === appInterestId(accountId, appInterestIdMonth(transaction));
+}
+
+// The month an app entry or correction belongs to, whatever its date.
+export function interestEntryMonth(transaction) {
+  return isInterestCorrection(transaction) ? transaction.correctsInterestMonth : appInterestIdMonth(transaction);
 }
 
 export function isAccountInterestCorrection(transaction, accountId, month) {
@@ -47,7 +56,7 @@ export function hasInterestCorrection(transactions, accountId, month) {
 // The app entry and its corrections for one account and month.
 export function appInterestEntries(transactions, accountId, month) {
   const appId = appInterestId(accountId, month);
-  return transactions.filter(transaction => (transaction.id === appId && transaction.account === accountId)
+  return transactions.filter(transaction => (transaction.id === appId && isAppInterestEntry(transaction, accountId))
     || isAccountInterestCorrection(transaction, accountId, month));
 }
 
