@@ -107,7 +107,7 @@ Working defaults are a six-month window, ±€2 fixed tolerance and 30% variable
 These are grounded in the present code; they have not been fixed by the handoff documentation.
 
 1. **Year rollover:** resolved by PLAN-1. Schema v3 stores `plans` by year as immutable approved revisions; see [docs/STATE_MIGRATIONS.md](docs/STATE_MIGRATIONS.md). Automatic annual prompting is PLAN-4.
-2. **Future-dated cash:** `accountBalance` defaults to an all-time cutoff, and the UI generally calls that default. A future-dated transaction can change today's displayed balance. Define posted/planned behavior and an explicit as-of date.
+2. **Future-dated cash (resolved by LEDGER-1):** `accountBalance` now defaults to today's local date (owner decision L01); later entries are scheduled, shown apart and counted from their date.
 3. **Fixed-cost granularity:** fixed baselines and tolerance are category/behaviour totals, not individually recognized rent/contracts. Offsetting changes can mask each other, and a cancelled cost can retain its older non-zero baseline.
 4. **Drift/data completeness:** no explicit complete-month marker exists. Missing/incomplete imported months can produce misleading drift recommendations. Suggestions are also relative to the selected month rather than a fully modeled reporting period.
 5. **Interest corrections:** existing monthly interest IDs are deliberately not regenerated. Backdated transactions or rate edits do not revise past interest. There is no reconciliation workflow yet.

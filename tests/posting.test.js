@@ -6,6 +6,7 @@ import { createFinancialState, createTransaction } from './helpers/financialFixt
 import { atLocalTime } from './helpers/localClock.js';
 import { planInsights } from '../src/planInsights.js';
 import { getImportBalances } from '../src/importOutcomes.js';
+import { currentLocalMonth } from '../src/calendar.js';
 import { yearOutlook } from '../src/yearOutlook.js';
 import { expectedSavings } from '../src/expectedSavings.js';
 
@@ -168,4 +169,10 @@ test('an import preview shows balances as of today and keeps later-dated rows as
     { id: 'everyday', name: 'Everyday', before: 100000, after: 97500, scheduledAfter: -9000 }
   ]);
   assert.deepEqual(getImportBalances(state, review, null, '2026-11-17')[0], { id: 'everyday', name: 'Everyday', before: 100000, after: null, scheduledAfter: null });
+});
+
+test('the current month is the device\'s local month on either side of UTC midnight', () => {
+  // 00:30 on 1 December in Auckland; 21:00 on 30 November in Los Angeles.
+  assert.equal(atLocalTime('Pacific/Auckland', '2026-11-30T11:30:00Z', currentLocalMonth), '2026-12');
+  assert.equal(atLocalTime('America/Los_Angeles', '2026-12-01T05:00:00Z', currentLocalMonth), '2026-11');
 });

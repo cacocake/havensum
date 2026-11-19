@@ -57,7 +57,7 @@ The checked thresholds are 95% lines, 90% branches and 90% functions across meas
 
 ## Reporting and file contracts
 
-Current/past dashboard, plan and category reports use transactions through the reporting date, including only paybacks received by that date. Future-month entries views retain registered future entries; those are not a claim that future cash has posted. Account ledgers and raw transaction/export data retain their explicitly documented all-entry behavior. The posted/planned cash model remains an open decision.
+Owner decision L01 (LEDGER-1): balances and every month's report (past, current and future) use entries posted by today, by the device's local date, including only paybacks received by then and early payments linked to a later planned cost. Entries dated later are scheduled: they are marked in lists, totalled apart (`scheduledMonthStats`, `scheduledAccountMovement`), feed Expected savings for the current and later months and join reports on their date without confirmation. Raw transaction/export data keep every entry. `tests/posting.test.js` and `tests/browser/posting.spec.js` cover today, month-end, time zones east and west of UTC, future transfers, early and late planned-cost payments and received paybacks.
 
 CSV fields remain text so UTF-8 names, identifiers and ISO dates survive parsing; XLSX retains decoded cell types, including numeric euro values and Date cells. The reviewed import flow normalizes both. CSV dates must be ISO YYYY-MM-DD; locale-date coercion is deliberately not promised. Validation errors identify the one-based data row, excluding headers and physical line breaks inside quoted fields. An invalid batch cannot partially append.
 

@@ -8,7 +8,7 @@
 
 Tap an entity to inspect it. Editing is a separate, explicit action.
 
-- Account cards open an all-time account ledger, reconciling opening balance plus movements. The balance is explicitly **recorded across all dates**, including future entries; it is not represented as today's available bank balance.
+- Account cards open an all-time account ledger, reconciling opening balance plus posted movements. Since LEDGER-1 (owner decision L01) the balance is **today's balance** by the device's local date; entries dated later are marked Scheduled, listed in the ledger and summarised as a scheduled change with the balance after them. They count automatically from their date.
 - Transaction rows open details, including linked reimbursement context and original-month net cost. Edit opens the existing editor.
 - Category legend rows open filtered expense activity including descendants. Wheel slices select visibly and expose a transaction action below the wheel.
 - Income/net-spending summaries drill into filtered Activity. See all carries the active recent-activity type filter.
