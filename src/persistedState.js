@@ -67,8 +67,31 @@ async function readPersistedState(storage, key, parseState = JSON.parse, recover
   return migratedState;
 }
 
+const k_savedStateChangedMessage = 'The saved data changed in another tab or window.';
+
+// Another tab or window saved over the bytes this storage instance last read
+// or saved.
+export class SavedStateChangedError extends Error {}
+
 export function createPersistedStorage(getStorage) {
   let operationQueue = Promise.resolve();
+  // The bytes this storage instance last read or saved under each key. A
+  // failed save leaves the entry as it was: the save never reached storage.
+  const _lastKnownBytes = new Map();
+
+  async function _isUnchangedSinceLastAccess(storage, key) {
+    if (!_lastKnownBytes.has(key)) {
+      return false;
+    }
+    return await storage.getItem(key) === _lastKnownBytes.get(key);
+  }
+
+  async function _replaceStoredState(storage, key, encodedState, recoverInvalid) {
+    // Protect callers that replace a baseline without reading it first.
+    await readPersistedState(storage, key, JSON.parse, recoverInvalid);
+    await storage.setItem(key, encodedState);
+    _lastKnownBytes.set(key, encodedState);
+  }
 
   function enqueue(operation) {
     // A failure reaches its caller without poisoning later reads or saves.
@@ -79,7 +102,12 @@ export function createPersistedStorage(getStorage) {
 
   return {
     read(key, parseState) {
-      return enqueue(() => readPersistedState(getStorage(), key, parseState));
+      return enqueue(async () => {
+        const storage = getStorage();
+        const state = await readPersistedState(storage, key, parseState);
+        _lastKnownBytes.set(key, await storage.getItem(key));
+        return state;
+      });
     },
     readLatestInvalidCopy(key) {
       return enqueue(async () => {
@@ -149,11 +177,22 @@ export function createPersistedStorage(getStorage) {
     async write(key, state, { recoverInvalid = false } = {}) {
       // Capture before queuing so later edits cannot change this save.
       const encodedState = JSON.stringify(migrateState(state));
+      return enqueue(() => _replaceStoredState(getStorage(), key, encodedState, recoverInvalid));
+    },
+    async isUnchangedSinceLastAccess(key) {
+      return enqueue(() => _isUnchangedSinceLastAccess(getStorage(), key));
+    },
+    // Saves only over the bytes this storage instance last read or saved,
+    // checked in the same queued step as the save so no other queued save
+    // can interleave.
+    async writeIfUnchanged(key, state) {
+      const encodedState = JSON.stringify(migrateState(state));
       return enqueue(async () => {
         const storage = getStorage();
-        // Protect callers that replace a baseline without reading it first.
-        await readPersistedState(storage, key, JSON.parse, recoverInvalid);
-        await storage.setItem(key, encodedState);
+        if (!await _isUnchangedSinceLastAccess(storage, key)) {
+          throw new SavedStateChangedError(k_savedStateChangedMessage);
+        }
+        await _replaceStoredState(storage, key, encodedState, false);
       });
     }
   };
