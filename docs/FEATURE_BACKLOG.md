@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**The FORECAST-2 follow-up (move a recurring planned cost from a chosen year, F16–F18) is done, reviewed and merged into `develop`** (see its handoff note at the end). **LEDGER-1 is done, reviewed and merged into `develop`**. **FORECAST-2 is done, reviewed and merged into `develop`** after the owner's answers (see "FORECAST-2 owner answers" and the implementation handoff at the end). No other ticket is unblocked: each needs owner input, samples, credentials or a device. PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**IMPORT-2 (Cashew verification with synthetic rows) is done, reviewed and merged into `develop`** (see its handoff note at the end). **The FORECAST-2 follow-up (move a recurring planned cost from a chosen year, F16–F18) is done, reviewed and merged into `develop`** (see its handoff note at the end). **LEDGER-1 is done, reviewed and merged into `develop`**. **FORECAST-2 is done, reviewed and merged into `develop`** after the owner's answers (see "FORECAST-2 owner answers" and the implementation handoff at the end). No other ticket is unblocked: each needs owner input, samples, credentials or a device. PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -81,6 +81,16 @@ Reuse the Real Bank adapter if the second layout matches. Otherwise create a dis
 ### IMPORT-2 · Extend Cashew verification
 
 **Needs:** Representative rows and agreed classifications for the cases the owner uses.
+
+**Status (19 November 2026):** Done, reviewed and merged into `develop` from `codex/cashew-verification` (started from `75a8108`; implementation `11c9a44`–`b202a16`; review fixes `bc6518b`, `e440610`, `771e7c4`). See the IMPORT-2 handoff note at the end. The owner chose to proceed with synthetic rows that mirror the documented Cashew export format; every case beyond the verified ordinary EUR rows from v6.7.5+524 stays explicitly unverified against a real export.
+
+**Owner answers (19 November 2026, in chat; recorded as K01–K08 in DECISIONS.md):**
+1. **Borrowing/lending:** a `debt` row is importable only after picking an existing Havensum loan in review; positive = loan proceeds (unlinked balance adjustment tagged with the loan), negative = loan repayment expense tagged with the loan. `credit` (lent) rows stay blocked.
+2. **Scheduled entries:** treated as paid when `amount unpaid` is blank or 0 (v1 exports only paid rows); still need a classification; review shows they came from a scheduled entry.
+3. **Transfers:** a unique opposite `Balance Correction` row with the same amount and timestamp in another account is preselected as a suggested pair; the owner confirms or changes it.
+4. **Paybacks:** manual link only, as today.
+5. **Metadata:** ignore color/icon/emoji; show budget/objective read-only in review, never create records; non-zero `amount unpaid` or any `extra` stays a row error.
+6. **Classification:** ordinary rows still need an explicit choice; nothing prefilled from the sign.
 
 Ordinary EUR rows from v6.7.5+524 are already verified. Check real transfer and payback rows where available. Agree how to handle borrowing, lending, scheduled entries, and populated metadata before widening support. Test both layouts, accents, integer-cent handling, matches after renames and layout changes, account creation only on confirmation, and original-expense links. Unverified entries retain their review status.
 
@@ -357,3 +367,11 @@ The implementation note below records how these were built; it stores only per-y
   - `npm run test:browser` 402/402;
   - `npm run build`;
   - `npm run check:android` (Hermes compilation only; no device test).
+
+## Session handoff — IMPORT-2 · Extend Cashew verification (19 November 2026)
+
+- **Scope:** synthetic rows mirroring the published Cashew export (owner choice K01). Owner answers K01–K09 are in DECISIONS.md; behaviour and known limits are in the IMPORT-2 section of docs/CASHEW_IMPORT_RESEARCH.md. Nothing beyond the ordinary EUR rows from v6.7.5+524 is verified against a real export; no exact Cashew compatibility is claimed.
+- **Implemented:** both layouts read Dart double amounts to integer cents (v1 previously rejected float tails; comma and zero-padded amounts are now row errors in both layouts — a deliberate tightening); paid scheduled entries import after classification (K04); budget/objective shown read-only (K07); a unique opposite Balance Correction pair is preselected as a transfer and import confirms it (K05/K09); `debt` rows import only against a chosen Havensum loan, as proceeds or a repayment in the loan category (K02/K03), and are never transfer legs; lending stays blocked; editing imported proceeds keeps the loan tag. Coverage added for accents, renames on both sides, same-file payback links and malformed cells.
+- **Checks:** `npm run test:coverage` (449 pass on the tree merged with develop `5b2164d`; all files 96.65% lines), `npm run test:browser` (417 pass), `npm run build`, `npm run check:android` (Hermes export = compilation only).
+- **Review:** separate read-only Claude review found 1 blocking (debt credit usable as a transfer leg) and 4 should-fix items; all fixed test-first, the owner answered the pair-confirmation question (K09), and the re-review found nothing actionable.
+- **Still needs the owner:** a small sanitized Cashew export of their version with a transfer pair, a payback, a scheduled entry, a borrowing row and populated budget/objective, plus the expected Havensum result, to move these cases from synthetic to verified.

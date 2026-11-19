@@ -1,14 +1,17 @@
 import { getImportMapping, normalizeImportRows } from './importNormalization.js';
-import { previewTransactionImport } from './importReview.js';
+import { previewTransactionImport, reviseTransactionImport } from './importReview.js';
+import { k_transactionTypes } from './domainConstants.js';
 import { getBankDrafts } from './realBankReview.js';
 import { getCashewDrafts } from './cashewReview.js';
 
 export function previewImportFile(state, data, options = {}) {
   if (data.cashew) {
-    const { drafts, pendingAccounts } = getCashewDrafts(state, data, options);
-    return previewTransactionImport(state, drafts.map(draft => draft.transaction), {
+    const { drafts, pendingAccounts, suggestedTransfers } = getCashewDrafts(state, data, options);
+    const review = previewTransactionImport(state, drafts.map(draft => draft.transaction), {
       bankRows: drafts.map(draft => draft.bank), pendingAccounts
     });
+    return suggestedTransfers.reduce((suggested, { debitIndex, creditIndex }) =>
+      reviseTransactionImport(state, suggested, debitIndex, { type: k_transactionTypes.transfer, counterpartIndex: creditIndex }), review);
   }
   if (data.bank) {
     const statements = options.statements ?? [{ data, targetAccount: options.targetAccount }];

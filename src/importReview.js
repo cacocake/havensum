@@ -3,6 +3,7 @@ import { isRecordIdentifier } from './recordIdentity.js';
 import { bankTransferCounterparts, validateBankDraft } from './realBankReview.js';
 import { k_transactionTypes } from './domainConstants.js';
 import { validatePaybackState } from './paybackState.js';
+import { validateCashewLoanDraft } from './cashewReview.js';
 
 const k_exchangeFields = [
   'type', 'title', 'amount', 'date', 'account', 'category', 'kind', 'note',
@@ -208,6 +209,7 @@ export function previewTransactionImport(state, transactions, options = {}) {
       const transaction = candidates.get(row.duplicateOf ?? row.index);
       if (row.bank) {
         validateBankDraft(row.bank, transaction, row.pair);
+        validateCashewLoanDraft(combinedState, row.bank, transaction);
       }
       validateTransaction(combinedState, transaction);
     } catch (error) {

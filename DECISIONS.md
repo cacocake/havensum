@@ -95,7 +95,6 @@ As of 17 November 2026. Latest requirements in docs/HAVENSUM_REQUIREMENTS.md sup
 | F10 | Working estimate | Current-month outlook uses recorded costs plus remaining variable allowance; fixed/loans/reserves retain at least planned totals | Read-only estimate; never replaces frozen plan; model and limits in docs/UX_UPDATE.md |
 | U14 | Working choice | Crisp 120 ms press feedback and restrained state transitions | Reanimated native and CSS web; routine destination entrance removed; reduced motion supported |
 
-
 ## Latest owner requirements — local-repo handoff
 
 | ID | Status | Decision | Consequence |
@@ -156,3 +155,19 @@ These are owner decisions for DRIVE-2. They are not claims that Drive works: Hav
 | G08 | Owner approved, not implemented | A partner with existing local entries chooses either to adopt the file (after a local recovery copy) or to merge with a review of every one-sided record | Without a common baseline, `mergeThreeWay` would silently union independently entered duplicates. The current merge UI refuses to run without a baseline. DRIVE-2 designs a dedicated first-join review |
 | G09 | Owner approved, not implemented | Setup offers "Open shared file" before "Create", and Create warns to check with the partner | If two files exist anyway, the person opens the one to keep, picks the other, and merges it in through the G08 one-sided-record review (the files share no baseline). No file is deleted automatically |
 | G10 | Owner approved, not implemented | Sync runs automatically (start, resume, shortly after edits when online) plus a "Sync now" button | Conflicts always wait for review. An expired web token (short-lived, no refresh token in the browser) shows "Reconnect" instead of an unprompted popup |
+
+## IMPORT-2 — Cashew classifications (owner answers, 19 November 2026)
+
+Built and tested against synthetic rows that mirror the published Cashew export. Everything beyond the verified ordinary EUR rows from v6.7.5+524 is unverified against a real export.
+
+| ID | Status | Decision | Consequence |
+| --- | --- | --- | --- |
+| K01 | Owner approved | Proceed with synthetic rows mirroring the documented Cashew export format | No claim of exact Cashew compatibility; unverified cases keep their review status |
+| K02 | Owner approved | Cashew `debt` (borrowed) rows can be imported only after the owner picks an existing Havensum loan in review; `credit` (lent) rows stay blocked | No loan is created from a CSV row and borrowing never becomes income or spending |
+| K03 | Owner approved | The sign of a linked `debt` row decides its meaning: positive = loan proceeds recorded as an unlinked balance adjustment tagged with the loan, negative = a loan repayment expense tagged with the loan | Proceeds stay out of income; repayments remain recorded transactions |
+| K04 | Owner approved | Cashew scheduled rows (`upcoming`, `subscription`, `repetitive`) are treated as paid ordinary rows when `amount unpaid` is blank or 0 (v1 has no such column and exports only paid rows); review notes they came from a scheduled entry | They still need an explicit classification; a non-zero `amount unpaid` stays a row error |
+| K05 | Owner approved | Two opposite `Balance Correction` rows with the same amount and timestamp in different accounts are preselected as a suggested transfer when the match is unique; the owner confirms or changes it | Ambiguous or non-unique candidates need manual pairing; the preselected pair is shown with a note (see K09) |
+| K06 | Owner approved | Paybacks keep the manual link: the owner classifies a credit as a reimbursement and picks the original expense (recorded or in the same file) | No link is guessed from titles or amounts |
+| K07 | Owner approved | Cashew color/icon/emoji are ignored; budget and objective are shown as read-only source information in review and never create records, budgets, goals or targets; a non-zero `amount unpaid` or any `extra` value stays a row error to skip | Havensum category styling is preserved |
+| K08 | Owner approved | Ordinary Cashew rows keep requiring an explicit classification; nothing is prefilled from the sign | Matches the bank import review |
+| K09 | Owner approved (after review) | A preselected Cashew transfer pair needs no separate per-row decision: confirming the import confirms it unless the owner changed it | The suggestion note shows only while the pair is kept; a borrowing (`debt`) credit is never a transfer leg |
