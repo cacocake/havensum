@@ -32,6 +32,11 @@ async function retainRecoveryCopy(storage, keyAtIndex, encodedState) {
   }
 }
 
+async function retainInvalidCopy(storage, key, encodedValue) {
+  const recoveryIndex = await retainRecoveryCopy(storage, index => invalidCopyKey(key, index), encodedValue);
+  await storage.setItem(latestInvalidCopyIndexKey(key), String(recoveryIndex));
+}
+
 async function readPersistedState(storage, key, parseState = JSON.parse, recoverInvalid = false) {
   const encodedState = await storage.getItem(key);
   if (encodedState === null) {
@@ -46,8 +51,7 @@ async function readPersistedState(storage, key, parseState = JSON.parse, recover
     if (!recoverInvalid || !(error instanceof SyntaxError) || error instanceof UnsupportedStateVersionError) {
       throw error;
     }
-    const recoveryIndex = await retainRecoveryCopy(storage, index => invalidCopyKey(key, index), encodedState);
-    await storage.setItem(latestInvalidCopyIndexKey(key), String(recoveryIndex));
+    await retainInvalidCopy(storage, key, encodedState);
     return null;
   }
   if (state.version === k_currentStateVersion && !missingCategories.length) {
@@ -141,6 +145,30 @@ export function createPersistedStorage(getStorage) {
         }
         return null;
       });
+    },
+    // A non-ledger record. Unreadable bytes are kept as an invalid copy and
+    // read as absent, so a damaged value can never block startup.
+    readRecord(key, parseRecord) {
+      return enqueue(async () => {
+        const storage = getStorage();
+        const encodedRecord = await storage.getItem(key);
+        if (encodedRecord === null) {
+          return null;
+        }
+        try {
+          return parseRecord(encodedRecord);
+        } catch (error) {
+          if (!(error instanceof SyntaxError)) {
+            throw error;
+          }
+          await retainInvalidCopy(storage, key, encodedRecord);
+          return null;
+        }
+      });
+    },
+    writeRecord(key, record) {
+      const encodedRecord = JSON.stringify(record);
+      return enqueue(() => getStorage().setItem(key, encodedRecord));
     },
     // Raw saved bytes, read after any queued save so a pending write is included.
     readRaw(key) {

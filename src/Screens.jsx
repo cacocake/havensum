@@ -1,4 +1,4 @@
-import { takeReviewedPaybackTask, takeReviewedTrackedExpense } from './paybackMerge.js';
+import { applyMergeChoices, hasChosenEveryConflict, mergeConflictKey } from './mergeReview.js';
 import AwaitingPaybacks from './AwaitingPaybacks.jsx';
 import { localDateOfTimestamp } from './calendar.js';
 import React,{useContext,useState,useEffect,useRef} from 'react';
@@ -17,10 +17,11 @@ import {euro,monthOf,reportingMonthStats,categorySettings,accountBalance,driftAl
 import {AccountCard,TransactionRow} from './Dashboard.jsx';
 import {exportExcel,downloadJSON,downloadSavedLedgerCopy,chooseFile,readImport} from './files';
 import {readInvalidSnapshotCopy,readSnapshot,writeSnapshot,writeMergeRecovery,isDemoSession} from './storage';
-import { k_planYearConflictField, representedPlanYears, takeReviewedPlanYear } from './planMerge.js';
+import { k_planYearConflictField, representedPlanYears } from './planMerge.js';
 import { k_interestScheduleField, representsInterestSchedules } from './interestMerge.js';
 import { clearMissingTransactionCategories, migrateState, validateState } from './stateSchema.js';
 import MissingCategoryReview from './MissingCategoryReview.jsx';
+import SharedFileStatus from './SharedFileStatus.jsx';
 import { applyCategoryReviewEdits, categoryReviewRows } from './categoryReview.js';
 const k_backupMessages = {
   saved: 'Backup exported · local merge baseline saved',
@@ -28,7 +29,6 @@ const k_backupMessages = {
   previewUnavailable: 'Merge baselines are unavailable in preview mode. Open the main app to review a backup merge.',
   missingBaseline: 'Export a backup first to establish a shared merge baseline.'
 };
-const k_mergeConflictFields = { outlook: '$outlook', record: '$record' };
 const k_filteredSpendingHint = 'Totals count entries posted by today. Entries dated later are marked Scheduled and count from their date. Open a movement for its breakdown.';
 export function Transactions(){
  const {state,month,today,search,setSearch,filters,setFilters,searchFocus}=useApp(),c=useContext(Theme),searchRef=useRef(null);
@@ -242,42 +242,7 @@ export function Settings(){
    }
  }
  function getReviewedMerge() {
-   let result = JSON.parse(JSON.stringify(merge.result));
-   for (const conflict of merge.conflicts) {
-     const key = `${conflict.collection}|${conflict.id}|${conflict.field}`;
-     const selectedSide = merge.choices[key];
-     if (!selectedSide) {
-       continue;
-     }
-     const selectedValue = conflict[selectedSide];
-     if (conflict.field === '$trackedExpense') {
-       result = takeReviewedTrackedExpense(result, conflict.id, selectedValue);
-       continue;
-     }
-     if (conflict.field === '$paybackTask') {
-       result = takeReviewedPaybackTask(result, conflict.id, selectedValue);
-       continue;
-     }
-     if (conflict.field === k_planYearConflictField) {
-       result = takeReviewedPlanYear(result, conflict.id, selectedValue);
-       continue;
-     }
-     if (conflict.field === k_mergeConflictFields.outlook) {
-       result[conflict.collection] = selectedValue;
-       continue;
-     }
-     if (conflict.field === k_mergeConflictFields.record) {
-       result[conflict.collection] = result[conflict.collection].filter(record => record.id !== conflict.id);
-       if (selectedValue) {
-         result[conflict.collection].push(selectedValue);
-       }
-       continue;
-     }
-     const record = result[conflict.collection].find(record => record.id === conflict.id);
-     if (record) {
-       record[conflict.field] = selectedValue;
-     }
-   }
+   const result = applyMergeChoices(merge.result, merge.conflicts, merge.choices);
    const normalized = clearMissingTransactionCategories(result);
    const rows = categoryReviewRows(normalized.state, normalized.missingCategories);
    return { state: normalized.state, rows };
@@ -306,7 +271,7 @@ export function Settings(){
  }
  return <View style={{gap:22}}><Card><H size={22}>A little more you</H><Toggle value={state.theme==='dark'} onChange={v=>setState(s=>({...s,theme:v?'dark':'light'}))} label="Dark theme" description="A softer glow when the day winds down."/><Divider/><Row style={{justifyContent:'space-between',gap:12}}><View style={{flex:1}}><T style={{fontSize:13}}>Currency</T><T style={{fontSize:11,color:c.muted,marginTop:3}}>All balances, amounts, and exports use euros.</T></View><Badge>EUR · €</Badge></Row></Card>
  <DataTools onImport={selectImport} onBackup={exportBackup} onExcel={excel} busy={busy}/>
- <Card><Row style={{gap:12,marginBottom:18}}><TileIcon name="UsersRound" color="#91B6A9"/><View><H size={22}>A shared rhythm</H><T style={{fontSize:11,color:c.sub,marginTop:4}}>For you and Marina, without the guesswork.</T></View></Row><Row style={{justifyContent:'space-between'}}><T style={{fontSize:13}}>Google Drive</T><Badge>Not connected</Badge></Row><T style={{fontSize:12,color:c.sub,marginTop:12}}>Automatic Drive sync needs Google OAuth configuration. Until then, exchange full JSON backups manually using a common exported baseline.</T><Row style={{gap:10,marginTop:17,flexWrap:'wrap'}}><Button small kind="outline" icon="GitMerge" disabled={isPreview} onPress={mergeFile}>Review backup merge</Button><Button small kind="soft" icon="Download" onPress={exportBackup}>{isPreview ? 'Export example backup' : 'Export shared baseline'}</Button><Button small kind="soft" disabled={isPreview} onPress={downloadInvalidBaseline}>Download invalid baseline copy</Button></Row>{isPreview&&<T style={{fontSize:11,color:c.muted,marginTop:15}}>{k_backupMessages.previewUnavailable}</T>}<T style={{fontSize:11,color:c.muted,marginTop:15}}>Different-field edits merge silently. Same-field edits and edit-versus-delete always require your choice. A saved local baseline is used for the three-way comparison.</T><Divider/><Row style={{gap:10}}><Icon name="Eye" size={16} color={c.sub}/><T style={{flex:1,fontSize:11,color:c.sub}}>Both people's accounts are included in an exchanged backup. Account tags are labels, not privacy controls.</T></Row></Card>
+ <Card><Row style={{gap:12,marginBottom:18}}><TileIcon name="UsersRound" color="#91B6A9"/><View><H size={22}>A shared rhythm</H><T style={{fontSize:11,color:c.sub,marginTop:4}}>For you and Marina, without the guesswork.</T></View></Row><SharedFileStatus isDemo={state.demo}/><Divider/><T style={{fontSize:12,color:c.sub}}>Exchange full JSON backups manually using a common exported baseline.</T><Row style={{gap:10,marginTop:17,flexWrap:'wrap'}}><Button small kind="outline" icon="GitMerge" disabled={isPreview} onPress={mergeFile}>Review backup merge</Button><Button small kind="soft" icon="Download" onPress={exportBackup}>{isPreview ? 'Export example backup' : 'Export shared baseline'}</Button><Button small kind="soft" disabled={isPreview} onPress={downloadInvalidBaseline}>Download invalid baseline copy</Button></Row>{isPreview&&<T style={{fontSize:11,color:c.muted,marginTop:15}}>{k_backupMessages.previewUnavailable}</T>}<T style={{fontSize:11,color:c.muted,marginTop:15}}>Different-field edits merge silently. Same-field edits and edit-versus-delete always require your choice. A saved local baseline is used for the three-way comparison.</T><Divider/><Row style={{gap:10}}><Icon name="Eye" size={16} color={c.sub}/><T style={{flex:1,fontSize:11,color:c.sub}}>Both people's accounts are included in an exchanged backup. Account tags are labels, not privacy controls.</T></Row></Card>
  <Card><Row style={{gap:12}}><TileIcon name="ChartNoAxesCombined" color="#B3A0CA"/><View style={{flex:1}}><H size={20}>Investment prices</H><T style={{fontSize:11,color:c.sub,marginTop:6}}>Twelve Data is not connected. Your investments use manual balances. ETF coverage, end-of-day access, and licensing still need verification.</T></View><Badge>Manual</Badge></Row></Card>
  {state.demo&&<Card style={{borderColor:c.dark?'#5b4637':'#f0d6c1'}}><H size={20}>A fresh start</H><T style={{fontSize:12,color:c.sub,marginTop:8,marginBottom:16}}>You are exploring example data. Clear it to begin with your own accounts and transactions. Export a backup first if you want to keep any changes.</T>{clear?<Row style={{gap:10,flexWrap:'wrap'}}><Button small kind="outline" onPress={()=>setClear(false)}>Keep my data</Button><Button small onPress={()=>{setState(s=>({...s,demo:false,accounts:[],transactions:[],loans:[],events:[],plans:{},outlook:{},paybackTasks:undefined,paybackTasksVersion:undefined,migrationCategoryWarnings:undefined}));setClear(false);notify('Example data cleared');}}>Clear example data permanently</Button></Row>:<Button small kind="outline" onPress={()=>setClear(true)} icon="Eraser">Clear example data</Button>}</Card>}
  <T style={{fontSize:11,color:c.muted,textAlign:'center'}}>Havensum 0.1 · Android-first React Native · Browser preview</T>
@@ -314,7 +279,7 @@ export function Settings(){
  {merge&&<Dialog title="Two sides. Your choice." subtitle={`${merge.conflicts.length} conflicts need review. Nothing is applied until you finish.`} onClose={()=>setMerge(null)} width={650}>
  {!merge.conflicts.length&&<View style={{gap:13,paddingBottom:25}}><H size={21}>These changes fit together.</H><T style={{fontSize:12,color:c.sub}}>No conflicting fields were found. Review the merged record counts before applying.</T>{['transactions','accounts','categories','loans'].map(k=><Row key={k} style={{justifyContent:'space-between'}}><T style={{fontSize:12}}>{k}</T><T style={{fontSize:12}}>{merge.result[k].length}</T></Row>)}</View>}
  <MissingCategoryReview rows={reviewedMerge.rows} categories={reviewedMerge.state.categories} edits={merge.categoryEdits} onChange={editMissingCategory}/>
- {merge.conflicts.map(cf=>{const key=cf.collection+'|'+cf.id+'|'+cf.field;return <View key={key} style={{padding:14,borderWidth:1,borderColor:c.line,borderRadius:12,marginBottom:15}}><T style={{fontSize:12,fontWeight:'600',marginBottom:12}}>{mergeConflictTitle(cf)}</T><Row style={{gap:10,alignItems:'stretch'}}>{['local','remote'].map(side=><Pressable key={side} onPress={()=>setMerge(m=>({...m,choices:{...m.choices,[key]:side}}))} style={{flex:1,padding:12,borderRadius:9,borderWidth:1,borderColor:merge.choices[key]===side?c.accent:c.line,backgroundColor:merge.choices[key]===side?c.peach:c.soft}}><T style={{fontSize:10,color:c.sub,marginBottom:6}}>{side==='local'?'THIS DEVICE':'BACKUP FILE'}</T>{mergeConflictLines(cf,side).map(line=><T key={line} style={{fontSize:11}}>{line}</T>)}</Pressable>)}</Row></View>})}<Button icon="Check" disabled={merge.conflicts.some(cf=>!merge.choices[cf.collection+'|'+cf.id+'|'+cf.field])} onPress={applyMerge}>Apply reviewed merge</Button>
+ {merge.conflicts.map(cf=>{const key=mergeConflictKey(cf);return <View key={key} style={{padding:14,borderWidth:1,borderColor:c.line,borderRadius:12,marginBottom:15}}><T style={{fontSize:12,fontWeight:'600',marginBottom:12}}>{mergeConflictTitle(cf)}</T><Row style={{gap:10,alignItems:'stretch'}}>{['local','remote'].map(side=><Pressable key={side} onPress={()=>setMerge(m=>({...m,choices:{...m.choices,[key]:side}}))} style={{flex:1,padding:12,borderRadius:9,borderWidth:1,borderColor:merge.choices[key]===side?c.accent:c.line,backgroundColor:merge.choices[key]===side?c.peach:c.soft}}><T style={{fontSize:10,color:c.sub,marginBottom:6}}>{side==='local'?'THIS DEVICE':'BACKUP FILE'}</T>{mergeConflictLines(cf,side).map(line=><T key={line} style={{fontSize:11}}>{line}</T>)}</Pressable>)}</Row></View>})}<Button icon="Check" disabled={!hasChosenEveryConflict(merge.conflicts, merge.choices)} onPress={applyMerge}>Apply reviewed merge</Button>
  </Dialog>}
  </View>;
 }

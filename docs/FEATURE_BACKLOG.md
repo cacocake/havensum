@@ -76,6 +76,8 @@ Provide a distinct full-ledger restore with file validation, preview, explicit r
 
 **Needs:** A sanitized export and expected rows from the other owner, plus real matching transfer legs when available.
 
+**Owner question (19 November 2026):** asked whether the other owner's bank uses the same export layout, the owner replied "I'm confused, my bank doesn't need to import anything." Asked to confirm (multiple choice) whether IMPORT-1 can be closed as not needed, the owner chose **Close as not needed**. **Status:** Closed as not needed by the owner; no second bank profile will be built.
+
 Reuse the Real Bank adapter if the second layout matches. Otherwise create a distinct verified profile. Verify original headers and accents, date and amount conventions, confirmed value-date handling, signs, fees, refunds, ambiguous transfer labels, and the chosen date for transfer legs that differ. Test repeated and overlapping exports, scoped matching, identical legitimate purchases, and pairing two reviewed legs into one neutral transfer. Use only synthetic or carefully sanitized fixtures in Git.
 
 ### IMPORT-2 · Extend Cashew verification
@@ -146,11 +148,21 @@ Test installation and upgrade, offline startup, storage recovery, file picker an
 
 Document who can find, read, and update the file and how access changes.
 
-### DRIVE-2 · Shared Drive sync
+### DRIVE-2 · Shared Drive sync (split 19 November 2026)
 
-**Depends on:** DRIVE-1 (decided). **Blocked on:** the owner's Google Cloud setup: a project with the Drive and Picker APIs, an External consent screen with only `drive.file` and both owners as test users, OAuth client IDs for Android (final package + SHA-1 of each signing key, so it also needs ANDROID-1) and web (authorized JavaScript origins), a Picker API key and the project number. Both owners' accounts are needed for the two-person checks. The full list is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md#drive-2-blocker-setup-the-owner-must-provide).
+The owner approved splitting DRIVE-2 on 19 November 2026: DRIVE-2a builds and tests everything that does not need Google credentials; DRIVE-2b adds the real Google transport and the two-account verification.
 
-Use the reviewed merge engine with revision-aware writes, offline retry and recovery, and visible conflict review. Verify two devices with independent edits, same-field edits, deletion, concurrent plan revisions, interrupted writes, and stale writes. Confirm the agreed account visibility.
+### DRIVE-2a · Credential-free shared-file sync core
+
+**Depends on:** DRIVE-1 (decided). **Status:** Done on `codex/drive-sync-core`; see the DRIVE-2a handoff at the end for the commit, checks and review.
+
+Shared-file document shape without device keys (G05/G06, every top-level key classified); a baseline tied to the file ID and last-seen revision (S03), separate from `melo-sync-base`; first join (adopt after a recovery copy, or merge with a review of every one-sided record, G08) and merging a second file in (G09); Create blocked with example data (G07); the read → validate/migrate → three-way merge → review → write → verify protocol behind a small transport interface, with lost-race recovery, pause-not-delete (G04) and the sync triggers and states (G10). Tested against an in-memory stand-in for Drive only. No Google OAuth, Picker or HTTP code, and Drive is not claimed to work.
+
+### DRIVE-2b · Google Drive transport and two-account verification
+
+**Depends on:** DRIVE-2a, ANDROID-1 (Android client ID). **Blocked on:** the owner's Google Cloud setup: a project with the Drive and Picker APIs, an External consent screen with only `drive.file` and both owners as test users, OAuth client IDs for Android (final package + SHA-1 of each signing key, so it also needs ANDROID-1) and web (authorized JavaScript origins), a Picker API key and the project number. Both owners' accounts are needed for the two-person checks. The full list is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md#drive-2-blocker-setup-the-owner-must-provide).
+
+Implement the `sharedFileTransport` contract with Drive v3 (create + share as writer, read, unconditional update), Google sign-in (Android `AuthorizationClient`, web token model with Reconnect), the Picker, and the app wiring of the DRIVE-2a core (scheduler, status card actions, review and join dialogs). Verify two devices with independent edits, same-field edits, deletion, concurrent plan revisions, interrupted writes and stale writes, and every item in "What DRIVE-2 must verify". Confirm the agreed account visibility.
 
 ### ETF-1 / ETF-2 · Optional ETF valuation
 
