@@ -6,8 +6,8 @@ const k_header = 'account,amount,currency,title,note,date,income,type,category n
 
 const k_betaHeader = k_header.replace('amount,currency', 'amount,amount unpaid,currency') + ',extra';
 
-async function openCashewImport(page, rows, header = k_header) {
-  await page.addInitScript(state => localStorage.setItem('melo-state-v1', JSON.stringify(state)), createFinancialState());
+async function openCashewImport(page, rows, header = k_header, state = createFinancialState()) {
+  await page.addInitScript(seed => localStorage.setItem('melo-state-v1', JSON.stringify(seed)), state);
   await page.goto('/');
   await openMoreSection(page, 'Settings');
   const chooser = page.waitForEvent('filechooser');
@@ -44,12 +44,13 @@ test('Cashew account creation takes effect with the reviewed import and recovery
   })).toEqual([0, true, 2]);
 });
 
-test('the two legs in one Cashew export can be paired during review', async ({ page }) => {
+test('the two legs in one Cashew export are suggested as a pair and can be confirmed during review', async ({ page }) => {
   const dialog = await openCashewImport(page, [
     'Everyday,-15,EUR,Move funds,,2026-11-10 12:00:00.000,false,null,Balance Correction,,,,,,',
     'Shared,15,EUR,Funds received,,2026-11-10 12:00:00.000,true,null,Balance Correction,,,,,,'
   ]);
   await dialog.getByRole('button', { name: 'Preview import', exact: true }).click();
+  await expect(dialog.getByText('Suggested transfer with row 3 · check or change it before importing', { exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'Edit row 2', exact: true }).click();
   await dialog.getByLabel('Type', { exact: true }).selectOption('transfer');
   await dialog.getByLabel('Matching credit', { exact: true }).selectOption('1');
@@ -58,4 +59,27 @@ test('the two legs in one Cashew export can be paired during review', async ({ p
   await expect(dialog.getByText('Projected €515.00', { exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'Import transactions', exact: true }).click();
   await expect(dialog.getByText(/Combined with its matching transfer debit/)).toBeVisible();
+});
+
+test('a Cashew borrowing row imports as loan proceeds once a Havensum loan is chosen, showing its budget read-only', async ({ page }) => {
+  const loan = { id: 'car', name: 'Car loan', remaining: 500000, original: 800000, payment: 18500, start: '2026-01', end: '2029-12', account: 'everyday' };
+  const dialog = await openCashewImport(page, [
+    'Everyday,2000.0,EUR,Borrowed,,2026-11-10 12:00:00.000,true,TransactionSpecialType.debt,Dívidas,,,,,Orçamento,'
+  ], k_header, createFinancialState({ loans: [loan] }));
+  await dialog.getByRole('button', { name: 'Preview import', exact: true }).click();
+  await expect(dialog.getByText('Cashew budget · Orçamento · not imported', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Edit row 2', exact: true }).click();
+  await dialog.getByLabel('Type', { exact: true }).selectOption('reimbursement');
+  await dialog.getByLabel('Original expense', { exact: true }).selectOption({ label: 'Unlinked balance adjustment' });
+  await dialog.getByRole('button', { name: 'Update draft', exact: true }).click();
+  await expect(dialog.getByText('Choose the Havensum loan for this Cashew borrowing entry.').first()).toBeVisible();
+  await dialog.getByRole('button', { name: 'Edit row 2', exact: true }).click();
+  await dialog.getByLabel('Havensum loan', { exact: true }).selectOption({ label: 'Car loan' });
+  await dialog.getByRole('button', { name: 'Update draft', exact: true }).click();
+  await expect(dialog.getByText('Loan · Car loan', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Projected €3,000.00', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Import transactions', exact: true }).click();
+  await expect(dialog.getByText('After €3,000.00', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).transactions
+    .map(({ type, amount, loanId, linkedId }) => [type, amount, loanId, linkedId]))).toEqual([['reimbursement', 200000, 'car', null]]);
 });
