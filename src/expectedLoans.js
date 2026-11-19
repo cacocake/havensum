@@ -1,5 +1,16 @@
 import { isLoanExpense, hasLoanLink } from './expectedBills.js';
 
+export function isLoanActive(loan, month) {
+  return loan.start <= month && loan.end >= month;
+}
+
+// The scheduled payment in effect for `month`: the latest change, otherwise the loan's own payment.
+export function loanPaymentForMonth(state, loan, month) {
+  const changes = (state.outlook?.loanChanges || []).filter(change => change.loanId === loan.id && change.since <= month)
+    .sort((first, second) => first.since.localeCompare(second.since));
+  return changes.at(-1)?.amount ?? loan.payment;
+}
+
 export function expectedLoanSpending(state, month, registered) {
   const payments = registered.expenses.filter(expense => isLoanExpense(state, expense));
   const matchedIds = new Set();
@@ -18,10 +29,7 @@ export function expectedLoanSpending(state, month, registered) {
     }
     const gross = matches.reduce((total, expense) => total + expense.amount, 0);
     const refunded = matches.reduce((total, expense) => total + expense.refunded, 0);
-    const active = loan.start <= month && loan.end >= month;
-    const changes = (state.outlook?.loanChanges || []).filter(change => change.loanId === loan.id && change.since <= month)
-      .sort((first, second) => first.since.localeCompare(second.since));
-    const obligation = active ? (changes.at(-1)?.amount ?? loan.payment) : 0;
+    const obligation = isLoanActive(loan, month) ? loanPaymentForMonth(state, loan, month) : 0;
     expected += Math.max(gross, obligation) - refunded;
   }
   return expected + payments.filter(expense => !matchedIds.has(expense.id)).reduce((total, expense) => total + expense.net, 0);

@@ -13,6 +13,15 @@ export function euro(amountInCents, decimalPlaces = k_defaultDecimalPlaces) {
   }).format(amountInCents / k_centsPerEuro);
 }
 
+export function sumCents(amountsInCents) {
+  return amountsInCents.reduce((total, amount) => total + amount, 0);
+}
+
+// Savings are shown with an explicit sign, using a true minus sign.
+export function signedEuro(amountInCents) {
+  return `${amountInCents >= 0 ? '+' : '−'}${euro(Math.abs(amountInCents))}`;
+}
+
 export function cents(amountInEuros) {
   const normalizedAmount = String(amountInEuros).trim().replace(',', '.');
   const decimalParts = k_decimalMoneyPattern.exec(normalizedAmount);

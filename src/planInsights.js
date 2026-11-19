@@ -4,18 +4,9 @@ import { expectedSavings } from './expectedSavings.js';
 import { outlookHistory } from './outlookHistory.js';
 import { k_reportingPeriods, k_systemCategoryIds } from './domainConstants.js';
 import { plannedMonth } from './planArchive.js';
+import { reportingPeriod } from './reportingHistory.js';
 
 const k_incomeCategoryIds = new Set([k_systemCategoryIds.salary, k_systemCategoryIds.interest]);
-
-function reportingPeriod(month, currentMonth) {
-  if (month < currentMonth) {
-    return k_reportingPeriods.past;
-  }
-  if (month > currentMonth) {
-    return k_reportingPeriods.future;
-  }
-  return k_reportingPeriods.current;
-}
 
 function elapsedDays(period, days, today) {
   if (period === k_reportingPeriods.past) {

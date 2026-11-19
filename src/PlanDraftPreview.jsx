@@ -1,16 +1,13 @@
 import React, { useContext, useMemo } from 'react';
 import { View } from 'react-native';
 import { Theme, T, H, Row, Button } from './ui.jsx';
-import { euro } from './money.js';
+import { euro, signedEuro } from './money.js';
 import { expectedSavings } from './expectedSavings.js';
+import { interestProjection } from './expectedInterest.js';
 import { localCalendarDate, monthKeyOf } from './calendar.js';
 import { k_monthsPerYear } from './domainConstants.js';
 
 const k_monthNameOptions = { month: 'short' };
-
-function signedEuro(amount) {
-  return `${amount >= 0 ? '+' : '−'}${euro(Math.abs(amount))}`;
-}
 
 function monthName(month) {
   return monthDate(month).toLocaleString('en', k_monthNameOptions);
@@ -24,8 +21,9 @@ export default function PlanDraftPreview({ plan, state, year, fromMonth }) {
   // The forecast only depends on the ledger and draft events, not draft targets.
   const forecasts = useMemo(() => {
     const today = localCalendarDate();
-    return Object.fromEntries(months.map(month => [month, expectedSavings(state, month, today)]));
-  }, [state.transactions, state.events, state.outlook, state.loans, year, fromMonth]);
+    const projectedInterest = interestProjection(state, monthKeyOf(year, k_monthsPerYear));
+    return Object.fromEntries(months.map(month => [month, expectedSavings(state, month, today, { projectedInterest })]));
+  }, [state.transactions, state.events, state.outlook, state.loans, state.accounts, year, fromMonth]);
   return <View testID="plan-draft-preview" style={{ marginTop: 6, marginBottom: 12 }}>
     <H size={16} style={{ marginBottom: 8 }}>Month by month</H>
     <Row style={{ gap: 8, paddingVertical: 4 }}>
