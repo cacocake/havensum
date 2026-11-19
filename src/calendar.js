@@ -20,6 +20,19 @@ export function localCalendarDate(date = new Date()) {
   return `${formatMonth(date)}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+// The local calendar day of a stored ISO timestamp, such as a plan's approval
+// (L02), or null when the timestamp is missing or unreadable.
+export function localDateOfTimestamp(isoTimestamp) {
+  if (!isoTimestamp) {
+    return null;
+  }
+  const instant = new Date(isoTimestamp);
+  if (Number.isNaN(instant.getTime())) {
+    return null;
+  }
+  return localCalendarDate(instant);
+}
+
 export function monthOf(date) {
   return date.slice(0, k_monthKeyLength);
 }
