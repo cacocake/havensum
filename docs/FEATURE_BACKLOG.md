@@ -156,7 +156,7 @@ When two devices set different amounts for the same year of a recurring planned 
 
 | Source commit | Version name / code | Type | Build date | Signing certificate SHA-256 | Installed on |
 | --- | --- | --- | --- | --- | --- |
-| *(none built yet)* | | | | | |
+| develop (owner's PC; exact commit not recorded) | 0.1.0 / 1 | Release APK | 19 November 2026 | not recorded | Owner's phone: installed, **crashed at startup** (Reanimated rejected the native timing curve; fix on `codex/fix-native-motion-timing-curve`, pending the phone check) |
 
 Produce an installable Android build. Record source commit, build profile, and signing ownership. Keep credentials and compiled artifacts out of Git. A Hermes bundle is only a compilation check.
 
@@ -383,7 +383,7 @@ The implementation note below records how these were built; it stores only per-y
   - The owner builds on their own PC with local Gradle and keeps the upload keystore. There is no EAS, Expo account or cloud-held key.
   - Android Auto Backup is off.
 - **Configuration:**
-  - `app.json` sets the package, `versionCode 1`, `allowBackup: false` and three removed permissions (legacy storage read/write, overlay).
+  - `app.json` sets the package, `versionCode 1` (now 2, see the startup-crash bug fix below), `allowBackup: false` and three removed permissions (legacy storage read/write, overlay).
   - `plugins/withHavensumReleaseSigning.cjs` signs release builds from four `HAVENSUM_UPLOAD_*` properties in the owner's user Gradle properties. A release build fails without them; there is no debug-key fallback.
   - `eas.json` reads the version from `app.json` (`appVersionSource: local`); it is unused.
   - `.gitignore` covers `/android/`, APK/AAB and keystore files.
@@ -446,3 +446,13 @@ The implementation note below records how these were built; it stores only per-y
 - **Checks:** `npm run test:coverage` (449 pass on the tree merged with develop `5b2164d`; all files 96.65% lines), `npm run test:browser` (417 pass), `npm run build`, `npm run check:android` (Hermes export = compilation only).
 - **Review:** separate read-only Claude review found 1 blocking (debt credit usable as a transfer leg) and 4 should-fix items; all fixed test-first, the owner answered the pair-confirmation question (K09), and the re-review found nothing actionable.
 - **Still needs the owner:** a small sanitized Cashew export of their version with a transfer pair, a payback, a scheduled entry, a borrowing row and populated budget/objective, plus the expected Havensum result, to move these cases from synthetic to verified.
+
+## Bug fix — Android release crashes at startup (19 November 2026, Claude cloud session)
+
+- **Found by:** the owner's first release APK (version code 1), built on their PC from `develop` and installed on their phone. It closed immediately. Logcat: `ReanimatedError: [Reanimated] Invalid predefined timing function "cubic-bezier(0.23, 1, 0.32, 1)"` in `MotionPressable`.
+- **Cause:** `src/Motion.native.jsx` passed the curve to Reanimated 4's CSS-style transitions as a `cubic-bezier(...)` string. On native, Reanimated's `transitionTimingFunction` longhand accepts only named curves or its easing builders (such as `cubicBezier()`). The web accepts the string, and Hermes compilation (`check:android`) can't detect it, so no earlier check caught it.
+- **Fix:** `src/motionTransitions.native.js` builds the press and meter transition settings (property, duration, reduced motion) with the same curve made by `cubicBezier(0.23, 1, 0.32, 1)`. `MotionPressable` and `Meter` use these builders. Web motion is unchanged.
+- **Regression test:** `tests/native/motionTiming.test.js` runs both components' transition settings, with normal and reduced motion, through Reanimated's own `normalizeCSSTransitionProperties`, the startup path that threw. Reanimated is loaded in Node by `tests/helpers/reanimatedInNode.js`, with only `react-native` and `react-native-worklets` stubbed. With the old string curve the test failed with the device's exact error.
+- **Review:** a separate read-only Claude review found nothing blocking. Its should-fix item (test the components' real transition settings, not just the curve) and its nits (the current module-mock option, doc wording, a note on Reanimated's internal paths) were fixed before merging, and a focused re-review of those fixes found nothing blocking.
+- **Version:** `versionCode` raised to 2, because version code 1 is already on the owner's phone.
+- **Not verified:** that the app now starts on the phone. That needs the owner's rebuild (version code 2) and the first ANDROID-2 check. Other runtime-only native errors can't be ruled out until then.
