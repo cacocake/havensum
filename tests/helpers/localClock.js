@@ -22,9 +22,9 @@ export async function atLocalTimeAsync(timeZone, instant, action) {
 }
 
 function installLocalTime(timeZone, instant) {
+  mock.timers.enable({ apis: ['Date'], now: new Date(instant) });
   const originalTimeZone = process.env.TZ;
   process.env.TZ = timeZone;
-  mock.timers.enable({ apis: ['Date'], now: new Date(instant) });
   return () => {
     mock.timers.reset();
     if (originalTimeZone === undefined) {

@@ -14,3 +14,7 @@ test('a stored UTC timestamp falls on its local calendar day', () => {
 
   assert.deepEqual([inAuckland, inLisbon, inLosAngeles], ['2026-11-20', '2026-11-19', '2026-11-19']);
 });
+
+test('an unreadable or missing timestamp has no local day', () => {
+  assert.deepEqual([localDateOfTimestamp('approved last week'), localDateOfTimestamp(undefined), localDateOfTimestamp('')], [null, null, null]);
+});
