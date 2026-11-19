@@ -120,3 +120,13 @@ These choices are approved requirements for the upcoming implementation, not cla
 | H11 | Owner confirmed | Cancellation applies to an individual bill | Use account, category and title with an explicit effective month. |
 | W01 | Owner approved workflow | Integrate task branches into develop; master is release-only | New task/bug branches start from develop; no release merge without owner instruction |
 | W02 | Owner required review gate | Do not merge, delete or close a task branch before a completed Claude review | A usage limit leaves the branch open; commit locally for safekeeping and request review after access returns |
+
+## FORECAST-2 — comparable planned costs (owner answers, 19 November 2026)
+
+| ID | Status | Decision | Consequence |
+| --- | --- | --- | --- |
+| F12 | Owner approved, pending implementation | "Planned cost" is the single term for the plan item that expenses link to | UI, docs and questions use it; code keeps `events` |
+| F13 | Owner approved, pending implementation | Planned costs compare by the same top category of their linked expenses (subcategories roll up); recurring costs compare with their own past years; a new cost is matched by the owner's one-time "like" choice | No free-text inference; schema change for the "like" choice |
+| F14 | Owner approved, pending implementation | Evidence skips confirmed months without linked expenses and fully refunded (cancelled) costs; older eventPayments matches don't count | Median and range from 3+ completed comparables, five most recent |
+| F15 | Owner approved, pending implementation | An expense dated after an occurrence may link to it | Spending follows the occurrence month; cash follows the payment date |
+| F16 | Owner approved, pending implementation | Accepting a suggestion sets that draft year's amount only; moving a recurring cost applies from a chosen year | Approved snapshots and earlier years stay intact |

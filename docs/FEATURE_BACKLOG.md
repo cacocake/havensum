@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**FORECAST-2 discovery is done and blocked on owner decisions** (branch `codex/forecast-comparable-costs`, open and unmerged; see its handoff note at the end). No other ticket is unblocked. PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**FORECAST-2 discovery is done; the owner answered its questions (see "FORECAST-2 owner answers" at the end) and implementation can start** (branch `codex/forecast-comparable-costs`, open and unmerged; see its handoff note at the end). No other ticket is unblocked. PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -244,3 +244,18 @@ Start with units and a manually entered EUR price if requested. For automatic pr
 - **Checks:** `npm run test:coverage` 370/370 with thresholds met (`comparableCosts.js` 100% lines, 98% branches). Each status guard, the partly received payback status, the task creation-date filter and the date cut-off were checked by removing them and seeing a test fail. The browser suite, build and Hermes check were not run, because no app code imports the module and nothing will be integrated until the questions are answered.
 - **Review:** separate read-only Claude review (no blocking defects; should-fix items fixed test-first in `8a0fe1b` or recorded as questions 2, 7 and 8) and a focused re-review (no blocking defects; question order, wording and this checks line fixed). Accepted nit: a payback task's creation date is its UTC date, compared with the local evaluation date.
 - **Not merged:** the branch stays open until the owner answers the questions above. No new session was started, because no other ticket is unblocked.
+
+### FORECAST-2 owner answers (19 November 2026)
+
+Answered in chat; these replace the questions above. Terminology: the plan item is a **planned cost** everywhere in the UI, docs and questions (code keeps `events`). Expenses are the actual transactions linked to it.
+
+1. **Comparable planned costs:** two planned costs compare when they have the same **top category**: the category holding the largest share of their linked expenses after paybacks, with subcategories rolled up to their parent. Past years of the same recurring planned cost compare automatically. A new planned cost has no linked expenses yet, so the owner picks once, when adding it, which past planned cost or category it is like; that choice is used only for the suggestion.
+2. **Evidence:** a confirmed month with no linked expenses is skipped (current behaviour). A cancelled planned cost whose expenses were fully refunded is excluded, not counted as €0 (change needed).
+3. **Late payments:** an expense dated after an occurrence may be linked to it and counts in that occurrence's month; cash still follows the payment date (validation and link-picker change).
+4. **Accepting a suggestion:** applies to the draft year only (a per-year amount). Other years keep the planned cost's usual amount, and approved snapshots stay intact.
+5. **Threshold:** suggest a median and range once three comparable completed planned costs exist, using the five most recent; with fewer, ask for an amount.
+6. **Where it appears:** show the suggestion beside the owner's amount in the planning interview, with the past planned costs it came from. Never replace the owner's amount automatically. No separate comparison view.
+7. **Older "Recorded expense for …" matches** do not count as evidence (current behaviour).
+8. **Moving a recurring planned cost:** applies from a year the owner chooses; earlier years keep their original month and their linked expenses stay valid evidence.
+
+Implementation is now unblocked but touches the stored format (per-year amounts, move-from-year, the "like" choice) and transaction validation, so it needs a schema version, migration, backup and merge coverage.
