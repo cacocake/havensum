@@ -1,4 +1,5 @@
-import { accountBalance } from './ledger.js';
+import { accountBalance, scheduledAccountMovement } from './ledger.js';
+import { localCalendarDate } from './calendar.js';
 
 export function formatReviewRowLabel(row, multipleStatements) {
   return multipleStatements && row.bank
@@ -6,7 +7,9 @@ export function formatReviewRowLabel(row, multipleStatements) {
     : `Row ${row.sourceRow}`;
 }
 
-export function getImportBalances(state, review, result) {
+// L01: balances as of today. What the import's later-dated rows will change
+// once they post is shown separately from entries scheduled before it.
+export function getImportBalances(state, review, result, today = localCalendarDate()) {
   const affectedAccountIds = new Set();
   for (const row of review.rows) {
     for (const transaction of [row.transaction, row.existing]) {
@@ -20,8 +23,9 @@ export function getImportBalances(state, review, result) {
   return [...state.accounts, ...(review.pendingAccounts ?? [])].filter(account => affectedAccountIds.has(account.id)).map(account => ({
     id: account.id,
     name: account.name,
-    before: accountBalance(state, account.id),
-    after: result ? accountBalance(result, account.id) : null
+    before: accountBalance(state, account.id, today),
+    after: result ? accountBalance(result, account.id, today) : null,
+    scheduledByImport: result ? scheduledAccountMovement(result, account.id, today) - scheduledAccountMovement(state, account.id, today) : null
   }));
 }
 

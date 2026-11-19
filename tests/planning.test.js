@@ -62,6 +62,9 @@ test('events for a different year never enter the frozen snapshot', () => {
   assert.equal(buildPlan(state, k_planOptions).months['2026-11'].expense, 15000);
 });
 
+// Drift is reviewed in January 2027, after the completed months have posted.
+const k_driftReviewDate = '2027-01-10';
+
 function createDriftState(behavior, amounts, overrides = {}) {
   return createFinancialState({
     outlook: { completeMonths: ['2026-11', '2026-12'] },
@@ -79,14 +82,14 @@ function createDriftState(behavior, amounts, overrides = {}) {
 }
 
 test('fixed drift tolerates the exact boundary and alerts one cent beyond it', () => {
-  assert.equal(driftAlerts(createDriftState('Fixed', [10200]), '2027-01').length, 0);
-  assert.equal(driftAlerts(createDriftState('Fixed', [10201]), '2027-01').length, 1);
+  assert.equal(driftAlerts(createDriftState('Fixed', [10200]), '2027-01', k_driftReviewDate).length, 0);
+  assert.equal(driftAlerts(createDriftState('Fixed', [10201]), '2027-01', k_driftReviewDate).length, 1);
 });
 
 test('variable drift needs two completed months beyond the configured boundary', () => {
-  assert.equal(driftAlerts(createDriftState('Variable', [13000, 13000]), '2027-01').length, 0);
-  assert.equal(driftAlerts(createDriftState('Variable', [13001, 10000]), '2027-01').length, 0);
-  assert.equal(driftAlerts(createDriftState('Variable', [13001, 13001]), '2027-01').length, 1);
+  assert.equal(driftAlerts(createDriftState('Variable', [13000, 13000]), '2027-01', k_driftReviewDate).length, 0);
+  assert.equal(driftAlerts(createDriftState('Variable', [13001, 10000]), '2027-01', k_driftReviewDate).length, 0);
+  assert.equal(driftAlerts(createDriftState('Variable', [13001, 13001]), '2027-01', k_driftReviewDate).length, 1);
 });
 
 test('drift uses original-month net spending and never mutates the frozen plan', () => {
@@ -96,16 +99,16 @@ test('drift uses original-month net spending and never mutates the frozen plan',
   }));
   const originalState = structuredClone(state);
 
-  assert.deepEqual(driftAlerts(state, '2027-01'), []);
+  assert.deepEqual(driftAlerts(state, '2027-01', k_driftReviewDate), []);
   assert.deepEqual(state, originalState);
-  assert.deepEqual(driftAlerts(state, '2028-01'), []);
+  assert.deepEqual(driftAlerts(state, '2028-01', k_driftReviewDate), []);
 });
 
 test('current-month activity cannot itself trigger a completed-month drift alert', () => {
   const state = createDriftState('Variable', [10000, 10000]);
   state.transactions.push(createTransaction({ id: 'current-month', date: '2027-01-01', amount: 999999 }));
 
-  assert.deepEqual(driftAlerts(state, '2027-01'), []);
+  assert.deepEqual(driftAlerts(state, '2027-01', k_driftReviewDate), []);
 });
 
 test('drift suggestions wait until the relevant completed months are confirmed complete', () => {
@@ -114,8 +117,8 @@ test('drift suggestions wait until the relevant completed months are confirmed c
   const variableState = createDriftState('Variable', [13001, 13001]);
   variableState.outlook.completeMonths = ['2026-12'];
 
-  assert.deepEqual(driftAlerts(fixedState, '2027-01'), []);
-  assert.deepEqual(driftAlerts(variableState, '2027-01'), []);
+  assert.deepEqual(driftAlerts(fixedState, '2027-01', k_driftReviewDate), []);
+  assert.deepEqual(driftAlerts(variableState, '2027-01', k_driftReviewDate), []);
 });
 
 test('editing one month of a returned plan cannot rewrite another month of that snapshot', () => {
@@ -136,4 +139,15 @@ test('a returned revision cannot mutate the earlier plan through carried histori
   revisedPlan.months['2026-01'].lines.push({ id: 'revision-only', amount: 1234 });
 
   assert.deepEqual(frozenPlan.months['2026-01'], originalJanuary);
+});
+
+// L01: drift compares what has posted; a payback dated later counts from its date.
+test('a payback dated after today does not hide a fixed drift until it arrives', () => {
+  const state = createDriftState('Fixed', [15000]);
+  state.transactions.push(createTransaction({
+    id: 'later-payback', type: 'reimbursement', date: '2027-01-25', amount: 5000, linkedId: 'completed-month-0'
+  }));
+
+  assert.equal(driftAlerts(state, '2027-01', '2027-01-10').length, 1);
+  assert.deepEqual(driftAlerts(state, '2027-01', '2027-01-25'), []);
 });

@@ -9,7 +9,8 @@ import {useInsets} from './insets';
 import {useHavensumFonts} from './fonts';
 import { prepareLoadedLedger } from './startupLedger.js';
 import {seed} from './seed.js';
-import {monthOf} from './engine.js';
+import { currentLocalMonth } from './calendar.js';
+import { useLocalDate } from './useLocalDate.js';
 import {readState,writeState,readSavedLedgerCopy} from './storage';
 import { downloadSavedLedgerCopy } from './files';
 import Dashboard from './Dashboard.jsx';
@@ -34,6 +35,7 @@ const k_startupErrorLayout = { flex: 1, justifyContent: 'center', padding: 24, g
 const nav=[['Overview','LayoutDashboard'],['Transactions','ArrowLeftRight'],['Accounts','Wallet'],['Categories','Shapes'],['Year Plan','CalendarRange'],['Reimbursements','Link2'],['Loans','Landmark']];
 const descriptions={Overview:'A little clarity for your everyday.',Transactions:'The full story, one movement at a time.',Accounts:'Different pockets. One clear picture.',Categories:'A home for every little thing.', 'Year Plan':'Make room for what matters.',Reimbursements:'Because paybacks are not a pay rise.',Loans:'Small steps toward lighter days.',Settings:'Make yourself at home.'};
 export default function App(){
+ const today = useLocalDate();
  const [loadError, setLoadError] = useState(null);
  const [recoveryError, setRecoveryError] = useState('');
  const [categoryReviewOpen, setCategoryReviewOpen] = useState(false);
@@ -41,7 +43,7 @@ export default function App(){
  const [filters,setFilters]=useState({}),[searchFocus,setSearchFocus]=useState(0),[accountId,setAccountId]=useState(null),[pickerYear,setPickerYear]=useState(null);
  const searchRequest=useRef(0);
  const [fontsLoaded]=useHavensumFonts();const insets=useInsets();const scrollRef=useRef(null);
- const [state,setState]=useState(null),[screen,setScreen]=useState('Overview'),[month,setMonth]=useState(new Date().toISOString().slice(0,7)),[modal,setModal]=useState(null),[toast,setToast]=useState(''),[search,setSearch]=useState(''),[mobileMenu,setMobileMenu]=useState(false),[monthOpen,setMonthOpen]=useState(false),[saveError,setSaveError]=useState(false);const {width}=useWindowDimensions(),wide=width>=1130,desktop=width>=850,c=state?.theme==='dark'?dark:light;
+ const [state,setState]=useState(null),[screen,setScreen]=useState('Overview'),[month,setMonth]=useState(currentLocalMonth),[modal,setModal]=useState(null),[toast,setToast]=useState(''),[search,setSearch]=useState(''),[mobileMenu,setMobileMenu]=useState(false),[monthOpen,setMonthOpen]=useState(false),[saveError,setSaveError]=useState(false);const {width}=useWindowDimensions(),wide=width>=1130,desktop=width>=850,c=state?.theme==='dark'?dark:light;
  async function loadStoredState() {
    setLoadError(null);
    setRecoveryError('');
@@ -54,7 +56,7 @@ export default function App(){
      return;
    }
    try {
-     const currentMonth = monthOf(new Date().toISOString());
+     const currentMonth = currentLocalMonth();
      const initialState = savedState || seed();
      setState(prepareLoadedLedger(initialState, currentMonth));
      setCategoryReviewOpen(Boolean(initialState.migrationCategoryWarnings?.length));
@@ -129,7 +131,7 @@ export default function App(){
      </Theme.Provider>
    );
  }
- const ctx={state,setState,screen,setScreen:navigate,month,setMonth,modal,setModal,notify:setToast,wide,desktop,search,setSearch,filters,setFilters,searchFocus,openActivity,openAccount,accountId};const Content={Overview:Dashboard,'Account detail':AccountDetail,Transactions,Accounts,Categories,'Year Plan':YearPlan,Reimbursements,Loans,Settings}[screen];
+ const ctx={today,state,setState,screen,setScreen:navigate,month,setMonth,modal,setModal,notify:setToast,wide,desktop,search,setSearch,filters,setFilters,searchFocus,openActivity,openAccount,accountId};const Content={Overview:Dashboard,'Account detail':AccountDetail,Transactions,Accounts,Categories,'Year Plan':YearPlan,Reimbursements,Loans,Settings}[screen];
  const navItem=([label,icon])=><Pressable accessibilityRole="button" accessibilityState={{selected:screen===label}} key={label} onPress={()=>navigate(label)} style={{flexDirection:'row',alignItems:'center',gap:13,paddingVertical:12,paddingHorizontal:16,borderRadius:10,marginBottom:5,backgroundColor:screen===label?c.nav:'transparent'}}><Icon name={icon} size={18} color={screen===label?c.peachText:c.sub}/><T style={{fontSize:12.5,color:screen===label?c.peachText:c.sub,fontWeight:screen===label?'600':'400'}}>{label}</T>{screen===label&&<View style={{width:5,height:5,borderRadius:5,backgroundColor:c.accent,marginLeft:'auto'}}/>}</Pressable>;
  const Sidebar=()=> <View style={{width:223,backgroundColor:c.card,borderRightWidth:1,borderColor:c.line,padding:20,paddingTop:32,height:'100%',minHeight:700}}><Row style={{gap:5,marginBottom:7}}><BrandMark size={30}/><H size={26} style={{letterSpacing:-.7}}>havensum</H></Row><T style={{fontSize:8.3,letterSpacing:1.65,color:c.muted,paddingLeft:14,marginBottom:44}}>A CALM HOME FOR YOUR MONEY</T><T style={{fontSize:9,letterSpacing:1.1,color:c.muted,paddingLeft:16,marginBottom:13}}>YOUR EVERYDAY</T>{nav.slice(0,4).map(navItem)}<T style={{fontSize:9,letterSpacing:1.1,color:c.muted,paddingLeft:16,marginTop:28,marginBottom:13}}>THE BIGGER PICTURE</T>{nav.slice(4).map(navItem)}<View style={{flex:1,minHeight:35}}/><View style={{padding:15,backgroundColor:c.cream,borderRadius:13,marginBottom:20,gap:7}}><Icon name="Flower2" size={22} color={c.accent}/><T style={{fontSize:12,fontWeight:'500'}}>Good with money.{'\n'}Gentle with yourself.</T><T style={{fontSize:10,color:c.sub,lineHeight:16}}>A little awareness goes a long way.</T></View>{navItem(['Settings','Settings2'])}<Row style={{borderTopWidth:1,borderColor:c.line,marginTop:13,paddingTop:20,gap:10,paddingHorizontal:5}}><View style={{width:34,height:34,borderRadius:11,backgroundColor:c.peach,alignItems:'center',justifyContent:'center'}}><T style={{fontSize:12,color:c.peachText,fontWeight:'600'}}>HM</T></View><View style={{flex:1}}><T style={{fontSize:11.5,fontWeight:'500'}}>Hugo & Marina</T><Row style={{gap:4}}><View style={{width:4,height:4,borderRadius:3,backgroundColor:c.muted}}/><T style={{fontSize:9,color:c.muted}}>On this device</T></Row></View><IB size={15} name={state.theme==='dark'?'Sun':'Moon'} label="Toggle theme" onPress={()=>setState(s=>({...s,theme:s.theme==='dark'?'light':'dark'}))}/></Row></View>;
  const d=new Date(month+'-01T12:00:00');

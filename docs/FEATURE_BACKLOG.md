@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**FORECAST-2 is done, reviewed and merged into `develop`** after the owner's answers (see "FORECAST-2 owner answers" and the implementation handoff at the end). No other ticket is unblocked: each needs owner input, samples, credentials or a device. PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**LEDGER-1 is done, reviewed and merged into `develop`** (see its handoff note at the end). **FORECAST-2 is done, reviewed and merged into `develop`** after the owner's answers (see "FORECAST-2 owner answers" and the implementation handoff at the end). No other ticket is unblocked: each needs owner input, samples, credentials or a device. PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -86,7 +86,7 @@ Ordinary EUR rows from v6.7.5+524 are already verified. Check real transfer and 
 
 ### LEDGER-1 · Posted versus future-dated activity
 
-**Needs:** Owner decision on when a scheduled entry becomes posted and which date drives each view.
+**Owner decision (19 November 2026, recorded as L01/L02 in DECISIONS.md):** an entry dated after today counts in current account balances and monthly reports from its date, by the device's local date. Until its date it shows as upcoming/scheduled and still feeds forecasts; from that day it is included automatically, with no manual confirmation step. **Status:** Done, reviewed and merged into `develop` from `codex/ledger-posting` (implementation `283a12b`–`fe86e22`; review fixes `a714369`–`b9bfbfd`). See the LEDGER-1 handoff note at the end; its owner questions are non-blocking.
 
 Apply the agreed rule to current balances, account details, reports, forecasts, and import previews. Scheduled items can inform forecasts while current cash reflects posted movements. Cover today, month-end, time zones, future transfers, early planned-cost payments, and received paybacks.
 
@@ -270,3 +270,36 @@ The implementation note below records how these were built; it stores only per-y
 - **Checks:** on `74f83b7`, `npm run test:coverage` 388/388 with thresholds met, `npm run test:browser` 348/348, `npm run build`, `npm run check:android` (Hermes compilation only; no device test). The final nit commit `ac36777` was rechecked with `npm run test:coverage` (389/389), build, Hermes and the planned-cost browser spec on all three viewports (18/18).
 - **Review:** a separate read-only Claude review of the implementation (no blocking defects; six should-fix items fixed test-first in `74f83b7`), a focused re-review (no blocking defects; two nits fixed in the final commit) and a final re-review of that commit.
 - **Owner questions (non-blocking):** (1) Accepting a suggestion changes Expected savings as well as the plan, because a planned cost's amount is forecast evidence (the PLAN-3 convention). Is that what you expect? (2) Merge conflicts on year amounts show the raw field and cents, like other merge conflicts.
+
+## Session handoff — LEDGER-1 (19 November 2026, Claude cloud session)
+
+- **Decision recorded:** L01 (owner) and L02 (derived from L01, awaiting confirmation) in DECISIONS.md. An entry dated after today counts in balances and monthly reports from its date, by the device's local date. Until then it is *scheduled*, stays visible and feeds forecasts. From its date it counts automatically, with no confirmation and no write to the ledger.
+- **Implementation:**
+  - `src/posting.js` (`isScheduledEntry`, `postedLedger`) holds the rule.
+  - `accountBalance` defaults to today's local date.
+  - `reportingMonthStats` uses posted entries for every month, including future ones. A future month therefore shows only posted early payments linked to it.
+  - `scheduledMonthStats` and `scheduledAccountMovement` total scheduled entries apart. `expensePaybacks` splits received from scheduled paybacks.
+  - Forecasts (`expectedSavings`, `yearOutlook`, `planInsights`, `planDraftEstimates`), drift alerts and the workbook summary use the posted ledger and the local date.
+  - The app's starting month, startup and restore interest posting, the new-entry date, loan start/end defaults, rate editors and payback tasks all use the local date (`localCalendarDate`, `currentLocalMonth`). This replaces the UTC dates noted in PLAN-4 Q4 and FORECAST-1 Q3.
+  - `useLocalDate` holds one "today" for the app (shared through the app context). It changes at local midnight while the app stays open and is checked again when the app returns to the foreground, so an entry counts on its date without a restart. Forms and a few one-off helpers still read the clock directly when they open.
+- **UI (shared web/Android components):**
+  - Activity rows say *Scheduled*.
+  - Home shows today's balances and "N scheduled entries · ±€ when they post".
+  - Account detail shows the balance today, posted movements, the scheduled change and the balance after scheduled entries.
+  - An expense's detail counts only received paybacks as *Paid back*. A later payback shows as *Scheduled payback*.
+  - Year ahead month rows show Recorded (posted, including posted early payments in a future month), a separate Scheduled cell (any month, including later this month and late payments for a past occurrence) and Expected.
+  - The import review shows balances as of today, what the import schedules, and marks later-dated rows.
+- **Kept as before (existing contracts, see questions 1–2):**
+  - A past month's Expected stays its recorded result (FORECAST-1).
+  - A scheduled payback does not reduce Expected before its date (conservative payback rule). Both are shown as Scheduled.
+- **Owner questions (non-blocking; current behaviour keeps the existing contracts):**
+  1. A late payment dated after today for a past planned cost (F15) is shown as Scheduled in that past month, but Expected for the past month and the year total leaves it out until its date. Should it count in Expected before its date?
+  2. A payback recorded with a future date is shown as Scheduled but does not lower Expected spending until it arrives. Should a recorded future payback lower the prediction before its date?
+  3. Home's Recent activity sorts newest date first, so several bills dated later this month can push today's entries out of the top five. Keep this, or show scheduled entries in their own "Upcoming" group?
+  4. L02: please confirm that the local date also drives the app's starting month and the default dates of new entries and loans (implemented that way).
+  5. Savings interest still posts only when the app starts or a backup is restored. An app left open across a month end shows the new month's balances but posts last month's interest only on the next start. Is that acceptable?
+  6. The xlsx export's month summary and drift alerts were treated as monthly reports (posted entries only); raw transaction exports keep every entry. Confirm.
+- **Paybacks screen:** a later payback shows *Scheduled payback · counts from <date>*; the original's net and the header total count received paybacks only.
+- **Checks (`b9bfbfd`):** `npm run test:coverage` 404/404 with thresholds met (96.3% lines, 94.5% branches), `npm run test:browser` 384/384, `npm run build`, `npm run check:android` (Hermes compilation only; no device test).
+- **Review:** separate read-only Claude review (one blocking defect: expense rows and details counted a later payback as received; should-fix items for drift alerts, the workbook summary, loan defaults, the import preview, a stale Year ahead after a day change and style), then three focused re-reviews. They found two more items: a second "today" source that could disagree after midnight, and the same payback defect on the Paybacks screen. All were fixed test-first. The last re-review found no blocking defects.
+- **Not done (nits):** backup and CSV file names still use the UTC date; a scheduled payback's amount stays green on the Paybacks screen; a payback task's creation day is a UTC day (accepted in FORECAST-2); the future-month Home label reads "December · posted so far".

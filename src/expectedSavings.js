@@ -1,5 +1,5 @@
 import { monthStats } from './ledger.js';
-import { daysInMonth, monthOf, k_calendarDateLength } from './calendar.js';
+import { daysInMonth, localCalendarDate, monthOf } from './calendar.js';
 import { k_transactionTypes } from './domainConstants.js';
 import { outlookHistory } from './outlookHistory.js';
 import { expectedBills } from './expectedBills.js';
@@ -7,15 +7,13 @@ import { expectedVariableSpending } from './expectedVariableSpending.js';
 import { expectedLoanSpending } from './expectedLoans.js';
 import { occasionalSpending, expectedOccasionalEvents } from './expectedOccasionalSpending.js';
 import { sumCents } from './money.js';
+import { postedLedger } from './posting.js';
 import { expectedInterest, scheduledInterestAccounts, scheduledInterestIncome } from './expectedInterest.js';
 
 // Prediction inputs are independent of the frozen Year Plan.
 // `projectedInterest` lets a multi-month outlook share one interest projection.
-export function expectedSavings(state, month, today = new Date().toISOString().slice(0, k_calendarDateLength), { projectedInterest = null } = {}) {
-  const recordedState = {
-    ...state,
-    transactions: state.transactions.filter(transaction => transaction.date <= today)
-  };
+export function expectedSavings(state, month, today = localCalendarDate(), { projectedInterest = null } = {}) {
+  const recordedState = postedLedger(state, today);
   const actual = monthStats(recordedState, month);
   if (month < monthOf(today)) {
     return { income: actual.income, expense: actual.spent, balance: actual.balance, occasional: occasionalSpending(state, actual), partial: false, historyMonths: [] };

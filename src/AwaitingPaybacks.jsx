@@ -8,14 +8,12 @@ import { euro } from './money.js';
 const k_statusLabels = { open: 'Awaiting payback', partial: 'Partially received', received: 'Received', closed: 'Closed without further payment' };
 
 export default function AwaitingPaybacks() {
-  const { state, setState, setModal, notify } = useApp();
+  const { state, today, setState, setModal, notify } = useApp();
   const colors = useContext(Theme);
   const [showHistory, setShowHistory] = useState(false);
   const [closingTask, setClosingTask] = useState(null);
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const rows = (state.paybackTasks ?? []).map(task => ({
     task,
     expense: state.transactions.find(transaction => transaction.id === task.expenseId),

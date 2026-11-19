@@ -216,18 +216,47 @@ test('recorded interest in the current month counts once in the year and its exp
   assert.deepEqual(outlook.drivers.interest.map(line => [line.recorded, line.estimated, line.expected]), [[1500, 0, 1500]]);
 });
 
-// Current posting semantics: entries dated in a future month are not
-// recorded yet, but their registered totals stay visible as scheduled.
-test('future-dated entries in a future month stay visible as scheduled totals', () => {
+// L01: Recorded holds what has posted by today, whichever month it reports in;
+// Scheduled holds what has not posted yet. Both feed Expected for this month on.
+test('scheduled entries stay visible beside recorded ones in every month they report in', () => {
   const state = steadyLedger({
+    events: [{ id: 'trip', name: 'Trip', month: 8, amount: 90000 }],
     transactions: [
       ...monthlyEntries([...k_firstQuarter, '2027-04']),
+      createTransaction({ id: 'gift', title: 'Gift', amount: 6000, date: '2027-04-22', category: 'shopping' }),
+      createTransaction({ id: 'deposit', title: 'Trip deposit', amount: 20000, date: '2027-04-05', category: 'shopping', plannedCost: { eventId: 'trip', month: '2027-08' } }),
       createTransaction({ id: 'insurance', title: 'Car insurance', amount: 45000, date: '2027-06-15', category: 'shopping' })
     ]
   });
   const outlook = yearOutlook(state, 2027, '2027-04-10');
+
+  assert.deepEqual(outlook.months[3].recorded, totals(200000, 80000), 'April records what posted by the 10th');
+  assert.deepEqual(outlook.months[3].scheduled, totals(0, 6000), 'the gift on the 22nd is scheduled');
   assert.equal(outlook.months[5].recorded, null);
   assert.deepEqual(outlook.months[5].scheduled, totals(0, 45000));
+  assert.deepEqual(outlook.months[7].recorded, totals(0, 20000), 'a posted early payment is recorded in its planned month');
+  assert.equal(outlook.months[7].scheduled, null);
   assert.equal(outlook.months[6].scheduled, null);
-  assert.equal(outlook.months[2].scheduled, null, 'past and current months show recorded totals instead');
+  assert.equal(outlook.months[2].scheduled, null);
+  assert.deepEqual(outlook.recorded, totals(4 * 200000, 4 * 80000 + 20000));
+
+  const onTheGiftDate = yearOutlook(state, 2027, '2027-04-22');
+  assert.deepEqual(onTheGiftDate.months[3].recorded, totals(200000, 86000), 'it counts from its date without confirmation');
+  assert.equal(onTheGiftDate.months[3].scheduled, null);
+});
+
+test('a late payment scheduled for a past planned cost shows as scheduled while that month keeps its recorded result', () => {
+  const state = steadyLedger({
+    events: [{ id: 'party', name: 'Party', month: 3, amount: 30000, year: 2027 }],
+    transactions: [
+      ...monthlyEntries([...k_firstQuarter, '2027-04']),
+      createTransaction({ id: 'catering', title: 'Catering', amount: 25000, date: '2027-04-20', category: 'shopping', plannedCost: { eventId: 'party', month: '2027-03' } })
+    ]
+  });
+  const outlook = yearOutlook(state, 2027, '2027-04-10');
+
+  assert.deepEqual(outlook.months[2].recorded, totals(200000, 80000));
+  assert.deepEqual(outlook.months[2].scheduled, totals(0, 25000));
+  assert.deepEqual(outlook.months[2].expected, totals(200000, 80000), 'a past month expects its recorded result (FORECAST-1)');
+  assert.deepEqual(yearOutlook(state, 2027, '2027-04-20').months[2].recorded, totals(200000, 105000));
 });

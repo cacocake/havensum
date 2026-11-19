@@ -9,7 +9,7 @@ import { validateState } from './stateSchema.js';
 import { chooseFile, downloadJSON } from './files';
 import { isDemoSession, readRestoreRecovery, readSavedLedgerCopy, writeRestoreRecovery, writeState } from './storage';
 import { prepareLoadedLedger } from './startupLedger.js';
-import { monthOf } from './calendar.js';
+import { currentLocalMonth } from './calendar.js';
 
 const k_restoreOutcomeMessages = Object.freeze({
   preview: 'Restoring replaces data only on this device and is not available in the preview.',
@@ -69,7 +69,7 @@ function RestorePreview({ preview, onCancel, onRestored }) {
         return;
       }
       const reviewedState = validateState(applyCategoryReviewEdits(preview.restoredState, reviewRows, categoryEdits));
-      const restoredState = prepareLoadedLedger(reviewedState, monthOf(new Date().toISOString()));
+      const restoredState = prepareLoadedLedger(reviewedState, currentLocalMonth());
       try {
         await writeRestoreRecovery(state);
       } catch {

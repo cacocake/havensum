@@ -3,6 +3,8 @@ import AwaitingPaybacks from './AwaitingPaybacks.jsx';
 import React,{useContext,useState,useEffect,useRef} from 'react';
 import {View,Pressable,ScrollView,Platform} from 'react-native';
 import {selectTransactions} from './activity.js';
+import { isScheduledEntry } from './posting.js';
+import { expensePaybacks } from './ledger.js';
 import { expenseReportingMonth } from './plannedCosts.js';
 import {useApp} from './context.js';
 import {Theme,T,H,Row,Button,IB,Badge,TileIcon,Card,Field,Select,Toggle,Dialog,Divider,Empty} from './ui.jsx';
@@ -10,7 +12,7 @@ import Icon from './Icon';
 import DataTools from './DataTools.jsx';
 import ImportDialog from './ImportDialog.jsx';
 import CategoryGlyph from './CategoryGlyph.jsx';
-import {euro,monthOf,reportingMonthStats,netExpenses,categorySettings,accountBalance,driftAlerts,mergeThreeWay,validateTransaction} from './engine.js';
+import {euro,monthOf,reportingMonthStats,categorySettings,accountBalance,driftAlerts,mergeThreeWay,validateTransaction} from './engine.js';
 import {AccountCard,TransactionRow} from './Dashboard.jsx';
 import {exportExcel,downloadJSON,downloadSavedLedgerCopy,chooseFile,readImport} from './files';
 import {readInvalidSnapshotCopy,readSnapshot,writeSnapshot,writeMergeRecovery,isDemoSession} from './storage';
@@ -26,14 +28,14 @@ const k_backupMessages = {
   missingBaseline: 'Export a backup first to establish a shared merge baseline.'
 };
 const k_mergeConflictFields = { outlook: '$outlook', record: '$record' };
-const k_filteredSpendingHint = 'Past and current totals use entries through today. Future months show registered entries. The list includes future-dated rows; open a movement for its breakdown.';
+const k_filteredSpendingHint = 'Totals count entries posted by today. Entries dated later are marked Scheduled and count from their date. Open a movement for its breakdown.';
 export function Transactions(){
- const {state,month,search,setSearch,filters,setFilters,searchFocus}=useApp(),c=useContext(Theme),searchRef=useRef(null);
+ const {state,month,today,search,setSearch,filters,setFilters,searchFocus}=useApp(),c=useContext(Theme),searchRef=useRef(null);
  useEffect(()=>{if(searchFocus){const id=setTimeout(()=>searchRef.current?.focus(),60);return()=>clearTimeout(id)}},[searchFocus]);
  const {type='all',account='all',category='all'}=filters,tx=selectTransactions(state,month,{...filters,search});
  const active = type !== 'all' || account !== 'all' || category !== 'all';
  const filteredTransactionIds = new Set(tx.map(transaction => transaction.id));
- const net = reportingMonthStats(state, month).expenses
+ const net = reportingMonthStats(state, month, today).expenses
    .filter(expense => filteredTransactionIds.has(expense.id))
    .reduce((total, expense) => total + expense.net, 0);
  const change=(key,value)=>setFilters(f=>({...f,[key]:value}));
@@ -48,9 +50,75 @@ export function Transactions(){
   {tx.length?tx.map((t,i)=><TransactionRow key={t.id} tx={t} last={i===tx.length-1} accountId={account==='all'?null:account}/>):<Empty title="No matching movements" description="Change your filters or add a transaction for this month."/>}
  </Card></View>;
 }
-export function Accounts(){const {state,setModal,wide}=useApp(),c=useContext(Theme);return <View style={{gap:23}}><Card style={{backgroundColor:c.peach,borderColor:c.peach}}><T style={{fontSize:12,color:c.peachText}}>All your money, in one place</T><H size={40} style={{marginTop:8}}>{euro(state.accounts.reduce((s,a)=>s+accountBalance(state,a.id),0))}</H><T style={{fontSize:11,color:c.peachText,marginTop:10}}>Transfers move money between these accounts. They never become income or spending.</T></Card><Row style={{justifyContent:'space-between'}}><H size={22}>Your accounts</H><Button small icon="Plus" onPress={()=>setModal({type:'account'})}>Add account</Button></Row><Row style={{gap:16,flexWrap:'wrap',alignItems:'stretch'}}>{state.accounts.map(a=><View key={a.id} style={{width:wide?'48%':'100%'}}><AccountCard account={a}/></View>)}</Row><Card><Row style={{gap:12}}><TileIcon name="ShieldCheck" color="#91B6A9"/><View style={{flex:1}}><H size={18}>No bank connection needed</H><T style={{fontSize:12,color:c.sub,marginTop:5}}>You control every balance and transaction. Savings interest is recorded once per completed month using your effective annual rate.</T></View></Row></Card></View>}
-export function Categories(){const {state,setModal,month,wide}=useApp(),c=useContext(Theme);const [search,setSearch]=useState('');const stats=reportingMonthStats(state,month);return <View style={{gap:20}}><Row style={{justifyContent:'space-between',gap:15}}><View style={{flex:1}}><T style={{fontSize:13,color:c.sub}}>Every category, your way.</T></View><Button small icon="Plus" onPress={()=>setModal({type:'category'})}>New category</Button></Row><Field placeholder="Find a category…" value={search} onChangeText={setSearch}/><Row style={{gap:16,flexWrap:'wrap',alignItems:'stretch'}}>{state.categories.filter(x=>!x.parentId&&(!search||[x.name,...state.categories.filter(s=>s.parentId===x.id).map(s=>s.name)].join(' ').toLowerCase().includes(search.toLowerCase()))).map(cat=>{const spent=stats.expenses.filter(t=>{const x=categorySettings(state.categories,t.category);return x.id===cat.id||x.parentId===cat.id}).reduce((s,t)=>s+t.net,0),subs=state.categories.filter(x=>x.parentId===cat.id);return <Card key={cat.id} style={{width:wide?'48%':'100%',padding:20,borderRadius:26,borderColor:cat.color+'40',backgroundColor:c.dark?cat.color+'19':cat.color+'0C'}}><Row style={{gap:12,marginBottom:16}}><TileIcon name={cat.icon} color={cat.color} size={50}/><View style={{flex:1}}><H size={19}>{cat.name}</H><Badge style={{marginTop:5}}>{cat.kind}</Badge></View><IB name="Pencil" label={`Edit ${cat.name}`} onPress={()=>setModal({type:'category',item:cat})}/></Row>{cat.budget>0&&<><Row style={{justifyContent:'space-between',marginBottom:8}}><T style={{fontSize:11,color:c.sub}}>{euro(spent)} spent</T><T style={{fontSize:11,color:spent>cat.budget?c.negative:c.muted}}>of {euro(cat.budget)}</T></Row><View style={{height:5,backgroundColor:c.soft,borderRadius:5,overflow:'hidden',marginBottom:13}}><View style={{height:5,width:`${Math.min(100,spent/cat.budget*100)}%`,backgroundColor:spent>cat.budget?c.negative:cat.color,borderRadius:5}}/></View></>}{subs.map(s=>{const resolved=categorySettings(state.categories,s.id);return <Pressable key={s.id} onPress={()=>setModal({type:'category',item:s})} style={{paddingVertical:9,borderTopWidth:1,borderColor:c.line}}><Row style={{gap:8}}><Icon name="CornerDownRight" size={12} color={c.muted}/><CategoryGlyph name={resolved.icon} size={20} color={resolved.color}/><T style={{fontSize:12,flex:1}}>{s.name}</T><T style={{fontSize:9.5,color:c.muted}}>{s.kind||'Inherits '+cat.kind}</T><Icon name="ChevronRight" size={12} color={c.muted}/></Row></Pressable>})}<Pressable accessibilityRole="button" onPress={()=>setModal({type:'category',item:{parentId:cat.id,kind:null,color:null,icon:null}})} style={{marginTop:subs.length?8:0}}><T style={{fontSize:11,color:c.sub}}>+ Add a subcategory</T></Pressable></Card>})}</Row></View>}
-export function Reimbursements(){const {state,setModal,wide}=useApp(),c=useContext(Theme);const tx=state.transactions.filter(t=>t.type==='reimbursement').sort((a,b)=>b.date.localeCompare(a.date)),linked=tx.filter(t=>t.linkedId),total=linked.reduce((s,t)=>s+t.amount,0);return <View style={{gap:20}}><AwaitingPaybacks/><Card style={{backgroundColor:c.dark?'#2c382f':'#EDF4EB',borderColor:'transparent'}}><Row style={{justifyContent:'space-between',gap:15,flexWrap:'wrap'}}><View style={{flex:1,minWidth:200}}><Badge color={c.positive}>A CLEARER PICTURE</Badge><H size={29} style={{marginTop:15}}>What came back belongs{'\n'}with what went out.</H><T style={{fontSize:12,color:c.sub,marginTop:12,maxWidth:480}}>A payback changes your account today, and offsets the original expense in its own month. Your salary stays your salary.</T></View><View style={{padding:20,alignItems:'center'}}><Icon name="Link2" size={27} color={c.positive}/><H size={35} style={{marginTop:13,color:c.positive}}>{euro(total)}</H><T style={{fontSize:11,color:c.sub,marginTop:5}}>linked reimbursements · all time</T></View></Row></Card><Row style={{justifyContent:'space-between'}}><H size={22}>Every payback, traced</H><Button small icon="Plus" onPress={()=>setModal({type:'transaction',initialType:'reimbursement'})}>Add payback</Button></Row>{!tx.length&&<Card><Empty title="All clear" description="Add a reimbursement and link it to its original expense."/></Card>}{tx.map(t=>{const original=state.transactions.find(x=>x.id===t.linkedId);return <Card key={t.id} style={{padding:20}}><Row style={{gap:15,flexWrap:'wrap'}}><View style={{flex:1,minWidth:180}}><Badge>{original?'ORIGINAL EXPENSE':'BALANCE ADJUSTMENT'}</Badge>{original?<><H size={19} style={{marginTop:12}}>{original.title}</H><T style={{fontSize:11,color:c.muted,marginTop:5}}>{original.date} · {euro(original.amount)}</T></>:<T style={{marginTop:12,fontSize:12,color:c.sub}}>No linked expense. Excluded from earnings.</T>}</View><Icon name="MoveRight" size={25} color={c.muted}/><View style={{flex:1,minWidth:180}}><Badge color={c.positive}>PAYBACK RECEIVED</Badge><H size={19} style={{marginTop:12}}>{t.title}</H><T style={{fontSize:11,color:c.muted,marginTop:5}}>{t.date} · <T style={{fontSize:11,color:c.positive}}>+{euro(t.amount)}</T></T></View><IB name="Pencil" label={`Edit ${t.title}`} onPress={()=>setModal({type:'transaction',item:t})}/></Row>{original&&<View style={{borderTopWidth:1,borderColor:c.line,marginTop:18,paddingTop:13}}><Row style={{justifyContent:'space-between'}}><T style={{fontSize:11,color:c.sub}}>Net expense in {expenseReportingMonth(original)}</T><T style={{fontSize:12,fontWeight:'600'}}>{euro(netExpenses(state.transactions,expenseReportingMonth(original)).find(x=>x.id===original.id)?.net||0)}</T></Row></View>}</Card>})}</View>}
+export function Accounts(){const {state,today,setModal,wide}=useApp(),c=useContext(Theme);return <View style={{gap:23}}><Card style={{backgroundColor:c.peach,borderColor:c.peach}}><T style={{fontSize:12,color:c.peachText}}>All your money, in one place</T><H size={40} style={{marginTop:8}}>{euro(state.accounts.reduce((s,a)=>s+accountBalance(state,a.id,today),0))}</H><T style={{fontSize:11,color:c.peachText,marginTop:10}}>Transfers move money between these accounts. They never become income or spending.</T></Card><Row style={{justifyContent:'space-between'}}><H size={22}>Your accounts</H><Button small icon="Plus" onPress={()=>setModal({type:'account'})}>Add account</Button></Row><Row style={{gap:16,flexWrap:'wrap',alignItems:'stretch'}}>{state.accounts.map(a=><View key={a.id} style={{width:wide?'48%':'100%'}}><AccountCard account={a}/></View>)}</Row><Card><Row style={{gap:12}}><TileIcon name="ShieldCheck" color="#91B6A9"/><View style={{flex:1}}><H size={18}>No bank connection needed</H><T style={{fontSize:12,color:c.sub,marginTop:5}}>You control every balance and transaction. Savings interest is recorded once per completed month using your effective annual rate.</T></View></Row></Card></View>}
+export function Categories(){const {state,today,setModal,month,wide}=useApp(),c=useContext(Theme);const [search,setSearch]=useState('');const stats=reportingMonthStats(state,month,today);return <View style={{gap:20}}><Row style={{justifyContent:'space-between',gap:15}}><View style={{flex:1}}><T style={{fontSize:13,color:c.sub}}>Every category, your way.</T></View><Button small icon="Plus" onPress={()=>setModal({type:'category'})}>New category</Button></Row><Field placeholder="Find a category…" value={search} onChangeText={setSearch}/><Row style={{gap:16,flexWrap:'wrap',alignItems:'stretch'}}>{state.categories.filter(x=>!x.parentId&&(!search||[x.name,...state.categories.filter(s=>s.parentId===x.id).map(s=>s.name)].join(' ').toLowerCase().includes(search.toLowerCase()))).map(cat=>{const spent=stats.expenses.filter(t=>{const x=categorySettings(state.categories,t.category);return x.id===cat.id||x.parentId===cat.id}).reduce((s,t)=>s+t.net,0),subs=state.categories.filter(x=>x.parentId===cat.id);return <Card key={cat.id} style={{width:wide?'48%':'100%',padding:20,borderRadius:26,borderColor:cat.color+'40',backgroundColor:c.dark?cat.color+'19':cat.color+'0C'}}><Row style={{gap:12,marginBottom:16}}><TileIcon name={cat.icon} color={cat.color} size={50}/><View style={{flex:1}}><H size={19}>{cat.name}</H><Badge style={{marginTop:5}}>{cat.kind}</Badge></View><IB name="Pencil" label={`Edit ${cat.name}`} onPress={()=>setModal({type:'category',item:cat})}/></Row>{cat.budget>0&&<><Row style={{justifyContent:'space-between',marginBottom:8}}><T style={{fontSize:11,color:c.sub}}>{euro(spent)} spent</T><T style={{fontSize:11,color:spent>cat.budget?c.negative:c.muted}}>of {euro(cat.budget)}</T></Row><View style={{height:5,backgroundColor:c.soft,borderRadius:5,overflow:'hidden',marginBottom:13}}><View style={{height:5,width:`${Math.min(100,spent/cat.budget*100)}%`,backgroundColor:spent>cat.budget?c.negative:cat.color,borderRadius:5}}/></View></>}{subs.map(s=>{const resolved=categorySettings(state.categories,s.id);return <Pressable key={s.id} onPress={()=>setModal({type:'category',item:s})} style={{paddingVertical:9,borderTopWidth:1,borderColor:c.line}}><Row style={{gap:8}}><Icon name="CornerDownRight" size={12} color={c.muted}/><CategoryGlyph name={resolved.icon} size={20} color={resolved.color}/><T style={{fontSize:12,flex:1}}>{s.name}</T><T style={{fontSize:9.5,color:c.muted}}>{s.kind||'Inherits '+cat.kind}</T><Icon name="ChevronRight" size={12} color={c.muted}/></Row></Pressable>})}<Pressable accessibilityRole="button" onPress={()=>setModal({type:'category',item:{parentId:cat.id,kind:null,color:null,icon:null}})} style={{marginTop:subs.length?8:0}}><T style={{fontSize:11,color:c.sub}}>+ Add a subcategory</T></Pressable></Card>})}</Row></View>}
+// L01: a payback counts as received from its date. Until then it is a
+// scheduled payback and does not yet reduce its expense's net amount.
+function PaybackCard({ payback }) {
+  const { state, today, setModal } = useApp();
+  const colors = useContext(Theme);
+  const original = state.transactions.find(transaction => transaction.id === payback.linkedId);
+  const isScheduled = isScheduledEntry(payback, today);
+  const originalNet = original ? Math.max(0, original.amount - expensePaybacks(state.transactions, original.id, today).receivedTotal) : 0;
+  return <Card testID={`payback-${payback.id}`} style={{ padding: 20 }}>
+    <Row style={{ gap: 15, flexWrap: 'wrap' }}>
+      <View style={{ flex: 1, minWidth: 180 }}>
+        <Badge>{original ? 'ORIGINAL EXPENSE' : 'BALANCE ADJUSTMENT'}</Badge>
+        {original ? <>
+          <H size={19} style={{ marginTop: 12 }}>{original.title}</H>
+          <T style={{ fontSize: 11, color: colors.muted, marginTop: 5 }}>{original.date} · {euro(original.amount)}</T>
+        </> : <T style={{ marginTop: 12, fontSize: 12, color: colors.sub }}>No linked expense. Excluded from earnings.</T>}
+      </View>
+      <Icon name="MoveRight" size={25} color={colors.muted}/>
+      <View style={{ flex: 1, minWidth: 180 }}>
+        <Badge color={isScheduled ? colors.sub : colors.positive}>{isScheduled ? 'SCHEDULED PAYBACK' : 'PAYBACK RECEIVED'}</Badge>
+        <H size={19} style={{ marginTop: 12 }}>{payback.title}</H>
+        <T style={{ fontSize: 11, color: colors.muted, marginTop: 5 }}>
+          {isScheduled ? `counts from ${payback.date}` : payback.date} · <T style={{ fontSize: 11, color: colors.positive }}>+{euro(payback.amount)}</T>
+        </T>
+      </View>
+      <IB name="Pencil" label={`Edit ${payback.title}`} onPress={() => setModal({ type: 'transaction', item: payback })}/>
+    </Row>
+    {original && <View style={{ borderTopWidth: 1, borderColor: colors.line, marginTop: 18, paddingTop: 13 }}>
+      <Row style={{ justifyContent: 'space-between' }}>
+        <T style={{ fontSize: 11, color: colors.sub }}>Net expense in {expenseReportingMonth(original)}</T>
+        <T testID="payback-original-net" style={{ fontSize: 12, fontWeight: '600' }}>{euro(originalNet)}</T>
+      </Row>
+    </View>}
+  </Card>;
+}
+
+export function Reimbursements() {
+  const { state, today, setModal } = useApp();
+  const colors = useContext(Theme);
+  const paybacks = state.transactions.filter(transaction => transaction.type === 'reimbursement').sort((first, second) => second.date.localeCompare(first.date));
+  const receivedLinkedTotal = paybacks
+    .filter(payback => payback.linkedId && !isScheduledEntry(payback, today))
+    .reduce((total, payback) => total + payback.amount, 0);
+  return <View style={{ gap: 20 }}>
+    <AwaitingPaybacks/>
+    <Card style={{ backgroundColor: colors.dark ? '#2c382f' : '#EDF4EB', borderColor: 'transparent' }}>
+      <Row style={{ justifyContent: 'space-between', gap: 15, flexWrap: 'wrap' }}>
+        <View style={{ flex: 1, minWidth: 200 }}>
+          <Badge color={colors.positive}>A CLEARER PICTURE</Badge>
+          <H size={29} style={{ marginTop: 15 }}>What came back belongs{'\n'}with what went out.</H>
+          <T style={{ fontSize: 12, color: colors.sub, marginTop: 12, maxWidth: 480 }}>A payback changes your account on its date, and offsets the original expense in its own month. Your salary stays your salary.</T>
+        </View>
+        <View style={{ padding: 20, alignItems: 'center' }}>
+          <Icon name="Link2" size={27} color={colors.positive}/>
+          <H testID="paybacks-received-total" size={35} style={{ marginTop: 13, color: colors.positive }}>{euro(receivedLinkedTotal)}</H>
+          <T style={{ fontSize: 11, color: colors.sub, marginTop: 5 }}>linked paybacks received · all time</T>
+        </View>
+      </Row>
+    </Card>
+    <Row style={{ justifyContent: 'space-between' }}>
+      <H size={22}>Every payback, traced</H>
+      <Button small icon="Plus" onPress={() => setModal({ type: 'transaction', initialType: 'reimbursement' })}>Add payback</Button>
+    </Row>
+    {!paybacks.length && <Card><Empty title="All clear" description="Add a reimbursement and link it to its original expense."/></Card>}
+    {paybacks.map(payback => <PaybackCard key={payback.id} payback={payback}/>)}
+  </View>;
+}
 export {default as YearPlan} from './PlanScreen.jsx';
 export function Loans(){const {state,setModal}=useApp(),c=useContext(Theme);return <View style={{gap:20}}><Row style={{justifyContent:'space-between',gap:12}}><View style={{flex:1}}><H size={24}>Steady steps, month by month.</H><T style={{fontSize:12,color:c.sub,marginTop:8}}>Track an existing loan without changing any account balance.</T></View><Button small icon="Plus" onPress={()=>setModal({type:'loan'})}>Add loan</Button></Row>{state.loans.length?state.loans.map(l=>{const paid=state.transactions.filter(t=>t.type==='expense'&&t.category==='loan'&&(t.loanId===l.id||!t.loanId&&t.title===l.name)&&t.account===l.account&&t.date.slice(0,7)>=l.start&&t.date.slice(0,7)<=l.end).reduce((s,t)=>s+t.amount,0);return <Card key={l.id}><Row style={{gap:15}}><TileIcon name="Landmark" color="#C3A58D" size={49}/><View style={{flex:1}}><H size={23}>{l.name}</H><T style={{fontSize:11,color:c.muted,marginTop:4}}>{l.start} → {l.end} · {state.accounts.find(a=>a.id===l.account)?.name}</T></View><IB name="Pencil" label={`Edit ${l.name}`} onPress={()=>setModal({type:'loan',item:l})}/></Row><Row style={{gap:30,marginTop:26,flexWrap:'wrap'}}><View><T style={{fontSize:11,color:c.sub}}>Recorded remaining balance</T><H size={28} style={{marginTop:5}}>{euro(l.remaining)}</H></View><View><T style={{fontSize:11,color:c.sub}}>Monthly repayment</T><H size={28} style={{marginTop:5}}>{euro(l.payment)}</H></View><View><T style={{fontSize:11,color:c.sub}}>Payments recorded in Havensum</T><H size={28} style={{marginTop:5}}>{euro(paid)}</H></View></Row><Divider/><T style={{fontSize:11,color:c.sub}}>Repayments count as expenses when recorded. Your recorded remaining balance is manual; interest and principal allocations are not guessed.</T><Row style={{marginTop:17,justifyContent:'flex-end'}}><Button small kind="soft" icon="Plus" onPress={()=>setModal({type:'transaction',item:null,initialType:'expense',loan:l})}>Record payment</Button></Row></Card>}):<Card><Empty title="Room to start" description="Add a loan to forecast monthly repayments. Proceeds are optional."/></Card>}<Card><Row style={{gap:12}}><Icon name="Info" color={c.sub} size={20}/><T style={{flex:1,fontSize:12,color:c.sub}}>Adding a loan suggests a remaining-year plan revision. The frozen plan changes only when you approve a new snapshot.</T></Row></Card></View>}
 function mergeConflictTitle(conflict) {

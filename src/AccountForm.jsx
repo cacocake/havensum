@@ -2,7 +2,7 @@ import React, { useContext, useState } from 'react';
 import { Theme, T, Button, Badge, Field, Select, Dialog } from './ui.jsx';
 import { useApp } from './context.js';
 import { cents, k_centsPerEuro } from './money.js';
-import { monthOf } from './calendar.js';
+import { currentLocalMonth } from './calendar.js';
 import { InterestScheduleError, scheduleWithPeriod, scheduleWithoutPeriod } from './interestSchedule.js';
 import { savingsRateLabel } from './savingsRateLabel.js';
 import InterestScheduleEditor from './InterestScheduleEditor.jsx';
@@ -45,8 +45,8 @@ export function AccountForm({ item, onClose }) {
   const [name, setName] = useState(item?.name || '');
   const [tag, setTag] = useState(item?.tag || k_accountTypes.personal);
   const [openingBalance, setOpeningBalance] = useState(item ? String(item.openingBalance / k_centsPerEuro) : '0');
-  // Interest posts through the same UTC month the app uses at startup.
-  const currentMonth = monthOf(new Date().toISOString());
+  // Interest posts through the same local month the app uses at startup.
+  const currentMonth = currentLocalMonth();
   const [schedule, setSchedule] = useState(item?.interestSchedule ?? []);
   const [interestRate, setInterestRate] = useState(initialRateDraft(item));
   const isUnscheduledLegacyRate = Boolean(item) && !item.interestSchedule?.length && item.unscheduledInterest !== undefined;

@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import { View } from 'react-native';
 import { Theme, H, T, Row, Button } from './ui.jsx';
-import { euro } from './money.js';
+import { euro, signedEuro } from './money.js';
 import { formatReviewRowLabel } from './importOutcomes.js';
 
 export function AccountBalanceReview({ balances, afterLabel }) {
@@ -12,6 +12,7 @@ export function AccountBalanceReview({ balances, afterLabel }) {
   return (
     <View style={{ backgroundColor: colors.soft, borderRadius: 14, padding: 12, gap: 8, marginBottom: 16 }}>
       <H size={18}>Account balances</H>
+      <T style={{ fontSize: 12, color: colors.sub }}>Balances as of today. Entries dated later count from their date.</T>
       {balances.map(balance => (
         <View key={balance.id} style={{ gap: 4 }}>
           <T style={{ fontWeight: '600' }}>{balance.name}</T>
@@ -20,6 +21,7 @@ export function AccountBalanceReview({ balances, afterLabel }) {
             <T style={{ fontSize: 12 }}>
               {balance.after === null ? 'Projected balance pending review' : `${afterLabel} ${euro(balance.after)}`}
             </T>
+            {Boolean(balance.scheduledByImport) && <T style={{ fontSize: 12 }}>Scheduled change from this import {signedEuro(balance.scheduledByImport)}</T>}
           </Row>
         </View>
       ))}

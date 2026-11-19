@@ -91,10 +91,15 @@ test('known future loans and occasional expenses establish floors without becomi
   assert.equal(insights.forecast.expense, 50000);
 });
 
-test('a future-month entries view retains transactions registered for that month', () => {
+// L01: a future month's report waits for its entries' dates; until then they
+// are scheduled and still feed the forecast.
+test('a future-month report leaves a scheduled entry out while its forecast still counts it', () => {
   const state = createFinancialState({ transactions: [
     createTransaction({ amount: 10000, date: '2026-12-20' })
   ] });
 
-  assert.equal(planInsights(state, '2026-12', '2026-11-17').actual.spent, 10000);
+  const insights = planInsights(state, '2026-12', '2026-11-17');
+  assert.equal(insights.actual.spent, 0);
+  assert.equal(insights.forecast.expense, 10000, 'with no history the scheduled cost is the whole forecast');
+  assert.equal(planInsights(state, '2026-12', '2026-12-20').actual.spent, 10000);
 });

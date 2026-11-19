@@ -1,10 +1,11 @@
-import { monthStats } from './ledger.js';
-import { monthKeyOf, monthOf, k_calendarDateLength } from './calendar.js';
+import { monthStats, scheduledMonthStats } from './ledger.js';
+import { localCalendarDate, monthKeyOf, monthOf } from './calendar.js';
 import { k_monthsPerYear, k_reportingPeriods } from './domainConstants.js';
 import { expectedSavings } from './expectedSavings.js';
 import { interestProjection } from './expectedInterest.js';
 import { sumCents } from './money.js';
 import { plannedMonth } from './planArchive.js';
+import { postedLedger } from './posting.js';
 import { hasRecordedFinancialActivity, reportingPeriod } from './reportingHistory.js';
 import { yearOutlookDrivers } from './yearOutlookDrivers.js';
 
@@ -22,20 +23,25 @@ function sumTotals(entries) {
   return totalsOf(income, expense);
 }
 
+// L01: Recorded is what has posted by today. A future month records only
+// posted early payments linked to it, and has nothing to show otherwise.
 function recordedTotals(recordedState, month, period) {
-  if (period === k_reportingPeriods.future) {
+  if (period === k_reportingPeriods.future && !hasRecordedFinancialActivity(recordedState.transactions, month)) {
     return null;
   }
   return statsTotals(monthStats(recordedState, month));
 }
 
-// Current posting semantics (LEDGER-1 undecided): entries dated in a future
-// month are registered, not recorded, and are shown as scheduled.
-function scheduledTotals(state, month, period) {
-  if (period !== k_reportingPeriods.future || !hasRecordedFinancialActivity(state.transactions, month)) {
+// Entries in any month that have not posted yet: they join Recorded on their
+// date. From the current month on, scheduled income and expenses already feed
+// Expected; a scheduled payback does not reduce it before its date (the
+// conservative payback rule), and past months expect their recorded result.
+function scheduledTotals(state, month, today) {
+  const scheduled = scheduledMonthStats(state, month, today);
+  if (!scheduled.count) {
     return null;
   }
-  return statsTotals(monthStats(state, month));
+  return totalsOf(scheduled.income, scheduled.spent);
 }
 
 function outlookMonth(state, recordedState, month, { today, planRevisionId, projectedInterest }) {
@@ -53,7 +59,7 @@ function outlookMonth(state, recordedState, month, { today, planRevisionId, proj
     hasRecords,
     isConfirmedComplete,
     recorded: recordedTotals(recordedState, month, period),
-    scheduled: scheduledTotals(state, month, period),
+    scheduled: scheduledTotals(state, month, today),
     expected: prediction ? totalsOf(prediction.income, prediction.expense) : null,
     planned: plan ? totalsOf(plan.income, plan.expense) : null,
     prediction: isForecast ? prediction : null,
@@ -68,11 +74,8 @@ function monthKeys(months) {
 // A read-only full-year outlook: recorded months, expected months (the
 // current month's estimate already includes its recorded activity) and the
 // frozen target side by side. Never writes a plan or a transaction.
-export function yearOutlook(state, year, today = new Date().toISOString().slice(0, k_calendarDateLength), { planRevisionId = null } = {}) {
-  const recordedState = {
-    ...state,
-    transactions: state.transactions.filter(transaction => transaction.date <= today)
-  };
+export function yearOutlook(state, year, today = localCalendarDate(), { planRevisionId = null } = {}) {
+  const recordedState = postedLedger(state, today);
   const projectedInterest = interestProjection(state, monthKeyOf(year, k_monthsPerYear));
   const monthOptions = { today, planRevisionId, projectedInterest };
   const months = Array.from({ length: k_monthsPerYear }, (_, index) =>

@@ -18,7 +18,7 @@ import { k_transactionTypes, k_systemCategoryIds, k_entityIdPrefixes, k_spending
 import { createEntityId } from './identifiers';
 import { isPlannedCostLink, plannedCostOptions } from './plannedCosts.js';
 import { approvePlanRevision, k_planRevisionStartKinds, planRevisionStart } from './planArchive.js';
-import { localCalendarDate, yearOfMonth } from './calendar.js';
+import { currentLocalMonth, localCalendarDate, monthNumberOf, monthKeyOf, yearOfMonth } from './calendar.js';
 import { planDraftEstimates } from './planDraftEstimates.js';
 import PlanDraftEvidence, { PlanBillList } from './PlanDraftEvidence.jsx';
 import { DraftPlannedCosts, NewPlannedCostSuggestion } from './PlannedCostSuggestion.jsx';
@@ -47,7 +47,7 @@ const k_loanFormMessages = {
 };
 export function TransactionForm({item,initialType='expense',draft,onClose}){
  const {state,setState,notify}=useApp(),c=useContext(Theme);
- const [type,setType]=useState(item?.type||initialType),[title,setTitle]=useState(item?.title||draft?.title||''),[amount,setAmount]=useState(item?String(item.amount/k_centsPerEuro):draft?String(draft.amount/k_centsPerEuro):''),[account,setAccount]=useState(item?.account??draft?.account??state.accounts[0]?.id??''),[category,setCategory]=useState(item?.category??draft?.category??(initialType==='income'?'salary':'groceries')),[date,setDate]=useState(item?.date||draft?.date||new Date().toISOString().slice(0,10)),[note,setNote]=useState(item?.note||''),[kind,setKind]=useState(item?.kind||''),[linkedId,setLinkedId]=useState(item?.linkedId??draft?.linkedId??''),[link,setLink]=useState(item?item.linkedId!=null&&item.linkedId!=='':true),[toAccount,setToAccount]=useState(item?.toAccount||state.accounts[1]?.id||''),[error,setError]=useState(''),[deleting,setDeleting]=useState(false),[details,setDetails]=useState(!!item?.note||!!item?.kind);
+ const [type,setType]=useState(item?.type||initialType),[title,setTitle]=useState(item?.title||draft?.title||''),[amount,setAmount]=useState(item?String(item.amount/k_centsPerEuro):draft?String(draft.amount/k_centsPerEuro):''),[account,setAccount]=useState(item?.account??draft?.account??state.accounts[0]?.id??''),[category,setCategory]=useState(item?.category??draft?.category??(initialType==='income'?'salary':'groceries')),[date,setDate]=useState(item?.date||draft?.date||localCalendarDate()),[note,setNote]=useState(item?.note||''),[kind,setKind]=useState(item?.kind||''),[linkedId,setLinkedId]=useState(item?.linkedId??draft?.linkedId??''),[link,setLink]=useState(item?item.linkedId!=null&&item.linkedId!=='':true),[toAccount,setToAccount]=useState(item?.toAccount||state.accounts[1]?.id||''),[error,setError]=useState(''),[deleting,setDeleting]=useState(false),[details,setDetails]=useState(!!item?.note||!!item?.kind);
  const task = state.paybackTasks?.find(record => item && record.expenseId === item.id);
  const [expectPayback, setExpectPayback] = useState(Boolean(task && !task.manuallyClosed));
  const [expectedAmount, setExpectedAmount] = useState(task ? String(task.expectedAmount / k_centsPerEuro) : '');
@@ -213,8 +213,16 @@ export function CategoryForm({item,onClose}){
  <T style={{fontSize:11,color:c.muted,marginBottom:15}}>Budgets power progress bars. They never change your frozen Year Plan.</T>{error&&<T style={{color:c.negative,marginBottom:10}}>{error}</T>}<Button onPress={save} icon="Check">Save category</Button>
  </Dialog>;
 }
+
+const k_defaultLoanYears = 3;
+
+// A new loan defaults to ending in the same local month, three years on.
+function defaultLoanEnd(startMonth) {
+  return monthKeyOf(yearOfMonth(startMonth) + k_defaultLoanYears, monthNumberOf(startMonth));
+}
+
 export function LoanForm({item,onClose}){
- const {setState,state,notify}=useApp(),c=useContext(Theme);const [name,setName]=useState(item?.name||''),[remaining,setRemaining]=useState(item?String(item.remaining/k_centsPerEuro):''),[payment,setPayment]=useState(item?String(item.payment/k_centsPerEuro):''),[account,setAccount]=useState(item?.account||state.accounts[0]?.id||''),[start,setStart]=useState(item?.start||new Date().toISOString().slice(0,7)),[end,setEnd]=useState(item?.end||`${new Date().getFullYear()+3}-${new Date().toISOString().slice(5,7)}`),[credit,setCredit]=useState(false),[error,setError]=useState('');
+ const {setState,state,notify}=useApp(),c=useContext(Theme);const [name,setName]=useState(item?.name||''),[remaining,setRemaining]=useState(item?String(item.remaining/k_centsPerEuro):''),[payment,setPayment]=useState(item?String(item.payment/k_centsPerEuro):''),[account,setAccount]=useState(item?.account||state.accounts[0]?.id||''),[start,setStart]=useState(()=>item?.start||currentLocalMonth()),[end,setEnd]=useState(()=>item?.end||defaultLoanEnd(currentLocalMonth())),[credit,setCredit]=useState(false),[error,setError]=useState('');
  function save() {
    const remainingInCents = cents(remaining);
    const paymentInCents = cents(payment);

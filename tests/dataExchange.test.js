@@ -35,9 +35,21 @@ test('the exported monthly summary separates net expenses, paybacks and cash', (
     createTransaction({ id: 'salary', type: 'income', amount: 200000 }),
     createTransaction({ id: 'move', type: 'transfer', amount: 50000, toAccount: 'shared' })
   ] });
-  const summary = createWorkbook(ExcelJS, state, '2026-11').getWorksheet('Your month');
+  const summary = createWorkbook(ExcelJS, state, '2026-11', '2026-11-17').getWorksheet('Your month');
 
   assert.deepEqual([summary.getCell('B5').value, summary.getCell('B6').value, summary.getCell('B7').value, summary.getCell('B8').value], [2000, 60, 1940, 40]);
+});
+
+// L01: the monthly summary is a report, so it counts entries posted by the export date.
+test('the exported monthly summary and balances leave entries dated after today out', () => {
+  const state = createFinancialState({ transactions: [
+    createTransaction({ amount: 10000, date: '2026-11-10' }),
+    createTransaction({ id: 'concert', amount: 4000, date: '2026-11-28', category: 'shopping' })
+  ] });
+  const summary = createWorkbook(ExcelJS, state, '2026-11', '2026-11-17').getWorksheet('Your month');
+
+  assert.equal(summary.getCell('B6').value, 100);
+  assert.deepEqual([summary.getCell('C10').value, summary.getCell('C11').value], ['Balance today', 900]);
 });
 
 test('CSV parsing preserves accented text, commas, escaped quotes and embedded newlines', async () => {

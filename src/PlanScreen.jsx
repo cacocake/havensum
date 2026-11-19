@@ -13,20 +13,20 @@ import ExpectedCosts from './ExpectedCosts.jsx';
 import OutlookSettings from './OutlookSettings.jsx';
 import MonthComparison from './MonthComparison.jsx';
 import { k_planRevisionStartKinds, latestPlan, planRevisionStart, planRevisions, selectedPlan } from './planArchive.js';
-import { localCalendarDate, monthOf, yearOfMonth } from './calendar.js';
+import { monthOf, yearOfMonth } from './calendar.js';
 import { planInvitationYear } from './planInvitation.js';
 import { readPlanInvitationDeferral, writePlanInvitationDeferral } from './storage';
 import { k_defaultHistoryWindow } from './domainConstants.js';
 const dateName=m=>new Date(m+'-01T12:00:00').toLocaleString('en',{month:'long',year:'numeric'});
 export default function PlanScreen(){
- const {state,month,setMonth,setModal,openActivity,notify}=useApp(),c=useContext(Theme),[tab,setTab]=useState('This month');
- const year=yearOfMonth(month),isPastYear=planRevisionStart(year,month,localCalendarDate()).kind===k_planRevisionStartKinds.readOnly;
+ const {state,month,today,setMonth,setModal,openActivity,notify}=useApp(),c=useContext(Theme),[tab,setTab]=useState('This month');
+ const year=yearOfMonth(month),isPastYear=planRevisionStart(year,month,today).kind===k_planRevisionStartKinds.readOnly;
  const [revisionSelection,setRevisionSelection]=useState({year:null,id:null});
  // A chosen earlier revision applies only to its own year; other years show their latest snapshot.
  const planRevisionId=revisionSelection.year===year?revisionSelection.id:null;
  const shownPlan=selectedPlan(state,year,planRevisionId);
  const viewingEarlierRevision=Boolean(shownPlan)&&shownPlan.id!==latestPlan(state,year)?.id;
- const info=planInsights(state,month,undefined,{planRevisionId}),{plan,actual,forecast}=info,alerts=driftAlerts(state,month);
+ const info=planInsights(state,month,today,{planRevisionId}),{plan,actual,forecast}=info,alerts=driftAlerts(state,month,today);
  const ink={plan:c.dark?'#CDB9F2':'#7861A3',actual:c.dark?'#9EC5EB':'#39739D',forecast:c.dark?'#F2CB89':'#97601D'};
  const revise=()=>isPastYear?notify('Past years stay frozen. Choose this year or a future year.'):setModal({type:'plan'});
  const variance=forecast?.variance||0,positive=variance>=0;
@@ -77,7 +77,7 @@ const k_deferralNotSavedMessage = 'Hidden for now. This device could not remembe
 // Offers the yearly interview when the current year has no plan. Later hides it
 // for this calendar year on this installation; no financial record changes.
 function PlanInvitation() {
-  const { state, setMonth, setModal, notify } = useApp();
+  const { state, today, setMonth, setModal, notify } = useApp();
   const colors = useContext(Theme);
   const [deferral, setDeferral] = useState({ loaded: false, year: null });
   useEffect(() => {
@@ -102,7 +102,6 @@ function PlanInvitation() {
   if (!deferral.loaded) {
     return null;
   }
-  const today = localCalendarDate();
   const invitedYear = planInvitationYear(state, { today, deferredYear: deferral.year });
   if (invitedYear === null) {
     return null;
