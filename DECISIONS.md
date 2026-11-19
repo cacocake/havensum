@@ -184,5 +184,5 @@ These are owner decisions for DRIVE-2. They are not claims that Drive works: Hav
 
 | ID | Status | Decision | Consequence |
 | --- | --- | --- | --- |
-| F19 | Owner confirmed | Accepting a suggested planned-cost amount also changes Expected savings | A planned cost's amount is forecast evidence (PLAN-3 convention); a target-only edit still leaves Expected savings unchanged |
+| F19 | Owner confirmed, current behaviour (implemented) | Accepting a suggested planned-cost amount also changes Expected savings | A planned cost's amount is forecast evidence (PLAN-3 convention); a target-only edit still leaves Expected savings unchanged |
 | F20 | Owner approved, not implemented | A merge conflict on a planned cost's year amount uses readable wording, e.g. "December celebrations · amount for 2027: €410.00 here, €450.00 on the other device" | Queued as the "Readable year-amount merge conflicts" follow-up ticket; the merge decision itself is unchanged |
