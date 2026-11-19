@@ -352,4 +352,8 @@ The implementation note below records how these were built; it stores only per-y
 - **Open for DRIVE-2 (owner to confirm):** does a joining device that holds only the example data adopt the shared file without the adopt-or-merge choice?
 - **Not done:** no Drive code was written (out of scope for this ticket). Nothing is verified with real accounts. S03 (baseline/revision protocol) and the first-join merge for a partner who already has local data are DRIVE-2 design work.
 - **Review:** a separate read-only Claude review checked the docs against the codebase and Google's documentation. It could not fetch Google's pages either, so it checked against known documentation. It found no blocking defects. It raised five should-fix items: the empty-baseline merge was described wrongly; theme/device keys conflicted with "same as the backup"; and three unrecorded owner choices (demo data, two files, sync timing and first join), which the owner then answered as G07–G10. It also raised four nits. Two re-reviews followed; their items were fixed in `754e18d` and `8d7e7f6`. The last re-review found nothing blocking or should-fix.
-- **Checks:** docs only, so no app code, tests or build inputs changed. The test, browser, build and Hermes checks are unaffected and were not rerun. Link targets and Markdown were checked by hand.
+- **Checks:** this change is docs only. Develop gained the F16 follow-up code, so every check was rerun after merging the latest `origin/develop` (`75a8108`) into the branch:
+  - `npm run test:coverage` 432/432 with thresholds met (96.4% lines, 94.5% branches);
+  - `npm run test:browser` 402/402;
+  - `npm run build`;
+  - `npm run check:android` (Hermes compilation only; no device test).
