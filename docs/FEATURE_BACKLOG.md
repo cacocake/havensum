@@ -490,7 +490,7 @@ The implementation note below records how these were built; it stores only per-y
 - **Result on the real file:** the transfer pair is suggested; paid scheduled rows await a classification; unpaid ones stay row errors; objective rows offer an optional loan; ordinary and payback rows await a classification.
 - **Checks:** `npm run test:coverage`, `npm run test:browser`, `npm run build`, `npm run check:android` on the tree merged with develop: 499 unit tests (thresholds met) and 435 browser tests pass. Hermes export is compilation only.
 - **Review:** separate read-only Claude review: nothing blocking; two should-fix test gaps and doc/style nits fixed; re-review found one stale doc passage, now corrected.
-- **Still unverified:** older `debt`/`credit` type rows (K02), the published v1 layout beyond ordinary rows, and which sign means what for a lending objective in Cashew. No exact Cashew compatibility is claimed.
+- **Still unverified:** older `debt`/`credit` type rows (K02), the published v1 layout beyond ordinary rows, and loan objectives used for lending. The owner later confirmed the loan-objective sign follows the cash (K13); the review now spells out what a loan-linked row becomes. No exact Cashew compatibility is claimed.
 
 ## Session handoff — FORECAST-2 follow-up · Readable year-amount merge conflicts (F20) (19 November 2026, Claude cloud session)
 

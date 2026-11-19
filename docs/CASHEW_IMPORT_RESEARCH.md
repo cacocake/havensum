@@ -54,4 +54,4 @@ The owner exported a small test file from their Cashew app (the newer layout wit
 - Borrowing and lending appear as `default` rows tagged with a loan objective, not as `debt`/`credit` types. A row with an objective can be recorded against a chosen Havensum loan by its sign, or classified normally (K12). The CSV cannot tell a loan objective from a savings goal, so nothing is chosen automatically.
 - Category styling is written as `0XFF…` colours and icon names; it is ignored.
 
-Still unverified: older `debt`/`credit` type rows (K02), the published v1 layout beyond the earlier ordinary rows, and what each loan-objective sign means in Cashew (the test rows were not explained beyond their titles). No exact Cashew compatibility is claimed.
+Still unverified: older `debt`/`credit` type rows (K02), the published v1 layout beyond the earlier ordinary rows, and loan objectives used for lending (the owner confirmed for this export that the sign follows the cash on a loan objective: + = loan money received, − = a payment on the loan; K13). No exact Cashew compatibility is claimed.

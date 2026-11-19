@@ -7,6 +7,7 @@ import { previewImportFile } from '../src/importFileReview.js';
 import { applyTransactionImport, reviseTransactionImport } from '../src/importReview.js';
 import { createFinancialState } from './helpers/financialFixtures.js';
 import { accountBalance, monthStats } from '../src/ledger.js';
+import { loanMeaning } from '../src/cashewReview.js';
 
 const k_header = 'account,amount,amount unpaid,currency,title,note,date,income,type,category name,subcategory name,color,icon,emoji,budget,objective,extra';
 const k_columns = k_header.split(',');
@@ -162,4 +163,25 @@ test('switching the loan off again classifies a Cashew objective row as an ordin
   const saved = applyTransactionImport(state, review, {}, () => 'switched-off');
   assert.equal(saved.transactions[0].loanId, undefined);
   assert.equal(saved.transactions[0].category, 'groceries');
+});
+
+test('the review spells out what a loan-linked Cashew row becomes from its sign (K13)', async () => {
+  const state = createFinancialState({ loans: [k_carLoan] });
+  const file = await exportFile([objectiveRow('300.0', 'Dinheiro recebido'), objectiveRow('-50.0', 'Prestação')]);
+  const review = previewImportFile(state, file, k_accountOptions);
+  assert.deepEqual(review.rows.map(row => loanMeaning(row.bank)),
+    ['Loan money received · adds to this account, never income', 'Payment on the loan · a repayment expense in the loan category']);
+  const asIncome = reviseTransactionImport(state, review, 0, { type: 'income', category: 'salary', loanId: 'car' });
+  assert.equal(asIncome.rows[0].status, 'invalid');
+  const asProceeds = reviseTransactionImport(state, review, 0, { type: 'reimbursement', linkedId: null, loanId: 'car' });
+  assert.equal(asProceeds.rows[0].status, 'new');
+  const asOrdinaryExpense = reviseTransactionImport(state, review, 1, { type: 'expense', category: 'groceries', loanId: 'car' });
+  assert.equal(asOrdinaryExpense.rows[1].status, 'invalid');
+  const asRepayment = reviseTransactionImport(state, review, 1, { type: 'expense', category: 'loan', loanId: 'car' });
+  assert.equal(asRepayment.rows[1].status, 'new');
+
+  const debtFile = await exportFile([exportRow({ account: 'Carteira', amount: '-50.0', title: 'Prestação', type: 'debt', 'category name': 'Dívidas' })]);
+  const debtReview = previewImportFile(state, debtFile, k_accountOptions);
+  assert.equal(debtReview.rows[0].bank.loanRequired, true);
+  assert.equal(loanMeaning(debtReview.rows[0].bank), 'Payment on the loan · a repayment expense in the loan category');
 });
