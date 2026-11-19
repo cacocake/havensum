@@ -1,6 +1,6 @@
-import { accountBalance } from './ledger.js';
 import { mergePaybackTasks } from './paybackMerge.js';
 import { mergePlanArchives } from './planMerge.js';
+import { protectInterestSchedules } from './interestMerge.js';
 export { monthOf } from './calendar.js';
 export { categorySettings, netExpenses, monthStats, reportingMonthStats, accountBalance } from './ledger.js';
 export { buildPlan, driftAlerts } from './planning.js';
@@ -32,7 +32,7 @@ function mergeOutlookSnapshot(base, local, remote, result, conflicts) {
   });
 }
 
-export function mergeThreeWay(base,local,remote,{ remotePlanYears = null } = {}){
+export function mergeThreeWay(base,local,remote,{ remotePlanYears = null, remoteHasInterestSchedules = true } = {}){
  const result={...local},conflicts=[];
  for(const collection of ['transactions','accounts','categories','loans','events']){
   const b=new Map((base[collection]||[]).map(x=>[x.id,x])),l=new Map((local[collection]||[]).map(x=>[x.id,x])),r=new Map((remote[collection]||[]).map(x=>[x.id,x]));const merged=[];
@@ -48,6 +48,9 @@ export function mergeThreeWay(base,local,remote,{ remotePlanYears = null } = {})
     if(eq(a,c)||eq(c,v))item[field]=a;else if(eq(a,v))item[field]=c;else {item[field]=a;conflicts.push({collection,id,field,base:v,local:a,remote:c});}
    }merged.push(item);
   }result[collection]=merged;
+ }
+ if (!remoteHasInterestSchedules) {
+  protectInterestSchedules(local, remote, result, conflicts);
  }
  const planMerge = mergePlanArchives(base.plans, local.plans, remote.plans, { remotePlanYears });
  result.plans = planMerge.plans;
@@ -84,17 +87,4 @@ export function importUnique(state, rows) {
   return { added, skipped: rows.length - added.length };
 }
 export function hash(str){let h=2166136261;for(let i=0;i<str.length;i++)h=Math.imul(h^str.charCodeAt(i),16777619);return (h>>>0).toString(36);}
-export function compoundSavings(state,through){
- const transactions=[...state.transactions];
- for(const account of state.accounts.filter(a=>a.tag==='Savings'&&a.interest>0)){
-  const start=account.interestStart||through;let cursor=new Date(Number(start.slice(0,4)),Number(start.slice(5,7))-1,1);
-  while(`${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,'0')}`<through){
-   const month=`${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,'0')}`,id=`interest-${account.id}-${month}`;
-   if(!transactions.some(t=>t.id===id)){
-    const end=new Date(cursor.getFullYear(),cursor.getMonth()+1,0).getDate(),date=`${month}-${end}`;
-    const amount=Math.round(Math.max(0,accountBalance({...state,transactions},account.id,date))*(Math.pow(1+account.interest/100,1/12)-1));
-    if(amount>0)transactions.push({id,type:'income',title:'Savings interest',amount,date,account:account.id,category:'interest',kind:'Fixed',note:'Monthly compounding · effective annual rate'});
-   }cursor.setMonth(cursor.getMonth()+1);
-  }
- }return {...state,transactions};
-}
+export { compoundSavings } from './savingsInterest.js';

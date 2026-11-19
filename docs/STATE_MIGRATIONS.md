@@ -32,3 +32,13 @@ Version 1 and 2 ledgers and baselines migrate on read. Their exact bytes are kep
 Approving a revision appends it to its year and leaves earlier revisions and other years untouched. Months before the revision start are copied exactly from the latest approved snapshot, including months it never planned. The interview fixes its start month when it opens and rechecks the calendar on save: a later start month refreshes the preview and requires a new approval, and a year that has become past is read-only and blocks the save.
 
 Reviewed backup merge compares each year's whole revision history. Independent years merge silently; concurrent changes to one year are offered as two whole histories, so matching revision numbers cannot overwrite one another. A version 1/2 backup can contribute only the year it holds, and years it could never represent are kept. Before applying a reviewed merge, the device ledger is written to `havensum-merge-recovery-v1`, separate from CSV import recovery; a failed recovery write blocks the merge. Full replacement restore is BACKUP-1.
+
+## Version 4 · scheduled savings interest (SAVINGS-1)
+
+Each account may hold `interestSchedule`, a list of `{ since: 'YYYY-MM', rate }` periods with unique start months and non-negative effective annual percentages. A period runs through the month before the next one starts; the last is ongoing, and a 0% successor ends a promotional rate. Version 4 ledgers reject the legacy `interest`/`interestStart` fields.
+
+Migration from versions 1–3 turns a legacy rate with a start month into the first period. A legacy rate without a start month becomes `unscheduledInterest`; it earns nothing until the owner chooses a start month in the account editor. Exact earlier bytes are kept under `…:recovery:v1`, `…:recovery:v2` or `…:recovery:v3`, and earlier recovery copies are kept.
+
+Compounding is unchanged: the effective annual rate becomes a monthly rate, interest is rounded to integer cents, and at most one entry is posted per account and completed month using the rate in effect for that month. Recorded entries are never regenerated, so editing rates never changes recorded interest. After the first period, new periods start in the current month or later and only current or future periods can be removed; historical corrections belong to LEDGER-2.
+
+Reviewed merge treats an older (v1–v3) backup as unable to represent a schedule: if its single rate is already a period in this device's schedule, the schedule stays; otherwise the schedule stays and the legacy rate is offered as a conflict to review. The Excel export lists rate periods as text in an `interestRates` column.

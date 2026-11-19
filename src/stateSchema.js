@@ -2,11 +2,14 @@ import { validateTransaction } from './transactionValidation.js';
 import { validateOutlookState } from './outlookInputs.js';
 import { validatePaybackState } from './paybackState.js';
 import { legacyPlanArchive } from './planArchive.js';
+import { isInterestRate } from './interestSchedule.js';
 
-export const k_currentStateVersion = 3;
+export const k_interestScheduleStateVersion = 4;
+export const k_currentStateVersion = k_interestScheduleStateVersion;
 const k_legacyStateVersion = 1;
 const k_singlePlanStateVersion = 2;
-const k_supportedStateVersions = new Set([k_legacyStateVersion, k_singlePlanStateVersion, k_currentStateVersion]);
+export const k_planArchiveStateVersion = 3;
+const k_supportedStateVersions = new Set([k_legacyStateVersion, k_singlePlanStateVersion, k_planArchiveStateVersion, k_currentStateVersion]);
 const k_yearKeyPattern = /^\d{4}$/;
 const k_collectionNames = ['accounts', 'categories', 'transactions', 'loans', 'events'];
 const k_spendingKinds = new Set(['Fixed', 'Variable', 'Occasional']);
@@ -100,12 +103,52 @@ function validatePlanArchive(plans) {
 }
 
 function validatePlans(state) {
-  if (state.version === k_currentStateVersion) {
+  if (state.version >= k_planArchiveStateVersion) {
     requireValid(state.plan === undefined, 'current ledgers keep plans in the archive');
     validatePlanArchive(state.plans);
     return;
   }
   validatePlan(state.plan);
+}
+
+function validateAccountInterest(version, account) {
+  if (version < k_currentStateVersion) {
+    if (account.interest !== undefined) {
+      requireValid(isInterestRate(account.interest), 'account interest');
+    }
+    if (account.interestStart) {
+      requireValid(k_monthPattern.test(account.interestStart), 'interest start month');
+    }
+    return;
+  }
+  requireValid(account.interest === undefined && account.interestStart === undefined, 'current ledgers keep interest rates in a schedule');
+  if (account.unscheduledInterest !== undefined) {
+    requireValid(isInterestRate(account.unscheduledInterest), 'unscheduled interest rate');
+  }
+  if (account.interestSchedule === undefined) {
+    return;
+  }
+  requireValid(Array.isArray(account.interestSchedule), 'interest schedule');
+  const startMonths = new Set();
+  for (const period of account.interestSchedule) {
+    requireValid(isRecord(period) && k_monthPattern.test(period.since) && isInterestRate(period.rate), 'interest period');
+    requireValid(!startMonths.has(period.since), 'interest periods need unique start months');
+    startMonths.add(period.since);
+  }
+}
+
+// Version 4: a legacy rate with a start month becomes the first scheduled
+// period. Without a start month it is kept unscheduled and earns nothing
+// until the owner sets one.
+function scheduledAccount(account) {
+  const { interest, interestStart, ...unchangedFields } = account;
+  if (interest === undefined) {
+    return unchangedFields;
+  }
+  if (interestStart) {
+    return { ...unchangedFields, interestSchedule: [{ since: interestStart, rate: interest }] };
+  }
+  return { ...unchangedFields, unscheduledInterest: interest };
 }
 
 export class UnsupportedStateVersionError extends SyntaxError {}
@@ -131,12 +174,7 @@ export function validateState(state) {
   for (const account of state.accounts) {
     requireValid(isIdentifier(account.name), 'account name');
     validateCentFields(account, ['openingBalance']);
-    if (account.interest !== undefined) {
-      requireValid(typeof account.interest === 'number' && Number.isFinite(account.interest) && account.interest >= 0, 'account interest');
-    }
-    if (account.interestStart) {
-      requireValid(k_monthPattern.test(account.interestStart), 'interest start month');
-    }
+    validateAccountInterest(state.version, account);
   }
   const categoriesById = new Map(state.categories.map(category => [category.id, category]));
   for (const category of state.categories) {
@@ -193,15 +231,19 @@ export function validateState(state) {
 }
 
 // Version 2 established a validated persistence boundary. Version 3 archives
-// the single frozen plan by year. Neither renumbers records or changes money,
+// the single frozen plan by year. Version 4 schedules savings interest rates. Neither renumbers records or changes money,
 // links, plan figures, overrides or custom fields.
 export function migrateState(state) {
   validateState(state);
   if (state.version === k_currentStateVersion) {
     return state;
   }
-  const { plan, ...unchangedFields } = state;
-  return { ...unchangedFields, version: k_currentStateVersion, plans: legacyPlanArchive(plan) };
+  let migratedState = state;
+  if (migratedState.version < k_planArchiveStateVersion) {
+    const { plan, ...unchangedFields } = migratedState;
+    migratedState = { ...unchangedFields, plans: legacyPlanArchive(plan) };
+  }
+  return { ...migratedState, version: k_currentStateVersion, accounts: migratedState.accounts.map(scheduledAccount) };
 }
 
 export function clearMissingTransactionCategories(state) {

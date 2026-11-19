@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**Next implementation ticket: SAVINGS-1.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**Next implementation ticket: BACKUP-1.** Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -57,7 +57,7 @@ Use integer EUR cents. Cash follows its transaction date, including for early pa
 
 ### SAVINGS-1 · Schedule savings interest by period
 
-**Status:** Queued after annual planning. **Depends on:** PLAN-4 for sequencing.
+**Status:** Implemented on `codex/savings-rate-schedule`; see the SAVINGS-1 handoff note below. **Depends on:** PLAN-4 for sequencing.
 
 - Allow effective annual percentage rates per savings account, each with a unique start month. Display the period through the month before the next rate starts. Display the final rate as ongoing. A promotional rate ends when the successor starts, including a successor of 0%.
 - Preserve legacy single rates and start behavior. Use the existing monthly compounding convention, round to integer cents, and generate at most one interest entry per account and completed month. Allow scheduling current and future months. Keep recorded interest intact. Historical corrections belong to LEDGER-2.
@@ -180,3 +180,8 @@ Start with units and a manually entered EUR price if requested. For automatic pr
 - **Owner questions (non-blocking):** (1) A real first launch loads example data that already has a 2026 plan, so a new user is not invited in 2026 until clearing it, and a Later tapped on example data stays after clearing. Should example data invite or defer at all? (2) In the web preview (`?demo=1`) Later is not saved and the card returns on revisiting Year Plan. (3) Start switches the app's selected month to the current month, and it stays there after Cancel. (4) Pre-existing: the app's starting month uses the UTC date while the invitation uses the local date, so just after local midnight on 1 January east of UTC the header can still show December.
 - **Checks (`46d5a5e`; the merge commit only moves a comment):** `npm run test:coverage` 299/299 with thresholds met, `npm run test:browser` 270/270, `npm run build`, `npm run check:android` (Hermes compilation only; no device test).
 - **Review:** separate read-only Claude review and a focused re-review; all actionable findings fixed; no blocking defects remained.
+
+## Session handoff — SAVINGS-1 (19 November 2026, Claude cloud session)
+
+- **Implementation:** schema v4 `interestSchedule` per account (`src/interestSchedule.js`), compounding by period in `src/savingsInterest.js` (re-exported from `engine.js`), migration and validation in `src/stateSchema.js`, older-backup protection in `src/interestMerge.js`, and the account editor's rate periods in `src/InterestScheduleEditor.jsx`. See [STATE_MIGRATIONS.md](STATE_MIGRATIONS.md). BACKUP-1 has not landed, so restoring rates through a full restore is not yet verified.
+- **Checks, review and merge:** recorded below once complete.

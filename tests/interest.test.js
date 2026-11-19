@@ -5,7 +5,7 @@ import { createFinancialState, createTransaction } from './helpers/financialFixt
 
 function createSavingsState(overrides = {}) {
   return createFinancialState({
-    accounts: [{ id: 'savings', tag: 'Savings', openingBalance: 100000, interest: 12, interestStart: '2024-02' }],
+    accounts: [{ id: 'savings', tag: 'Savings', openingBalance: 100000, interestSchedule: [{ since: '2024-02', rate: 12 }] }],
     ...overrides
   });
 }
@@ -32,7 +32,7 @@ test('interest includes same-month deposits and withdrawals but excludes future 
 
 test('compounding crosses December to January and a repeated run changes nothing', () => {
   const state = createSavingsState();
-  state.accounts[0].interestStart = '2025-12';
+  state.accounts[0].interestSchedule = [{ since: '2025-12', rate: 12 }];
   const firstResult = compoundSavings(state, '2026-02');
 
   assert.deepEqual(firstResult.transactions.map(({ date, amount }) => ({ date, amount })), [
@@ -57,7 +57,7 @@ test('zero or negative closing balances never generate interest income', async c
 test('zero-rate and non-savings accounts never generate automatic interest', () => {
   const state = createSavingsState();
   state.accounts = [
-    { ...state.accounts[0], id: 'no-interest', interest: 0 },
+    { ...state.accounts[0], id: 'no-interest', interestSchedule: [{ since: '2024-02', rate: 0 }] },
     { ...state.accounts[0], id: 'personal', tag: 'Personal' }
   ];
 
@@ -66,7 +66,8 @@ test('zero-rate and non-savings accounts never generate automatic interest', () 
 
 test('an account without a start month does not invent retroactive interest', () => {
   const state = createSavingsState();
-  delete state.accounts[0].interestStart;
+  delete state.accounts[0].interestSchedule;
+  state.accounts[0].unscheduledInterest = 12;
 
   assert.deepEqual(compoundSavings(state, '2024-03').transactions, []);
 });

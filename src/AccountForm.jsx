@@ -2,7 +2,10 @@ import React, { useContext, useState } from 'react';
 import { Theme, T, Button, Badge, Field, Select, Dialog } from './ui.jsx';
 import { useApp } from './context.js';
 import { cents, k_centsPerEuro } from './money.js';
-import { monthOf } from './calendar.js';
+import { localCalendarDate, monthOf } from './calendar.js';
+import { InterestScheduleError, scheduleWithPeriod, scheduleWithoutPeriod } from './interestSchedule.js';
+import { savingsRateLabel } from './savingsRateLabel.js';
+import InterestScheduleEditor from './InterestScheduleEditor.jsx';
 import { palette } from './seed.js';
 import { useDirtyForm } from './useDirtyForm.js';
 import { createEntityId } from './identifiers';
@@ -10,7 +13,7 @@ import { k_entityIdPrefixes } from './domainConstants.js';
 
 const k_accountTypes = { personal: 'Personal', joint: 'Joint', savings: 'Savings', investment: 'Investment' };
 const k_defaultInterestRate = 3;
-const k_invalidAccountMessage = 'Enter a name, valid balance and non-negative interest rate.';
+const k_invalidAccountMessage = 'Enter a name and a valid balance.';
 const k_accountFormStyles = {
   description: { fontSize: 11, marginBottom: 17 },
   investmentDescription: { fontSize: 11, marginVertical: 15 },
@@ -23,26 +26,73 @@ const k_accountAppearance = {
   [k_accountTypes.investment]: { icon: 'ChartNoAxesCombined', color: palette[6], bank: 'Manual valuation' }
 };
 
+// A new savings account starts with the default rate from this month. An
+// unscheduled legacy rate is offered so the owner can choose its start month.
+function initialRateDraft(item) {
+  if (!item) {
+    return String(k_defaultInterestRate);
+  }
+  if (!item.interestSchedule?.length && item.unscheduledInterest !== undefined) {
+    return String(item.unscheduledInterest);
+  }
+  return '';
+}
+
 export function AccountForm({ item, onClose }) {
   const { setState, notify } = useApp();
   const colors = useContext(Theme);
   const [name, setName] = useState(item?.name || '');
   const [tag, setTag] = useState(item?.tag || k_accountTypes.personal);
   const [openingBalance, setOpeningBalance] = useState(item ? String(item.openingBalance / k_centsPerEuro) : '0');
-  const [interestRate, setInterestRate] = useState(String(item?.interest ?? k_defaultInterestRate));
+  const currentMonth = monthOf(localCalendarDate());
+  const [schedule, setSchedule] = useState(item?.interestSchedule ?? []);
+  const [interestRate, setInterestRate] = useState(initialRateDraft(item));
+  const [rateStart, setRateStart] = useState(currentMonth);
   const [ticker, setTicker] = useState(item?.ticker || '');
   const [error, setError] = useState('');
-  const isDirty = useDirtyForm([name, tag, openingBalance, interestRate, ticker]);
+  const isDirty = useDirtyForm([name, tag, openingBalance, schedule, interestRate, rateStart, ticker]);
   const isSavingsAccount = tag === k_accountTypes.savings;
   const isInvestmentAccount = tag === k_accountTypes.investment;
 
+  function scheduleWithDraftRate() {
+    if (!interestRate.trim()) {
+      return schedule;
+    }
+    return scheduleWithPeriod(schedule, { since: rateStart, rate: Number(interestRate) }, currentMonth);
+  }
+
+  function addRatePeriod() {
+    try {
+      setSchedule(scheduleWithDraftRate());
+      setInterestRate('');
+      setError('');
+    } catch (scheduleError) {
+      setError(scheduleError.message);
+    }
+  }
+
+  function removeRatePeriod(since) {
+    try {
+      setSchedule(scheduleWithoutPeriod(schedule, since, currentMonth));
+    } catch (scheduleError) {
+      setError(scheduleError.message);
+    }
+  }
+
   function save() {
     const openingBalanceInCents = cents(openingBalance);
-    const annualInterestRate = Number(interestRate);
-    const validInterestRate = Number.isFinite(annualInterestRate) && annualInterestRate >= 0;
-    if (!name.trim() || !Number.isSafeInteger(openingBalanceInCents) || (isSavingsAccount && !validInterestRate)) {
+    if (!name.trim() || !Number.isSafeInteger(openingBalanceInCents)) {
       setError(k_invalidAccountMessage);
       return;
+    }
+    let savedSchedule = schedule;
+    if (isSavingsAccount) {
+      try {
+        savedSchedule = scheduleWithDraftRate();
+      } catch (scheduleError) {
+        setError(scheduleError instanceof InterestScheduleError ? scheduleError.message : k_invalidAccountMessage);
+        return;
+      }
     }
 
     const account = {
@@ -52,12 +102,14 @@ export function AccountForm({ item, onClose }) {
       name: name.trim(),
       tag,
       openingBalance: openingBalanceInCents,
-      interest: isSavingsAccount ? annualInterestRate : 0,
-      interestStart: item?.interestStart || monthOf(new Date().toISOString()),
       ticker
     };
+    if (savedSchedule.length) {
+      account.interestSchedule = savedSchedule;
+      delete account.unscheduledInterest;
+    }
     if (isSavingsAccount) {
-      account.bank = `${interestRate}% annual interest`;
+      account.bank = savingsRateLabel(account, currentMonth);
     }
     setState(currentState => ({
       ...currentState,
@@ -77,8 +129,9 @@ export function AccountForm({ item, onClose }) {
       {item && <T style={{ ...k_accountFormStyles.description, color: colors.sub }}>This is the starting balance. Recorded transactions are added to it.</T>}
       {isSavingsAccount && (
         <>
-          <Field label="Effective annual interest · %" value={interestRate} onChangeText={setInterestRate} keyboardType="decimal-pad" />
-          <T style={{ ...k_accountFormStyles.description, color: colors.sub }}>Interest compounds once per completed month, from the account's start month. Existing interest entries are never duplicated.</T>
+          <InterestScheduleEditor schedule={schedule} unscheduledRate={item?.unscheduledInterest} currentMonth={currentMonth}
+            rate={interestRate} onRateChange={setInterestRate} since={rateStart} onSinceChange={setRateStart}
+            onAdd={addRatePeriod} onRemove={removeRatePeriod} />
         </>
       )}
       {isInvestmentAccount && (

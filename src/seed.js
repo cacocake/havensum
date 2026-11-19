@@ -23,7 +23,7 @@ export function seed(){
  {id:'interest',name:'Interest',icon:'Sprout',color:palette[2],kind:'Fixed',budget:0}];
  const accounts=[{id:'main',name:'Everyday',bank:'Personal account',tag:'Personal',icon:'Wallet',color:'#E69973',openingBalance:112440},
  {id:'joint',name:'Our account',bank:'Hugo & Marina',tag:'Joint',icon:'UsersRound',color:'#91A4CE',openingBalance:240000},
- {id:'savings',name:'Rainy day',bank:'3.00% annual interest',tag:'Savings',icon:'Sprout',color:'#91B6A9',openingBalance:420000,interest:3,interestStart:'2026-05'},
+ {id:'savings',name:'Rainy day',bank:'3.00% annual interest',tag:'Savings',icon:'Sprout',color:'#91B6A9',openingBalance:420000,interestSchedule:[{since:'2026-05',rate:3}]},
  {id:'invest',name:'Long game',bank:'Manual valuation',tag:'Investment',icon:'ChartNoAxesCombined',color:'#B3A0CA',openingBalance:186500,ticker:''}];
  const transactions=[];const add=(id,type,title,amount,date,category,account='main',extra={})=>transactions.push({id,type,title,amount,date,category,account,...extra});
  for(let m=5;m<=10;m++){
