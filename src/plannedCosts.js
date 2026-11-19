@@ -1,4 +1,6 @@
-import { monthOf } from './calendar.js';
+import { monthKeyOf, monthOf } from './calendar.js';
+import { longMonthLabel } from './monthLabels.js';
+import { k_monthsPerYear } from './domainConstants.js';
 
 const k_occurrenceMonth = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -21,21 +23,70 @@ export function plannedCostAmount(event, year) {
   return event.yearAmounts?.[String(year)] ?? event.amount;
 }
 
+function isPlainRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 export function isValidYearAmounts(event) {
   if (event.yearAmounts === undefined) {
     return true;
   }
-  const isRecord = event.yearAmounts !== null && typeof event.yearAmounts === 'object' && !Array.isArray(event.yearAmounts);
-  if (!isRecord || event.year) {
+  if (!isPlainRecord(event.yearAmounts) || event.year) {
     return false;
   }
   return Object.entries(event.yearAmounts)
     .every(([year, amount]) => k_yearKeyPattern.test(year) && Number.isSafeInteger(amount) && amount >= 0);
 }
 
+// A recurring planned cost can move from a chosen year onwards (owner decision
+// F16): `monthFromYear` maps each first year to the month used from then on.
+// Earlier years keep `month`, the cost's original month.
+export function plannedCostMonth(event, year) {
+  if (event.year || !event.monthFromYear) {
+    return event.month;
+  }
+  const movesInEffect = Object.keys(event.monthFromYear)
+    .filter(firstYear => Number(firstYear) <= year)
+    .sort();
+  if (!movesInEffect.length) {
+    return event.month;
+  }
+  return event.monthFromYear[movesInEffect.at(-1)];
+}
+
+// The cost's occurrence in a year as a month key, such as "2027-11".
+export function plannedCostOccurrenceMonth(event, year) {
+  return monthKeyOf(year, plannedCostMonth(event, year));
+}
+
+const k_firstMonth = 1;
+
+export function isMonthNumber(value) {
+  return Number.isInteger(value) && value >= k_firstMonth && value <= k_monthsPerYear;
+}
+
+export function isValidMonthFromYear(event) {
+  if (event.monthFromYear === undefined) {
+    return true;
+  }
+  if (!isPlainRecord(event.monthFromYear) || event.year) {
+    return false;
+  }
+  return Object.entries(event.monthFromYear)
+    .every(([year, month]) => k_yearKeyPattern.test(year) && isMonthNumber(month));
+}
+
+// The planned costs that occur in a year, in month order, each with its month
+// for that year.
+export function plannedCostsInYear(events, year) {
+  return events.filter(event => !event.year || event.year === year)
+    .map(event => ({ event, month: plannedCostMonth(event, year) }))
+    .sort((left, right) => left.month - right.month || left.event.name.localeCompare(right.event.name));
+}
+
 export function eventsInMonth(events, month) {
   const [year, monthNumber] = month.split('-').map(Number);
-  return events.filter(event => event.month === monthNumber && (!event.year || event.year === year));
+  return events.filter(event => (!event.year || event.year === year) && plannedCostMonth(event, year) === monthNumber);
 }
 
 export function needsPlannedCostReview(expense, event, month) {
@@ -54,12 +105,12 @@ export function plannedCostOptions(events, paymentDate, savedLink) {
   const options = new Map();
   for (const event of events) {
     for (const year of event.year ? [event.year] : years) {
-      const month = `${year}-${String(event.month).padStart(2, '0')}`;
+      const month = plannedCostOccurrenceMonth(event, year);
       const isSavedOccurrence = savedLink?.eventId === event.id && month === savedLink.month;
       if (year < earliestYear && !isSavedOccurrence) {
         continue;
       }
-      const monthLabel = new Date(year, event.month - 1, 1).toLocaleDateString('en', { month: 'long', year: 'numeric' });
+      const monthLabel = longMonthLabel(month);
       const link = { eventId: event.id, month };
       if (event.year) {
         link.singleOccurrence = true;
