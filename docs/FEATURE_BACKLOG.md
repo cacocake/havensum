@@ -142,13 +142,13 @@ Test installation and upgrade, offline startup, storage recovery, file picker an
 
 ### DRIVE-1 · Shared-file decisions
 
-**Needs:** Owner decisions on OAuth and sign-in, file ownership and discovery, revocation, and personal-account visibility.
+**Status:** Decided (owner answers G01–G10 in DECISIONS.md, 19 November 2026); see the DRIVE-1 handoff at the end. The access model is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md). Real-account verification of the access model moves to DRIVE-2, before any transport is implemented.
 
-Document who can find, read, and update the file and how access changes. Verify the agreed access model before implementing transport.
+Document who can find, read, and update the file and how access changes.
 
 ### DRIVE-2 · Shared Drive sync
 
-**Depends on:** DRIVE-1.
+**Depends on:** DRIVE-1 (decided). **Blocked on:** the owner's Google Cloud setup: a project with the Drive and Picker APIs, an External consent screen with only `drive.file` and both owners as test users, OAuth client IDs for Android (final package + SHA-1 of each signing key, so it also needs ANDROID-1) and web (authorized JavaScript origins), a Picker API key and the project number. Both owners' accounts are needed for the two-person checks. The full list is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md#drive-2-blocker-setup-the-owner-must-provide).
 
 Use the reviewed merge engine with revision-aware writes, offline retry and recovery, and visible conflict review. Verify two devices with independent edits, same-field edits, deletion, concurrent plan revisions, interrupted writes, and stale writes. Confirm the agreed account visibility.
 
@@ -325,3 +325,35 @@ The implementation note below records how these were built; it stores only per-y
 - **Review:** separate read-only Claude review (one blocking product gap: moving into or away from a month already past this year, answered by the owner as F18; should-fix items for the preview summary, the review count, redundant moves and a render guard), a focused re-review of the fixes (no blocking defects; boundary tests and two nits added) and a final re-review of the last commit (no findings).
 - **Accepted nits:** the success notice is shown even if a concurrent change makes the functional state update a no-op (the existing PlanForm pattern); first years are capped at five years after the first allowed year; if the date rolls over while the dialog is open, confirming shows the past-month error instead of re-clamping; a field-level merge could in theory pair `year` from one device with `monthFromYear` from the other (same pre-existing exposure as `yearAmounts`; no UI makes a recurring cost one-off).
 - **Owner questions (non-blocking):** none new.
+
+## Session handoff — DRIVE-1 (19 November 2026, Claude cloud session)
+
+- **Owner answers (multiple choice; the recommended option was chosen each time):**
+  - `drive.file` only (G01).
+  - Either person creates the file and shares it with the partner as editor. The partner picks it once in Google's picker (G02). The creator stays owner (G03).
+  - Sign-out or revocation keeps local data and pauses sync (G04).
+  - Everything except per-device display preferences is shared with both people (G05).
+  - Theme and display preferences stay per device (G06).
+- **Follow-up answers after review:**
+  - Create is blocked while example data is loaded (G07).
+  - A joining partner with local entries either adopts the file (after a recovery copy) or merges with a review of every one-sided record (G08).
+  - Setup offers Open first, and Create warns to check with the partner (G09).
+  - Sync runs automatically, with a Sync now button and a web Reconnect state (G10).
+- **Documents:**
+  - DECISIONS.md section "DRIVE-1" (G01–G10).
+  - [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md): who can find, read and update the file; how access changes; transport constraints; what DRIVE-2 must verify; the owner's Cloud setup.
+- **Research limits:**
+  - Google's facts came from search results of the official pages. This session's network could not open developers.google.com or support.google.com directly.
+  - Not documented, so DRIVE-2 must verify:
+    - whether `drive.file` grants survive revocation and re-consent;
+    - the Android desktop/mobile Picker's redirect and client requirements;
+    - whether an unverified-app screen appears with only a non-sensitive scope.
+  - Drive v3 documents no conditional (If-Match) writes, so the write protocol cannot assume compare-and-swap.
+- **Open for DRIVE-2 (owner to confirm):** does a joining device that holds only the example data adopt the shared file without the adopt-or-merge choice?
+- **Not done:** no Drive code was written (out of scope for this ticket). Nothing is verified with real accounts. S03 (baseline/revision protocol) and the first-join merge for a partner who already has local data are DRIVE-2 design work.
+- **Review:** a separate read-only Claude review checked the docs against the codebase and Google's documentation. It could not fetch Google's pages either, so it checked against known documentation. It found no blocking defects. It raised five should-fix items: the empty-baseline merge was described wrongly; theme/device keys conflicted with "same as the backup"; and three unrecorded owner choices (demo data, two files, sync timing and first join), which the owner then answered as G07–G10. It also raised four nits. Two re-reviews followed; their items were fixed in `754e18d` and `8d7e7f6`. The last re-review found nothing blocking or should-fix.
+- **Checks:** this change is docs only. Develop gained the F16 follow-up code, so every check was rerun after merging the latest `origin/develop` (`75a8108`) into the branch:
+  - `npm run test:coverage` 432/432 with thresholds met (96.4% lines, 94.5% branches);
+  - `npm run test:browser` 402/402;
+  - `npm run build`;
+  - `npm run check:android` (Hermes compilation only; no device test).
