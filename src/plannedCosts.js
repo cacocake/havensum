@@ -13,6 +13,26 @@ export function expenseReportingMonth(expense) {
   return isPlannedCostLink(expense.plannedCost) ? expense.plannedCost.month : monthOf(expense.date);
 }
 
+const k_yearKeyPattern = /^\d{4}$/;
+
+// A recurring planned cost can carry an amount for a single year, set when the
+// owner accepts a suggestion in that year's draft (owner decision F16).
+export function plannedCostAmount(event, year) {
+  return event.yearAmounts?.[String(year)] ?? event.amount;
+}
+
+export function isValidYearAmounts(event) {
+  if (event.yearAmounts === undefined) {
+    return true;
+  }
+  const isRecord = event.yearAmounts !== null && typeof event.yearAmounts === 'object' && !Array.isArray(event.yearAmounts);
+  if (!isRecord || event.year) {
+    return false;
+  }
+  return Object.entries(event.yearAmounts)
+    .every(([year, amount]) => k_yearKeyPattern.test(year) && Number.isSafeInteger(amount) && amount >= 0);
+}
+
 export function eventsInMonth(events, month) {
   const [year, monthNumber] = month.split('-').map(Number);
   return events.filter(event => event.month === monthNumber && (!event.year || event.year === year));
@@ -24,15 +44,19 @@ export function needsPlannedCostReview(expense, event, month) {
     && ((link.singleOccurrence && event.year) || link.month.slice(0, 4) === month.slice(0, 4));
 }
 
+// Offers occurrences from the year before the payment onwards, so a payment
+// settled after its planned cost can still link to it (owner decision F15).
 export function plannedCostOptions(events, paymentDate, savedLink) {
   const paymentYear = Number(paymentDate.slice(0, 4));
+  const earliestYear = paymentYear - 1;
   const savedYear = savedLink ? Number(savedLink.month.slice(0, 4)) : paymentYear;
-  const years = new Set([paymentYear, paymentYear + 1, savedYear]);
+  const years = new Set([earliestYear, paymentYear, paymentYear + 1, savedYear]);
   const options = new Map();
   for (const event of events) {
     for (const year of event.year ? [event.year] : years) {
       const month = `${year}-${String(event.month).padStart(2, '0')}`;
-      if (month < monthOf(paymentDate)) {
+      const isSavedOccurrence = savedLink?.eventId === event.id && month === savedLink.month;
+      if (year < earliestYear && !isSavedOccurrence) {
         continue;
       }
       const monthLabel = new Date(year, event.month - 1, 1).toLocaleDateString('en', { month: 'long', year: 'numeric' });

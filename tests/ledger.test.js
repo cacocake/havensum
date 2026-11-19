@@ -9,7 +9,17 @@ test('only an expense can carry a planned-cost link and it must identify a valid
   assert.equal(validateTransaction(state, transaction), transaction);
   assert.throws(() => validateTransaction(state, { ...transaction, type: 'income' }), /planned cost/i);
   assert.throws(() => validateTransaction(state, { ...transaction, plannedCost: { eventId: 'event', month: '2026-13' } }), /planned cost/i);
-  assert.throws(() => validateTransaction(state, { ...transaction, plannedCost: { eventId: 'event', month: '2026-10' } }), /planned cost/i);
+});
+
+// Owner decision F15: an expense settled after its planned cost may link back to it.
+test('an expense dated after a planned cost can link to that earlier occurrence', () => {
+  const state = createFinancialState();
+  const lateSettlement = createTransaction({ date: '2026-11-10', plannedCost: { eventId: 'event', month: '2026-10' } });
+
+  assert.equal(validateTransaction(state, lateSettlement), lateSettlement);
+  assert.equal(monthStats({ ...state, transactions: [lateSettlement] }, '2026-10').spent, lateSettlement.amount);
+  assert.equal(monthStats({ ...state, transactions: [lateSettlement] }, '2026-11').spent, 0);
+  assert.equal(accountBalance({ ...state, transactions: [lateSettlement] }, 'everyday', '2026-10-31'), 100000);
 });
 
 test('an expense cannot be edited below the reimbursements already received', () => {

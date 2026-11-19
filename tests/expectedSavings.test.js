@@ -7,21 +7,44 @@ import { accountBalance, reportingMonthStats } from '../src/ledger.js';
 import { plannedCostOptions } from '../src/plannedCosts.js';
 import { createFinancialState, createTransaction, planArchiveOf } from './helpers/financialFixtures.js';
 
-test('the planned-cost picker offers dated occurrences and retains a saved choice when the original month moved', () => {
+test('the planned-cost picker offers occurrences from the previous year onwards and retains a saved choice when the original month moved', () => {
   const events = [
     { id: 'service', name: 'Car service', year: 2027, month: 6 },
     { id: 'gifts', name: 'Gifts', month: 12 },
-    { id: 'past', name: 'Past event', year: 2027, month: 1 }
+    { id: 'past', name: 'Past event', year: 2027, month: 1 },
+    { id: 'long-ago', name: 'Long ago', year: 2025, month: 4 }
   ];
   const prior = { eventId: 'service', month: '2027-05', singleOccurrence: true };
   const options = plannedCostOptions(events, '2027-03-12', prior);
+  // Owner decision F15: a late settlement can link to an earlier occurrence.
   assert.deepEqual(options.map(option => JSON.parse(option.value)), [
+    { eventId: 'gifts', month: '2026-12' },
+    { eventId: 'past', month: '2027-01', singleOccurrence: true },
     prior,
     { eventId: 'service', month: '2027-06', singleOccurrence: true },
     { eventId: 'gifts', month: '2027-12' },
     { eventId: 'gifts', month: '2028-12' }
   ]);
-  assert.match(options[0].label, /original month 2027-05/);
+  assert.match(options[2].label, /original month 2027-05/);
+});
+
+test('a saved link to an occurrence more than a year before the payment keeps its own label', () => {
+  const events = [{ id: 'gifts', name: 'Gifts', month: 12 }, { id: 'old-trip', name: 'Old trip', year: 2025, month: 6 }];
+  const saved = { eventId: 'gifts', month: '2025-12' };
+
+  const options = plannedCostOptions(events, '2027-03-12', saved);
+
+  assert.equal(options.some(option => option.label.startsWith('Old trip')), false);
+  assert.equal(options.find(option => option.value === JSON.stringify(saved)).label, 'Gifts · December 2025');
+});
+
+test('a saved link more than a year back does not bring in a moved occurrence of that year', () => {
+  const movedGifts = [{ id: 'gifts', name: 'Gifts', month: 11 }];
+  const saved = { eventId: 'gifts', month: '2025-12' };
+
+  const options = plannedCostOptions(movedGifts, '2027-03-12', saved);
+
+  assert.deepEqual(options.map(option => option.label).filter(label => label.includes('2025')), ['Gifts · original month 2025-12']);
 });
 
 test('two early payments count once in their specific planned month and keep their cash dates', () => {

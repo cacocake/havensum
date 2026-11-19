@@ -1,6 +1,7 @@
 import { categorySettings, hasCategoryParent } from './ledger.js';
 import { localCalendarDate, previousMonths, yearOfMonth } from './calendar.js';
 import { latestPlan } from './planArchive.js';
+import { plannedCostAmount } from './plannedCosts.js';
 import { billsDueInMonth, lineSpending, planDraftEstimates } from './planDraftEstimates.js';
 import { k_defaultHistoryWindow, k_monthsPerYear, k_spendingBehaviors, k_systemCategoryIds } from './domainConstants.js';
 
@@ -72,7 +73,7 @@ export function buildPlan(state, {
       }, 0);
     const event = (state.events || [])
       .filter(event => event.month === monthNumber && (!event.year || event.year === year))
-      .reduce((total, event) => total + event.amount, 0);
+      .reduce((total, event) => total + plannedCostAmount(event, year), 0);
     const monthLines = linesForMonth(month);
     const expense = monthLines.reduce((total, line) => total + line.amount, 0) + monthlyLoan + cushion + event;
     months[month] = { income: monthlyIncome, expense, cushion, loan: monthlyLoan, event, lines: monthLines, balance: monthlyIncome - expense };
