@@ -150,6 +150,19 @@ test('a past start is allowed only when setting up an unscheduled legacy rate', 
   assert.deepEqual(scheduleWithPeriod([], { since: '2020-01', rate: 3 }, '2026-11', { allowPastStart: true }), [{ since: '2020-01', rate: 3 }]);
 });
 
+test('a legacy past start is refused before the earliest correctable month, but a schedule keeps the current-month rule', () => {
+  const firstEntryBound = { earliestMonth: '2026-03', currentMonth: '2026-11' };
+  const openingBalanceOnlyBound = { earliestMonth: '2026-11', currentMonth: '2026-11' };
+  const legacyOptions = bound => ({ allowPastStart: true, correctableBound: bound });
+
+  assert.throws(() => scheduleWithPeriod([], { since: '1026-01', rate: 3 }, '2026-11', legacyOptions(firstEntryBound)), { message: "Rates can start from Mar 2026, the account's first entry or rate period." });
+  assert.throws(() => scheduleWithPeriod([], { since: '2026-02', rate: 3 }, '2026-11', legacyOptions(firstEntryBound)), /Mar 2026/);
+  assert.deepEqual(scheduleWithPeriod([], { since: '2026-03', rate: 3 }, '2026-11', legacyOptions(firstEntryBound)), [{ since: '2026-03', rate: 3 }]);
+  assert.throws(() => scheduleWithPeriod([], { since: '2026-10', rate: 3 }, '2026-11', legacyOptions(openingBalanceOnlyBound)), { message: 'This account has no earlier entries or rate periods, so rates can start from Nov 2026.' });
+  assert.deepEqual(scheduleWithPeriod([], { since: '2026-11', rate: 3 }, '2026-11', legacyOptions(openingBalanceOnlyBound)), [{ since: '2026-11', rate: 3 }]);
+  assert.throws(() => scheduleWithPeriod([{ since: '2026-11', rate: 3 }], { since: '2026-06', rate: 2 }, '2026-11', legacyOptions(firstEntryBound)), /current or a future month/);
+});
+
 test('an older backup leaves accounts without a schedule alone when it only carries the old 0% default', () => {
   const base = createFinancialState();
   const local = structuredClone(base);

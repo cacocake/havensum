@@ -1,5 +1,5 @@
 import { test, expect } from '../helpers/browserTest.js';
-import { createFinancialState } from '../helpers/financialFixtures.js';
+import { createFinancialState, createTransaction } from '../helpers/financialFixtures.js';
 import { openMoreSection } from '../helpers/userFlows.js';
 
 const k_ledgerKey = 'melo-state-v1';
@@ -64,23 +64,58 @@ test('a rate for a past month is refused once a schedule exists', async ({ page 
   expect((await savedAccount(page)).interestSchedule).toEqual([{ since: '2026-05', rate: 3 }]);
 });
 
-test('an unscheduled legacy rate earns nothing until its start month is chosen', async ({ page }) => {
-  const legacyLedger = createFinancialState({ version: 3, accounts: [{ id: 'imported', name: 'Imported savings', tag: 'Savings', openingBalance: 100000, interest: 12 }] });
-  await openLedger(page, legacyLedger);
+function legacyRateLedger({ openingBalance = 100000, transactions = [] } = {}) {
+  return createFinancialState({ version: 3, accounts: [{ id: 'imported', name: 'Imported savings', tag: 'Savings', openingBalance, interest: 12 }], transactions });
+}
+
+function storedTransactions(page) {
+  return page.evaluate(key => JSON.parse(localStorage.getItem(key)).transactions, k_ledgerKey);
+}
+
+function octoberDeposit() {
+  return createTransaction({ id: 'october-deposit', type: 'income', title: 'First deposit', category: 'salary', account: 'imported', date: '2026-10-01', amount: 100000 });
+}
+
+test('an unscheduled legacy rate earns nothing until its start month is chosen, from the first entry at the earliest', async ({ page }) => {
+  await openLedger(page, legacyRateLedger({ openingBalance: 0, transactions: [octoberDeposit()] }));
   await expect.poll(async () => (await page.evaluate(key => JSON.parse(localStorage.getItem(key)), k_ledgerKey)).version).toBe(4);
-  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)).transactions, k_ledgerKey)).toEqual([]);
+  expect((await storedTransactions(page)).map(transaction => transaction.id)).toEqual(['october-deposit']);
 
   const dialog = await editAccount(page, 'Imported savings');
   await expect(dialog.getByText('Saved rate 12% has no start month yet, so no interest has been recorded. Choose when it started.', { exact: true })).toBeVisible();
   await expect(dialog.getByLabel('Effective annual interest · %', { exact: true })).toHaveValue('12');
+  await expect(dialog.getByTestId('interest-schedule-earliest')).toHaveText("Rates can start from Oct 2026, the account's first entry or rate period.");
+  await dialog.getByLabel('Rate starts · YYYY-MM', { exact: true }).fill('2026-09');
+  await dialog.getByRole('button', { name: 'Save account', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toHaveText("Rates can start from Oct 2026, the account's first entry or rate period.");
+  expect((await savedAccount(page)).interestSchedule).toBeUndefined();
+
   await dialog.getByLabel('Rate starts · YYYY-MM', { exact: true }).fill('2026-10');
   await dialog.getByRole('button', { name: 'Save account', exact: true }).click();
   await expect.poll(async () => (await savedAccount(page)).interestSchedule).toEqual([{ since: '2026-10', rate: 12 }]);
   expect((await savedAccount(page)).unscheduledInterest).toBeUndefined();
 
   await page.reload();
-  await expect.poll(() => page.evaluate(key => JSON.parse(localStorage.getItem(key)).transactions.map(transaction => [transaction.date, transaction.amount]), k_ledgerKey))
-    .toEqual([['2026-10-31', 949]]);
+  await expect.poll(async () => (await storedTransactions(page)).map(transaction => [transaction.date, transaction.amount]))
+    .toEqual([['2026-10-01', 100000], ['2026-10-31', 949]]);
+});
+
+test('a mistyped year for a legacy rate on an account with only an opening balance is refused', async ({ page }) => {
+  await openLedger(page, legacyRateLedger());
+  const dialog = await editAccount(page, 'Imported savings');
+  await expect(dialog.getByTestId('interest-schedule-earliest')).toHaveText('This account has no earlier entries or rate periods, so rates can start from Nov 2026.');
+  const hintBox = await dialog.getByTestId('interest-schedule-earliest').boundingBox();
+  const dialogBox = await dialog.boundingBox();
+  expect(hintBox.x + hintBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width + 1);
+  await dialog.getByLabel('Rate starts · YYYY-MM', { exact: true }).fill('1026-01');
+  await dialog.getByRole('button', { name: 'Save account', exact: true }).click();
+
+  await expect(dialog.getByRole('alert')).toHaveText('This account has no earlier entries or rate periods, so rates can start from Nov 2026.');
+  const account = await savedAccount(page);
+  expect(account.interestSchedule).toBeUndefined();
+  expect(account.unscheduledInterest).toBe(12);
+  await page.reload();
+  expect(await storedTransactions(page)).toEqual([]);
 });
 
 test('merging an older backup with a different single rate asks before touching the schedule', async ({ page }) => {

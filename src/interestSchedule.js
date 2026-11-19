@@ -34,11 +34,13 @@ export function isInterestRate(rate) {
 
 // Adds or replaces the period starting in `since`. Rates for recorded months
 // are not edited here: periods start in the current month or later. Only an
-// unscheduled legacy rate may be given its past start month. Historical
+// unscheduled legacy rate may be given its past start month, and (BUG-2, L08)
+// not before the account's earliest correctable month. Historical
 // corrections use `correctedSchedule` in the reviewed correction flow.
-export function scheduleWithPeriod(schedule, period, currentMonth, { allowPastStart = false } = {}) {
-  const updatedSchedule = correctedSchedule(schedule, period);
-  if (period.since < currentMonth && !(allowPastStart && !schedule.length)) {
+export function scheduleWithPeriod(schedule, period, currentMonth, { allowPastStart = false, correctableBound = {} } = {}) {
+  const isLegacyPastStart = allowPastStart && !schedule.length;
+  const updatedSchedule = correctedSchedule(schedule, period, isLegacyPastStart ? correctableBound : {});
+  if (period.since < currentMonth && !isLegacyPastStart) {
     throw new InterestScheduleError('New rates start in the current or a future month. Earlier months keep their recorded interest.');
   }
   return updatedSchedule;
