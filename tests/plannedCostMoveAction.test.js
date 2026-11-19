@@ -153,3 +153,11 @@ test('the preview lists only expenses the move itself sends to review', () => {
 
   assert.deepEqual(preview.expensesToReview.map(expense => expense.id), ['early-booking-2027']);
 });
+
+test("this year can be chosen when the cost's month this year is the current month, and not when a stored move put it in a past month", () => {
+  const novemberCost = { id: 'november-fair', name: 'November fair', month: 11, amount: 5000 };
+  const movedToMarchThisYear = { ...k_celebrations, monthFromYear: { 2026: 3 } };
+
+  assert.equal(plannedCostMoveYears(k_today, novemberCost)[0], 2026);
+  assert.equal(plannedCostMoveYears(k_today, movedToMarchThisYear)[0], 2027);
+});
