@@ -128,8 +128,9 @@ export function createPersistedStorage(getStorage) {
           }
           copies.push(copy);
         }
-        const recordedIndex = Number(await storage.getItem(latestKeptCopyIndexKey(key)));
-        const latestIndex = Number.isSafeInteger(recordedIndex) && recordedIndex < copies.length ? recordedIndex : copies.length - 1;
+        const recordedIndex = await storage.getItem(latestKeptCopyIndexKey(key));
+        const hasRecordedIndex = recordedIndex !== null && /^\d+$/.test(recordedIndex) && Number(recordedIndex) < copies.length;
+        const latestIndex = hasRecordedIndex ? Number(recordedIndex) : copies.length - 1;
         const candidates = [copies[latestIndex], ...copies.slice(0, latestIndex).reverse(), ...copies.slice(latestIndex + 1).reverse()];
         for (const candidate of candidates.filter(copy => copy !== undefined)) {
           try {

@@ -150,3 +150,15 @@ test('a corrupt newest copy falls back to the previous readable one', async cont
 
   assert.deepEqual(await readRestoreRecovery(), original);
 });
+
+test('without a recorded latest index the highest kept copy is treated as newest', async context => {
+  const storage = installBrowserStorage(context);
+  const older = createFinancialState({ transactions: [createTransaction({ id: 'older' })] });
+  const newer = createFinancialState({ transactions: [createTransaction({ id: 'newer' })] });
+  storage.setItem('havensum-restore-recovery-v1', JSON.stringify(older));
+  storage.setItem('havensum-restore-recovery-v1:1', JSON.stringify(newer));
+
+  assert.deepEqual(await readRestoreRecovery(), newer);
+  storage.setItem('havensum-restore-recovery-v1:latest-index', '-1');
+  assert.deepEqual(await readRestoreRecovery(), newer);
+});
