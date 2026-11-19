@@ -1,4 +1,4 @@
-import { monthStats } from './ledger.js';
+import { monthStats, scheduledMonthStats } from './ledger.js';
 import { localCalendarDate, monthKeyOf, monthOf } from './calendar.js';
 import { k_monthsPerYear, k_reportingPeriods } from './domainConstants.js';
 import { expectedSavings } from './expectedSavings.js';
@@ -23,20 +23,23 @@ function sumTotals(entries) {
   return totalsOf(income, expense);
 }
 
+// L01: Recorded is what has posted by today. A future month records only
+// posted early payments linked to it, and has nothing to show otherwise.
 function recordedTotals(recordedState, month, period) {
-  if (period === k_reportingPeriods.future) {
+  if (period === k_reportingPeriods.future && !hasRecordedFinancialActivity(recordedState.transactions, month)) {
     return null;
   }
   return statsTotals(monthStats(recordedState, month));
 }
 
-// Current posting semantics (LEDGER-1 undecided): entries dated in a future
-// month are registered, not recorded, and are shown as scheduled.
-function scheduledTotals(state, month, period) {
-  if (period !== k_reportingPeriods.future || !hasRecordedFinancialActivity(state.transactions, month)) {
+// Entries in any month that have not posted yet: they join Recorded on their
+// date and already feed Expected from this month on.
+function scheduledTotals(state, month, today) {
+  const scheduled = scheduledMonthStats(state, month, today);
+  if (!scheduled.count) {
     return null;
   }
-  return statsTotals(monthStats(state, month));
+  return totalsOf(scheduled.income, scheduled.spent);
 }
 
 function outlookMonth(state, recordedState, month, { today, planRevisionId, projectedInterest }) {
@@ -54,7 +57,7 @@ function outlookMonth(state, recordedState, month, { today, planRevisionId, proj
     hasRecords,
     isConfirmedComplete,
     recorded: recordedTotals(recordedState, month, period),
-    scheduled: scheduledTotals(state, month, period),
+    scheduled: scheduledTotals(state, month, today),
     expected: prediction ? totalsOf(prediction.income, prediction.expense) : null,
     planned: plan ? totalsOf(plan.income, plan.expense) : null,
     prediction: isForecast ? prediction : null,
