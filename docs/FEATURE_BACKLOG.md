@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**The FORECAST-2 follow-up (move a recurring planned cost from a chosen year, F16–F18) is done, reviewed and merged into `develop`** (see its handoff note at the end). **LEDGER-1 is done, reviewed and merged into `develop`**. **FORECAST-2 is done, reviewed and merged into `develop`** after the owner's answers (see "FORECAST-2 owner answers" and the implementation handoff at the end). No other ticket is unblocked: each needs owner input, samples, credentials or a device. PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**IMPORT-2 (Cashew verification with synthetic rows) is done, reviewed and merged into `develop`** (see its handoff note at the end). **The FORECAST-2 follow-up (move a recurring planned cost from a chosen year, F16–F18) is done, reviewed and merged into `develop`** (see its handoff note at the end). **LEDGER-1 is done, reviewed and merged into `develop`**. **FORECAST-2 is done, reviewed and merged into `develop`** after the owner's answers (see "FORECAST-2 owner answers" and the implementation handoff at the end). No other ticket is unblocked: each needs owner input, samples, credentials or a device. PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
 
 ## Starting point and workflow
 
@@ -84,6 +84,16 @@ Reuse the Real Bank adapter if the second layout matches. Otherwise create a dis
 
 **Needs:** Representative rows and agreed classifications for the cases the owner uses.
 
+**Status (19 November 2026):** Done, reviewed and merged into `develop` from `codex/cashew-verification` (started from `75a8108`; implementation `11c9a44`–`b202a16`; review fixes `bc6518b`, `e440610`, `771e7c4`). See the IMPORT-2 handoff note at the end. The owner chose to proceed with synthetic rows that mirror the documented Cashew export format; every case beyond the verified ordinary EUR rows from v6.7.5+524 stays explicitly unverified against a real export.
+
+**Owner answers (19 November 2026, in chat; recorded as K01–K08 in DECISIONS.md):**
+1. **Borrowing/lending:** a `debt` row is importable only after picking an existing Havensum loan in review; positive = loan proceeds (unlinked balance adjustment tagged with the loan), negative = loan repayment expense tagged with the loan. `credit` (lent) rows stay blocked.
+2. **Scheduled entries:** treated as paid when `amount unpaid` is blank or 0 (v1 exports only paid rows); still need a classification; review shows they came from a scheduled entry.
+3. **Transfers:** a unique opposite `Balance Correction` row with the same amount and timestamp in another account is preselected as a suggested pair; the owner confirms or changes it. (Category rule superseded by K11: legs are recognised by their `Transferred Balance` note.)
+4. **Paybacks:** manual link only, as today.
+5. **Metadata:** ignore color/icon/emoji; show budget/objective read-only in review, never create records; non-zero `amount unpaid` or any `extra` stays a row error. (`extra` superseded by K10: shown read-only.)
+6. **Classification:** ordinary rows still need an explicit choice; nothing prefilled from the sign.
+
 Ordinary EUR rows from v6.7.5+524 are already verified. Check real transfer and payback rows where available. Agree how to handle borrowing, lending, scheduled entries, and populated metadata before widening support. Test both layouts, accents, integer-cent handling, matches after renames and layout changes, account creation only on confirmation, and original-expense links. Unverified entries retain their review status.
 
 ### LEDGER-1 · Posted versus future-dated activity
@@ -94,9 +104,21 @@ Apply the agreed rule to current balances, account details, reports, forecasts, 
 
 ### LEDGER-2 · Historical interest corrections
 
-**Owner decision (19 November 2026, recorded as L03–L06 in DECISIONS.md):** corrections go through a reviewed *Correct past interest* flow on the savings account (past rates change only there; a corrected balance is an ordinary dated entry or balance adjustment). Each affected completed month keeps its recorded entries and gets one marked *Interest correction* entry for the difference. Bank-posted interest for a month that also has, or would get, an app entry needs a per-month choice: bank amount only, or keep both. The review lists all affected months with downstream *compounding effect* rows and a total, and applies them together. **Status:** Done, reviewed and merged into `develop` from `codex/interest-corrections` (implementation `d443fe4`, `ca2723f`; review fixes `869521f`, `870e6a0`). See the LEDGER-2 handoff note at the end; its owner questions are non-blocking.
+**Owner decision (19 November 2026, recorded as L03–L06 in DECISIONS.md):** corrections go through a reviewed *Correct past interest* flow on the savings account (past rates change only there; a corrected balance is an ordinary dated entry or balance adjustment). Each affected completed month keeps its recorded entries and gets one marked *Interest correction* entry for the difference. Bank-posted interest for a month that also has, or would get, an app entry needs a per-month choice: bank amount only, or keep both. The review lists all affected months with downstream *compounding effect* rows and a total, and applies them together. **Status:** Done, reviewed and merged into `develop` from `codex/interest-corrections` (implementation `d443fe4`, `ca2723f`; review fixes `869521f`, `870e6a0`). See the LEDGER-2 handoff note at the end; its owner questions were answered (L07), and the earliest-month limit is queued as LEDGER-2a.
 
 Design a reviewed, explicit correction flow after agreement. Show the affected completed months and downstream compounding. Cover a corrected past balance, existing bank interest, duplicate prevention, cancel, and repeated application.
+
+### LEDGER-2a · Earliest correctable month
+
+**Owner decision (19 November 2026, L07):** a correction cannot start before the account's first recorded entry or its first rate period. **Status:** Done, reviewed and merged into `develop` from `codex/ledger-2a-earliest-correctable-month` (implementation `288dae9`; review fixes `90460b2`). Review answers recorded as L08. See the LEDGER-2a handoff note at the end. **Depends on:** LEDGER-2 (merged).
+
+In the *Correct past interest* review (`src/interestCorrection.js`, `src/interestSchedule.js` `correctedSchedule`, `src/InterestCorrection.jsx`), refuse a draft rate period whose start month is earlier than the account's first transaction month (including a transfer into the account) or its first stored rate period (whichever is earlier; an account with neither may start from the current month), with a clear message, and never loop over months before that bound. Cover a mistyped far-past year, an account with no entries, a legacy unscheduled rate, and the existing earlier-start case that must still work.
+
+### BUG-2 · Account-form past start for a legacy rate
+
+**Owner decision (19 November 2026, L08):** the account form's past start month for an unscheduled legacy rate gets the same earliest-month limit as corrections. **Status:** Done, reviewed and merged into `develop` from `codex/bug-2-account-form-past-start` (implementation `a124a61`; review fixes `9edb458`, `ba3ca1a`). See the BUG-2 handoff note at the end. **Depends on:** LEDGER-2a (merged).
+
+`AccountForm.jsx` lets an unscheduled legacy rate take any past start month (`scheduleWithPeriod(..., { allowPastStart: true })`), and startup then posts app interest for every completed month since then. A mistyped year (for example `1026-01`) would post thousands of entries. Add a failing regression first, then refuse a start before `earliestCorrectableMonth` (`src/interestCorrection.js`) with the shared `correctableStartText` message (`src/interestSchedule.js`). Cover a mistyped year, an account with only an opening balance (current month only), and a legacy rate whose valid past start still works.
 
 ## Queued forecast improvements
 
@@ -128,15 +150,26 @@ Let the owner move a recurring planned cost's month from a chosen year onward. E
 3. **Expenses already linked to the old month in a moved year:** their links stay as recorded and are flagged for review (the existing "This planned cost moved" list). The move dialog says how many. They are not evidence until relinked by hand.
 4. **A move from this year** (asked after review): both the old and the new month must be this month or later; otherwise the move starts next year.
 
+### IMPORT-2 follow-up · Match the owner's real Cashew test export
+
+**Status (19 November 2026):** Done, reviewed and merged into `develop` from `codex/cashew-real-export` (started from `f5e71d5`); see its handoff note at the end. The owner supplied a small test export (v2 layout with `amount unpaid` and `extra`; kept out of Git as private runtime data). It showed recurrence text in `extra`, a localized transfer category with a `Transferred Balance` note, and loans as objectives on ordinary rows. Owner answers K10–K12 in DECISIONS.md. Synthetic fixtures mirror its structure.
+
+### FORECAST-2 follow-up · Readable year-amount merge conflicts (F20)
+
+**Depends on:** FORECAST-2 (year amounts). **Status:** done; reviewed and merged into `develop` from `codex/readable-year-amount-conflicts` (see the F20 handoff at the end).
+
+When two devices set different amounts for the same year of a recurring planned cost, the backup-merge conflict review should name the planned cost and the year and show euro amounts, for example "December celebrations · amount for 2027: €410.00 here, €450.00 on the other device", instead of the raw `yearAmounts` field and cents. Keep the merge decision itself unchanged: `yearAmounts` is one field, so differing year amounts form one conflict per planned cost, and choosing a side takes that side's whole set of year amounts. The card should list each differing year on its own line. Match the final wording to the review's side labels (*This device* / *Backup file*). Cover a conflict on one year; several differing years on one planned cost (one card, one line per year); years set on different sides from the same starting point (still one conflict, shown year by year); long names at narrow widths; and screen-reader text. An edit-versus-delete conflict on a planned cost is a different conflict type, not part of this ticket; it only must not regress. Separate merge choices per year would be a new owner question, not part of this ticket.
+
 ## Queued delivery and integrations
 
 ### ANDROID-1 · Installable package
 
-**Needs:** App ID, target runtime and device support, and owner-controlled signing setup. **Status:** Configured, reviewed and merged into `develop` from `codex/android-installable-package` (owner answers A01–A08 in DECISIONS.md, steps in [docs/ANDROID_BUILD.md](ANDROID_BUILD.md)). **Still open:** no package has been built yet. The first `assembleRelease` runs on the owner's PC with the owner's upload keystore, then gets recorded below. See the ANDROID-1 handoff note.
+**Needs:** App ID, target runtime and device support, and owner-controlled signing setup. **Status:** Configured, reviewed and merged into `develop` from `codex/android-installable-package` (owner answers A01–A08 in DECISIONS.md, steps in [docs/ANDROID_BUILD.md](ANDROID_BUILD.md)). **Built and installed:** the owner built a release APK on their PC with their upload keystore from `fd55ca2`; it installed and starts on the owner's phone (recorded below). Full device QA is ANDROID-2. See the ANDROID-1 handoff note and the startup-crash bug fix.
 
 | Source commit | Version name / code | Type | Build date | Signing certificate SHA-256 | Installed on |
 | --- | --- | --- | --- | --- | --- |
-| *(none built yet)* | | | | | |
+| develop (owner's PC; exact commit not recorded) | 0.1.0 / 1 | Release APK | 19 November 2026 | not recorded | Owner's phone: installed, **crashed at startup** (Reanimated rejected the native timing curve; fixed in `fd55ca2`) |
+| `fd55ca2` | 0.1.0 / 2 | Release APK | reported 19 November 2026 | `29591ff335e46c13c4556dd419e8c2812bd8efa40e2ede17d0c94f024d2e7d37` | Owner's phone: installed as an update and starts (owner report; full QA is ANDROID-2) |
 
 Produce an installable Android build. Record source commit, build profile, and signing ownership. Keep credentials and compiled artifacts out of Git. A Hermes bundle is only a compilation check.
 
@@ -164,7 +197,7 @@ Shared-file document shape without device keys (G05/G06, every top-level key cla
 
 ### DRIVE-2b · Google Drive transport and two-account verification
 
-**Depends on:** DRIVE-2a, ANDROID-1 (Android client ID). **Blocked on:** the owner's Google Cloud setup: a project with the Drive and Picker APIs, an External consent screen with only `drive.file` and both owners as test users, OAuth client IDs for Android (final package + SHA-1 of each signing key, so it also needs ANDROID-1) and web (authorized JavaScript origins), a Picker API key and the project number. Both owners' accounts are needed for the two-person checks. The full list is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md#drive-2-blocker-setup-the-owner-must-provide).
+**Depends on:** DRIVE-2a. **Blocked on:** the owner's Google Cloud setup: a project with the Drive and Picker APIs, an External consent screen with only `drive.file` and both owners as test users, OAuth client IDs for Android (final package `com.havensum.app` + SHA-1 of each signing key; the upload key's SHA-1 is `5d0ec4c8ed9b8b93b3b6136aa0063e7b775ab7c6`, a public certificate fingerprint) and web (authorized JavaScript origins), a Picker API key and the project number. Both owners' accounts are needed for the two-person checks. The full list is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md#drive-2-blocker-setup-the-owner-must-provide).
 
 Implement the `sharedFileTransport` contract with Drive v3 (create + share as writer, read, unconditional update), Google sign-in (Android `AuthorizationClient`, web token model with Reconnect), the Picker, and the app wiring of the DRIVE-2a core (scheduler, status card actions, review and join dialogs). The wiring must pass `createSyncProgressSaver` the sync's starting link (`snapshotBinding`) and an `adoptSavedState` that installs each saved ledger in the app before any edit can run, and save join results with `commitSharedFileJoin`. Verify two devices with independent edits, same-field edits, deletion, concurrent plan revisions, interrupted writes and stale writes, and every item in "What DRIVE-2 must verify". Confirm the agreed account visibility.
 
@@ -298,6 +331,7 @@ The implementation note below records how these were built; it stores only per-y
 - **Checks:** on `74f83b7`, `npm run test:coverage` 388/388 with thresholds met, `npm run test:browser` 348/348, `npm run build`, `npm run check:android` (Hermes compilation only; no device test). The final nit commit `ac36777` was rechecked with `npm run test:coverage` (389/389), build, Hermes and the planned-cost browser spec on all three viewports (18/18).
 - **Review:** a separate read-only Claude review of the implementation (no blocking defects; six should-fix items fixed test-first in `74f83b7`), a focused re-review (no blocking defects; two nits fixed in the final commit) and a final re-review of that commit.
 - **Owner questions (non-blocking):** (1) Accepting a suggestion changes Expected savings as well as the plan, because a planned cost's amount is forecast evidence (the PLAN-3 convention). Is that what you expect? (2) Merge conflicts on year amounts show the raw field and cents, like other merge conflicts.
+- **Owner answers (19 November 2026, in chat):** (1) Confirmed: accepting a suggested amount also changes Expected savings, because a planned cost's amount is forecast evidence; a target-only edit still leaves Expected savings unchanged (decision F19). (2) A year-amount merge conflict should read plainly, for example "December celebrations · amount for 2027: €410.00 here, €450.00 on the other device", instead of the raw field and cents (decision F20). Not built yet; queued as **FORECAST-2 follow-up · Readable year-amount merge conflicts** below.
 
 ## Session handoff — LEDGER-1 (19 November 2026, Claude cloud session)
 
@@ -352,7 +386,7 @@ The implementation note below records how these were built; it stores only per-y
   - Corrections are the only signed entries (validation in `transactionValidation.js`); `interestBankChoices` is validated in `stateSchema.js` (additive, no version bump; see STATE_MIGRATIONS.md). Canonical CSV (`corrects_interest_month`), JSON backup rows and the workbook raw sheet keep the marker and sign; import comparison includes the marker.
   - `correctedSchedule`/`correctedScheduleWithout` allow past rate periods only for the correction draft; the normal editor still refuses them.
 - **UI (shared web/Android):** account detail shows a *Past interest* card for savings accounts (differing months and total, or months needing a bank choice) with *Correct past interest* / *Review past interest*. The dialog edits past rates as a draft, offers *Bank amount only* / *Keep both* per month, lists affected months and the total, blocks Apply while a choice or a typed-but-unset rate is pending, asks before discarding a changed draft and validates the ledger before saving. Activity rows and details show a negative correction with a minus; correction details explain it and have no Edit button.
-- **Owner questions (non-blocking; current behaviour in brackets):**
+- **Owner questions — answered 19 November 2026 (L07):** 1 keep (no Edit), 2 keep (later months previewed), 3 keep (main category only), 4 limit to the account's first entry or first rate period → LEDGER-2a; 5 is a statement of current behaviour, not asked. Original questions, current behaviour in brackets:
   1. Corrections cannot be edited, only superseded by reviewing again [no Edit]. The ordinary app interest entry stays editable; edits to it then show up as differences in the review. OK?
   2. While a bank-interest choice is pending, later months are previewed as if the app entry stayed [their differences change once you choose]. Acceptable, or hide later months until every choice is made?
   3. Bank interest means Interest income in the system *Interest* category itself, not its subcategories [subcategories ignored, as in the forecast]. Should a subcategory count?
@@ -360,8 +394,8 @@ The implementation note below records how these were built; it stores only per-y
   5. In the import row editor a negative correction row cannot be edited (it can be imported or skipped).
 - **Checks (merged tree with ANDROID-1, DRIVE-1 and L02):** `npm run test:coverage` 475/475 with thresholds met (96.6% lines, 94.6% branches), `npm run test:browser` 426/426 on the final run (earlier runs hit only the BUG-1 flake below), `npm run build`, `npm run check:android` (Hermes compilation only; no device test).
 - **Review:** separate read-only Claude review (two blocking defects: an unscheduled legacy rate and a re-dated app entry each produced an unsaveable ledger; four should-fix items: backup/workbook round trips, repeated correction numbers, startup posting over corrected months, a typed rate ignored by Apply), then two focused re-reviews (two should-fix leftovers fixed in `870e6a0`); the last found no blocking or should-fix issues. All fixes were test-first.
-- **Bug found between tasks (BUG-1, not fixed here):** the browser test `fullRestore.spec.js` "a ledger saved by another tab after the preview makes the preview stale" fails intermittently on `develop` itself (all three viewports in one full run of `e53517f`; about 2% of repeated runs, more under load). When it fails, the restore dialog closes without the stale-preview notice. The likely cause is that the app's own save of its in-memory ledger lands after the simulated other-tab write, so the bytes match the preview again. This is unconfirmed. It needs its own `codex/` bug branch from `develop`: first decide whether the app or the test is at fault, then add a failing regression and fix it. The LEDGER-2 merge passes everything else.
-- **Not done (nits):** a correction cancelling an app entry re-dated into the next month is still dated in its own month, so that month's end balance dips until the re-dated entry's date; the review is not bounded in time (question 4); an older app build would report a ledger holding a negative correction as unreadable rather than as a newer version (all devices should run the same build).
+- **Bug found between tasks (BUG-1, not fixed here; since fixed, see "Bug fix — BUG-1" below):** the browser test `fullRestore.spec.js` "a ledger saved by another tab after the preview makes the preview stale" fails intermittently on `develop` itself (all three viewports in one full run of `e53517f`; about 2% of repeated runs, more under load). When it fails, the restore dialog closes without the stale-preview notice. The likely cause is that the app's own save of its in-memory ledger lands after the simulated other-tab write, so the bytes match the preview again. This is unconfirmed. It needs its own `codex/` bug branch from `develop`: first decide whether the app or the test is at fault, then add a failing regression and fix it. The LEDGER-2 merge passes everything else.
+- **Not done (nits):** a correction cancelling an app entry re-dated into the next month is still dated in its own month, so that month's end balance dips until the re-dated entry's date; the review is not bounded in time (queued as LEDGER-2a); an older app build would report a ledger holding a negative correction as unreadable rather than as a newer version (all devices should run the same build).
 
 ## Session handoff — ANDROID-1 (19 November 2026, Claude cloud session)
 
@@ -372,7 +406,7 @@ The implementation note below records how these were built; it stores only per-y
   - The owner builds on their own PC with local Gradle and keeps the upload keystore. There is no EAS, Expo account or cloud-held key.
   - Android Auto Backup is off.
 - **Configuration:**
-  - `app.json` sets the package, `versionCode 1`, `allowBackup: false` and three removed permissions (legacy storage read/write, overlay).
+  - `app.json` sets the package, `versionCode 1` (now 2, see the startup-crash bug fix below), `allowBackup: false` and three removed permissions (legacy storage read/write, overlay).
   - `plugins/withHavensumReleaseSigning.cjs` signs release builds from four `HAVENSUM_UPLOAD_*` properties in the owner's user Gradle properties. A release build fails without them; there is no debug-key fallback.
   - `eas.json` reads the version from `app.json` (`appVersionSource: local`); it is unused.
   - `.gitignore` covers `/android/`, APK/AAB and keystore files.
@@ -381,7 +415,7 @@ The implementation note below records how these were built; it stores only per-y
   - Release APK via `assembleRelease` (AAB via `bundleRelease` later).
   - Signed with the owner's upload keystore, held only by the owner.
   - The first package ships as version code 1. Each later package that reaches a phone gets a version code raised by 1 in a `develop` commit first.
-- **Not built here:** the container has no Android SDK, and its network blocks `dl.google.com` (Android SDK and Google Maven) and `api.expo.dev`. No APK, installation or device test exists yet. The first `assembleRelease` and the missing-key guard are unverified until the owner's PC build. Record that build in the ANDROID-1 table above.
+- **Not built here:** the container has no Android SDK, and its network blocks `dl.google.com` (Android SDK and Google Maven) and `api.expo.dev`. No APK, installation or device test existed at that point (since built from `fd55ca2`, see the ANDROID-1 table). The first `assembleRelease` and the missing-key guard are unverified until the owner's PC build. Record that build in the ANDROID-1 table above.
 - **Checks** (merged with develop at 75a8108):
   - `npm run test:coverage` 434/434, thresholds met.
   - `npm run test:browser`.
@@ -475,3 +509,123 @@ The implementation note below records how these were built; it stores only per-y
   - **Final re-review of `1e0aa07`:** no blocking or should-fix findings remain.
 - **Checks:** see the merged-tree line below.
 - **Known pre-existing flake:** `fullRestore.spec.js` "a ledger saved by another tab after the preview makes the preview stale" fails intermittently, on `develop` too (reproduced here 7 of 12 runs on unmodified develop, under load). It is recorded as BUG-1 by the LEDGER-2 session and was not changed here.
+
+## Session handoff — IMPORT-2 · Extend Cashew verification (19 November 2026)
+
+- **Scope:** synthetic rows mirroring the published Cashew export (owner choice K01). Owner answers K01–K09 are in DECISIONS.md; behaviour and known limits are in the IMPORT-2 section of docs/CASHEW_IMPORT_RESEARCH.md. Nothing beyond the ordinary EUR rows from v6.7.5+524 is verified against a real export; no exact Cashew compatibility is claimed.
+- **Implemented:** both layouts read Dart double amounts to integer cents (v1 previously rejected float tails; comma and zero-padded amounts are now row errors in both layouts — a deliberate tightening); paid scheduled entries import after classification (K04); budget/objective shown read-only (K07); a unique opposite Balance Correction pair is preselected as a transfer and import confirms it (K05/K09) (recognised by the transfer note since K11); `debt` rows import only against a chosen Havensum loan, as proceeds or a repayment in the loan category (K02/K03), and are never transfer legs; lending stays blocked; editing imported proceeds keeps the loan tag. Coverage added for accents, renames on both sides, same-file payback links and malformed cells.
+- **Checks:** `npm run test:coverage` (449 pass on the tree merged with develop `5b2164d`; all files 96.65% lines), `npm run test:browser` (417 pass), `npm run build`, `npm run check:android` (Hermes export = compilation only).
+- **Review:** separate read-only Claude review found 1 blocking (debt credit usable as a transfer leg) and 4 should-fix items; all fixed test-first, the owner answered the pair-confirmation question (K09), and the re-review found nothing actionable.
+- **Still needs the owner:** a small sanitized Cashew export of their version with a transfer pair, a payback, a scheduled entry, a borrowing row and populated budget/objective, plus the expected Havensum result, to move these cases from synthetic to verified.
+
+## Bug fix — Android release crashes at startup (19 November 2026, Claude cloud session)
+
+- **Found by:** the owner's first release APK (version code 1), built on their PC from `develop` and installed on their phone. It closed immediately. Logcat: `ReanimatedError: [Reanimated] Invalid predefined timing function "cubic-bezier(0.23, 1, 0.32, 1)"` in `MotionPressable`.
+- **Cause:** `src/Motion.native.jsx` passed the curve to Reanimated 4's CSS-style transitions as a `cubic-bezier(...)` string. On native, Reanimated's `transitionTimingFunction` longhand accepts only named curves or its easing builders (such as `cubicBezier()`). The web accepts the string, and Hermes compilation (`check:android`) can't detect it, so no earlier check caught it.
+- **Fix:** `src/motionTransitions.native.js` builds the press and meter transition settings (property, duration, reduced motion) with the same curve made by `cubicBezier(0.23, 1, 0.32, 1)`. `MotionPressable` and `Meter` use these builders. Web motion is unchanged.
+- **Regression test:** `tests/native/motionTiming.test.js` runs both components' transition settings, with normal and reduced motion, through Reanimated's own `normalizeCSSTransitionProperties`, the startup path that threw. Reanimated is loaded in Node by `tests/helpers/reanimatedInNode.js`, with only `react-native` and `react-native-worklets` stubbed. With the old string curve the test failed with the device's exact error.
+- **Review:** a separate read-only Claude review found nothing blocking. Its should-fix item (test the components' real transition settings, not just the curve) and its nits (the current module-mock option, doc wording, a note on Reanimated's internal paths) were fixed before merging, and a focused re-review of those fixes found nothing blocking.
+- **Version:** `versionCode` raised to 2, because version code 1 is already on the owner's phone.
+- **Verified by the owner:** the rebuild from `fd55ca2` (version code 2) installs over version 1 and starts on the owner's phone. Other screens and flows are not device-checked yet (ANDROID-2).
+
+## Session handoff — IMPORT-2 follow-up: the owner's real Cashew test export (19 November 2026)
+
+- **Input:** a small test export from the owner's Cashew app (newer layout; version not stated). Kept out of Git and review inputs as private runtime data; `tests/cashewExportShape.test.js` uses synthetic rows with the same structure.
+- **Owner answers:** K10 (`extra` shown read-only, never blocks), K11 (transfer legs recognised by the `Transferred Balance` / `from → to` note, category ignored), K12 (a row with an objective may be recorded against a chosen Havensum loan by its sign, otherwise classified normally).
+- **Result on the real file:** the transfer pair is suggested; paid scheduled rows await a classification; unpaid ones stay row errors; objective rows offer an optional loan; ordinary and payback rows await a classification.
+- **Checks:** `npm run test:coverage`, `npm run test:browser`, `npm run build`, `npm run check:android` on the tree merged with develop: 499 unit tests (thresholds met) and 435 browser tests pass. Hermes export is compilation only.
+- **Review:** separate read-only Claude review: nothing blocking; two should-fix test gaps and doc/style nits fixed; re-review found one stale doc passage, now corrected.
+- **Still unverified:** older `debt`/`credit` type rows (K02), the published v1 layout beyond ordinary rows, and which sign means what for a lending objective in Cashew. No exact Cashew compatibility is claimed.
+
+## Session handoff — FORECAST-2 follow-up · Readable year-amount merge conflicts (F20) (19 November 2026, Claude cloud session)
+
+- **Implemented** (`fa0d73d`, review fix `2633179` on `codex/readable-year-amount-conflicts`):
+  - New `src/yearAmountConflicts.js`. After `mergeThreeWay`, it adds the planned cost's name and each side's usual amount to `events`/`yearAmounts` conflicts, for display only.
+  - The card title names the planned cost and the differing years, for example "December celebrations · amounts for 2027 and 2028".
+  - Each side (This device / Backup file) lists one line per differing year, such as "Amount for 2027: €410.00". A year with no year amount on a side reads "usual amount (€400.00)" with that side's usual amount. An empty set against no set reads "No year amounts; every year uses the usual amount (€X)".
+  - The merge decision is unchanged: one conflict per planned cost, and choosing a side takes that side's whole `yearAmounts`.
+  - The review card moved into a small `MergeConflictCard` component in src/Screens.jsx. Each side is now a button whose screen-reader name reads its label and every line, and which reports its selected state.
+  - Other conflict types are untouched. A browser test guards planned-cost edit-versus-delete.
+- **Tests:** tests/yearAmountConflicts.test.js (7 unit tests: one year, several years, years set on different sides, all year amounts cleared, empty set against none, an undescribed conflict, other conflicts passed through unchanged) and tests/browser/yearAmountConflicts.spec.js (choosing the backup takes its whole set plus accessible names; long name and large amounts at 320 px; edit-versus-delete still works).
+- **Checks** on the tree merged with origin/develop `f5e71d5`:
+  - `npm run test:coverage`: 495/495 (96.89% lines, 94.80% branches);
+  - `npm run test:browser`: 441/441;
+  - `npm run build`;
+  - `npm run check:android` (Hermes compilation only; no device test).
+- **Review:** a separate read-only Claude review found nothing blocking. It raised one should-fix (an empty `{}` against no year amounts gave a broken title) and one robustness nit (rendering an undescribed conflict would crash). Both were fixed test-first, and the re-review found nothing blocking.
+- **Deferred nits:**
+  - A short hint that the usual amount shown is each side's own.
+  - Moving the merge card into its own file. This was left alone to keep churn small in the shared Screens.jsx.
+- **Not done / owner:** separate merge choices per year would be a new owner question; nothing was asked.
+
+## Session handoff — LEDGER-2a · Earliest correctable month (19 November 2026, Claude cloud session)
+
+- **Implemented (L07):** `earliestCorrectableMonth` (`src/interestCorrection.js`) is the earliest of:
+  - the account's first entry month. Any entry on the account counts; a transfer counts by its target only when it is a transfer. App interest and corrections count by the month they belong to, even if re-dated.
+  - its first stored rate period.
+  - the current month.
+
+  The review refuses a draft rate before that month (`InterestScheduleError`) before it loops, so a mistyped year never reviews centuries of months. Apply re-reviews, so it refuses it too.
+- **Dialog:** `correctedSchedule` takes the bound, and `src/InterestCorrection.jsx` shows the earliest month as a hint. The hint and the refusal share `correctableStartText`; when the bound is only the current month, it says the account has no earlier entries or rate periods. A draft that falls behind the bound at month rollover shows the message and disables Apply instead of crashing the dialog.
+- **Changed tests:** two LEDGER-2 tests that started a correction before any recorded entry now record the money on its date (a transfer in, a first deposit). Their expected amounts are unchanged.
+- **Owner answers (L08):** no extra lookback floor; a mistyped entry date is fixed by editing or deleting that entry. An account with only an opening balance is correctable from the current month only. The account form's legacy past start gets the same limit, queued as **BUG-2**.
+- **Checks (tree merged with develop `278466c`):** `npm run test:coverage` 514/514 with thresholds met (96.9% lines, 94.8% branches); `npm run build`; `npm run check:android` (Hermes compilation only, no device test). `npm run test:browser`: 450/453. The three failures are the known BUG-1 flake (`fullRestore.spec.js` "makes the preview stale", all viewports in one run); the same test passed 9/9 when rerun alone. The pre-merge run of this branch had 440/441 with the same flake.
+- **Review:** a separate read-only Claude review found nothing blocking. It raised two should-fix items: the hint named the current month as the account's first entry, and a mistyped entry year reopens the slow path (an owner question, answered in L08). It also raised nits: `toAccount` on non-transfers, style, and hand-written bounds in tests. All were fixed test-first in `90460b2`. A re-review found nothing blocking or should-fix; it left two optional nits (argument shape of `correctableStartText`, a default wording when no current month is passed), not changed.
+
+## Bug fix — BUG-1 · Flaky stale-preview full-restore test (19 November 2026, Claude cloud session)
+
+- **Status:** done and reviewed on `codex/bug-1-stale-restore-flake`, merged into `develop` by the no-fast-forward merge that follows this record (commits `124a81b`, `7b91fc7`, `2cfa345`, `3fe4232`, `098ef47`, plus the final test and decision commit).
+- **Root cause (confirmed, a product defect):** the preview captured the saved ledger bytes only after `await file.text()`. If another tab or window saved during that window, its bytes became the preview's baseline. The confirm-time check then passed, and the restore overwrote the other tab's save. The pre-restore copy held this tab's stale in-memory ledger, so the other tab's save was lost. The test flaked because its simulated other-tab write ran right after `setFiles` resolved, sometimes before the preview read storage. The earlier guess (this tab's own save landing late) was wrong.
+- **Evidence:** a temporary diagnostic (not committed) delayed the file read and logged every ledger read and write. The other-tab write at 1500 ms preceded the preview's read at 1881 ms. The restore then went ahead, and the recovery copy held the light-theme ledger while the other tab had saved the dark one. Natural reproduction did not recur here: 0 of about 700 repeated runs, including under CPU load.
+- **Fix:**
+  - `src/persistedState.js` remembers the bytes each storage instance last read or saved per key.
+  - The restore checks them before writing the pre-restore copy, and again in the same queued step as the final save (`writeIfUnchanged` / `writeStateIfUnchanged`, with `SavedStateChangedError` re-exported through `./storage`).
+  - A failed save leaves the remembered bytes unchanged, so a restore after a failed save behaves as before.
+  - `isRestorePreviewCurrent` is unchanged.
+- **Owner decisions:** R01 (the refusing tab reloads the ledger saved elsewhere and says so; choosing the backup again can then proceed) and R02 (that reload keeps no copy of the refusing tab's unsaved edits), in DECISIONS.md.
+- **Tests:**
+  - Browser: the original test now waits for the preview before the other tab's save. New tests cover a save while the backup is read, a save between the check and the final save, an unreadable save from the other tab, and a refusal followed by a successful restore over the reloaded ledger.
+  - Unit (storage): guarded save refused after another tab saved since this instance last saved or read, refused over data never read, allowed after a failed save, allowed on a fresh install and after a legacy migration.
+- **Checks (merged tree with the latest `develop`, `bfdd415`):**
+  - `npm run test:coverage` 505/505 (96.75% lines, 94.74% branches);
+  - `npm run test:browser` 444/444, and 447/447 after the last test commit;
+  - `npm run build`;
+  - `npm run check:android` (Hermes compilation only; no device test);
+  - stress: all other-tab tests 180/180 with `--repeat-each 15 --workers 6`.
+  - after merging the latest `develop` (`361138a`, LEDGER-2a and the F20 follow-up): `npm run test:coverage` 520/520 (96.84% lines, 94.71% branches), `npm run test:browser` 465/465, `npm run build`, `npm run check:android`.
+- **Review:**
+  - Three separate read-only Claude reviews.
+  - Round 1 found a false refusal after a failed save and a window between the check and the final save. Both were fixed (`7b91fc7`).
+  - Round 2 found the stuck refusal, which the owner resolved as R01 (`098ef47`), plus style nits that were fixed (`3fe4232`).
+  - Round 3 found no correctness defect. Its medium point became R02. Its test gap on the reload-failed path was closed.
+- **Known limits (not changed):**
+  - App's ordinary save on every state change still overwrites other tabs; this predates BUG-1.
+  - A refusal caused by this tab's own later edit (old "stale" notice) has no browser test, because the modal preview blocks edits; the rule is unit-tested.
+  - If another tab removes the ledger key entirely, the notice asks for an app reload but a retry is allowed.
+  - The reload does not reopen the missing-category review automatically; its button is shown.
+
+## Session handoff — BUG-2 · Account-form past start for a legacy rate (19 November 2026, Claude cloud session)
+
+- **Fixed (L08):** the account form's past start month for an unscheduled legacy rate can no longer be earlier than `earliestCorrectableMonth` (`src/interestCorrection.js`). Before, a mistyped year such as `1026-01` was saved, and startup then posted app interest for every completed month since.
+  - `scheduleWithPeriod` (`src/interestSchedule.js`) takes a `correctableBound` for the legacy past start and refuses earlier months with the shared `correctableStartText` message.
+  - Without a bound, a legacy past start may start from the current month only, so a future caller cannot reopen the unlimited path.
+  - `src/AccountForm.jsx` computes the bound (`legacyRateCorrectableBound`) for both Save and Add rate period. `src/InterestScheduleEditor.jsx` shows the same earliest-month hint as the correction dialog while the legacy rate has no start.
+  - An account with only an opening balance may start the legacy rate from the current month only. Once a schedule exists, the existing current-or-future rule is unchanged.
+- **Tests:**
+  - Browser (`tests/browser/interestSchedule.spec.js`, all three viewports):
+    - a mistyped year on an account with only an opening balance is refused, posts nothing and keeps the hint inside the narrow dialog;
+    - a legacy rate funded by a transfer in on 2026-10-01 refuses 2026-09 and still accepts 2026-10, posting October's interest.
+  - Unit (`tests/interestSchedule.test.js`): the bound, the opening-balance-only case, the schedule rule and the unbounded fallback.
+- **Changed test:** the existing browser test "an unscheduled legacy rate earns nothing until its start month is chosen" started a past rate on an account with only an opening balance, which L08 now limits to the current month. It now records the money on its date with a transfer in, as LEDGER-2a did. The expected interest (949 cents) is unchanged.
+- **Checks (tree merged with develop `9d393e1`, BUG-1):**
+  - `npm run test:coverage`: 522/522 (96.85% lines, 94.72% branches);
+  - `npm run test:browser`: 468/468;
+  - `npm run build`;
+  - `npm run check:android` (Hermes compilation only; no device test).
+- **Review:** a separate read-only Claude review found nothing blocking.
+  - Should-fix, fixed in `9edb458`: a past start without a bound was still unlimited and asserted by tests; a dense ternary in the form.
+  - Nits fixed in the same commit: gate the hint on a legacy rate; fund the account with a transfer in the browser test.
+  - A re-review found nothing blocking. Its test nit (pin the current-month fallback) was fixed in `ba3ca1a`.
+  - Not changed: memoizing the bound (the correction dialog computes it the same way) and splitting the combined unit test.
+- **Process note:** the first failing browser regression was run and seen failing before the fix, but both landed in one commit (`a124a61`).
+- **Not done / owner:** nothing needed. A stored schedule that already starts in a mistyped year (saved before this fix, or from a backup) is not limited here. Fixing it would be a separate owner question; nothing was asked.

@@ -10,6 +10,7 @@ import { applyTransactionImport, reviseTransactionImport } from './importReview.
 import ImportRowEditor from './ImportRowEditor.jsx';
 import CashewAccountMapping, { k_createCashewAccount } from './CashewAccountMapping.jsx';
 import { k_cashewOrdinaryType } from './cashewCsv.js';
+import { isSuggestedTransferActive } from './cashewReview.js';
 import ImportResults, { AccountBalanceReview } from './ImportResults.jsx';
 import { formatReviewRowLabel, getImportBalances, getImportResults } from './importOutcomes.js';
 import { bankTransferCounterparts } from './realBankReview.js';
@@ -318,6 +319,14 @@ export default function ImportDialog({ data, onClose }) {
                 <T style={{ fontSize: 12, color: colors.sub }}>Cashew type · {row.bank.specialType}</T>
               )}
               {row.bank?.sourceWarning && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.sourceWarning}</T>}
+              {row.bank?.scheduledNote && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.scheduledNote}</T>}
+              {row.bank?.objectiveNote && <T style={{ fontSize: 12, color: colors.sub }}>{row.bank.objectiveNote}</T>}
+              {isSuggestedTransferActive(review, row) && (
+                <T style={{ fontSize: 12, color: colors.sub }}>Suggested transfer with row {row.bank.suggestedCounterpartRow} · check or change it before importing</T>
+              )}
+              {row.bank?.sourceDetails?.budget && <T style={{ fontSize: 12, color: colors.sub }}>Cashew budget · {row.bank.sourceDetails.budget} · not imported</T>}
+              {row.bank?.sourceDetails?.objective && <T style={{ fontSize: 12, color: colors.sub }}>Cashew objective · {row.bank.sourceDetails.objective} · not imported</T>}
+              {row.bank?.sourceDetails?.extra && <T style={{ fontSize: 12, color: colors.sub }}>Cashew extra · {row.bank.sourceDetails.extra} · not imported</T>}
               {row.transaction.amount !== undefined && (
                 <T style={{ fontSize: 12, color: colors.sub }}>
                   {row.transaction.date} · {row.transaction.type || row.bank?.direction} · {displayField(reviewState, 'account', row.transaction.account)}
@@ -327,6 +336,7 @@ export default function ImportDialog({ data, onClose }) {
                 </T>
               )}
               {row.transaction.category !== undefined && <T style={{ fontSize: 12, color: colors.sub }}>{displayField(state, 'category', row.transaction.category)}</T>}
+              {row.transaction.loanId != null && <T style={{ fontSize: 12, color: colors.sub }}>Loan · {displayField(state, 'loanId', row.transaction.loanId)}</T>}
               {row.transaction.plannedCost && <T style={{ fontSize: 12, color: colors.sub }}>{displayField(state, 'plannedCost', row.transaction.plannedCost)}</T>}
               <T style={{ fontSize: 12, color: colors.sub }}>{k_statusLabels[row.status]}</T>
               {row.status === 'paired' && (

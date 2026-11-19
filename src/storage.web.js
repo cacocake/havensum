@@ -3,6 +3,8 @@ import { parseBinding } from './sharedFileBinding.js';
 import { parseMergeBaseline, parseStoredYear } from './storageSerialization.js';
 import { createPersistedStorage } from './persistedState.js';
 
+export { SavedStateChangedError } from './persistedState.js';
+
 const k_persistedStorage = createPersistedStorage(() => localStorage);
 
 export async function readSavedLedgerCopy() {
@@ -25,6 +27,19 @@ export async function writeState(state) {
     return;
   }
   await k_persistedStorage.write(k_stateStorageKey, state);
+}
+
+// Whether the saved ledger is still the one this tab last read or saved.
+export async function isSavedStateUnchanged() {
+  return isDemoSession() ? false : k_persistedStorage.isUnchangedSinceLastAccess(k_stateStorageKey);
+}
+
+// Replaces the saved ledger only if no other tab or window saved over it.
+export async function writeStateIfUnchanged(state) {
+  if (isDemoSession()) {
+    return;
+  }
+  await k_persistedStorage.writeIfUnchanged(k_stateStorageKey, state);
 }
 
 export async function readSnapshot() {

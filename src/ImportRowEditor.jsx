@@ -20,6 +20,13 @@ function selectedId(records, selectedValue) {
     || String(record.id) === selectedValue)?.id;
 }
 
+function loanPlaceholder(bank, hasLoans) {
+  if (bank.loanOptional) {
+    return 'Not a loan · classify normally';
+  }
+  return hasLoans ? 'Choose the loan for this borrowing entry' : 'Add the loan first to import this entry';
+}
+
 export default function ImportRowEditor({ transaction, state, expenses, lockAccount, bank, counterparts, pair, onUpdate, onCancel }) {
   const colors = useContext(Theme);
   const [draft, setDraft] = useState(() => ({
@@ -69,6 +76,19 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
     change('linkedId', bank && value !== '' ? JSON.parse(value) : value);
   }
 
+  function reviewedLoanId() {
+    if (bank?.loanRequired) {
+      return selectedId(state.loans, draft.loanId);
+    }
+    if (bank?.loanOptional) {
+      return isTransfer ? undefined : selectedId(state.loans, draft.loanId);
+    }
+    if (draft.type !== transaction.type) {
+      return undefined;
+    }
+    return transaction.loanId;
+  }
+
   function update() {
     try {
       const amount = bank && isTransfer ? bank.amount : parseImportAmount(draft.amount, 'euros');
@@ -89,7 +109,7 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
         linkedId: isReimbursement && draft.linkedId !== ''
           ? (bank ? draft.linkedId : selectedId(expenses, draft.linkedId) ?? draft.linkedId)
           : undefined,
-        loanId: draft.type === transaction.type ? transaction.loanId : undefined
+        loanId: reviewedLoanId()
       });
     } catch (failure) {
       setError(failure.message);
@@ -146,6 +166,12 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
       {isReimbursement && (
         <Select label="Original expense" value={bank ? (JSON.stringify(draft.linkedId) ?? '') : (draft.linkedId ?? '')}
           onChange={changeLinkedExpense} options={linkedExpenseOptions} />
+      )}
+      {(bank?.loanRequired || (bank?.loanOptional && !isTransfer)) && (
+        <Select label="Havensum loan" value={draft.loanId ?? ''} onChange={value => change('loanId', value)} options={[
+          { value: '', label: loanPlaceholder(bank, state.loans.length > 0) },
+          ...state.loans.map(loan => ({ value: loan.id, label: loan.name }))
+        ]} />
       )}
       <Field label="Note" value={draft.note} onChangeText={value => change('note', value)} multiline />
       {!!error && <T accessibilityRole="alert" style={{ color: colors.negative }}>{error}</T>}
