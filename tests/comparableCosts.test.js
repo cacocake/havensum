@@ -457,3 +457,23 @@ test('a payment settled after the occurrence counts toward it once it is recorde
   assert.deepEqual(plannedCostOccurrences(state, k_celebrations, k_today)[0],
     { month: '2025-12', status: 'completed', actual: 33000, paymentIds: ['gifts', 'card-bill'] });
 });
+
+// Owner decision L02: a payback task counts from its local creation day. In New
+// Zealand, 14 January at 19:00 UTC is already 15 January.
+test('a payback task counts from its local creation day, not its UTC day', t => {
+  const originalTimeZone = process.env.TZ;
+  process.env.TZ = 'Pacific/Auckland';
+  t.after(() => {
+    process.env.TZ = originalTimeZone;
+  });
+  const state = celebrationsState({
+    transactions: [linkedPayment({ id: 'dinner', date: '2025-12-24', amount: 18000 })],
+    paybackTasksVersion: 1,
+    paybackTasks: [{ id: 'dinner-task', expenseId: 'dinner', expectedAmount: 6000, person: 'Marina', dueDate: '', note: '',
+      createdAt: '2026-01-14T19:00:00.000Z', updatedAt: '2026-01-14T19:00:00.000Z', manuallyClosed: false, closureHistory: [] }]
+  });
+
+  const statusOn = evaluationDate => plannedCostOccurrences(state, k_celebrations, evaluationDate)[0].status;
+
+  assert.deepEqual([statusOn('2026-01-14'), statusOn('2026-01-15')], ['completed', 'awaitingPayback']);
+});

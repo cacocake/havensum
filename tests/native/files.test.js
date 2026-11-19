@@ -51,7 +51,7 @@ mock.module('expo-sharing', { exports: {
   }
 } });
 
-const { chooseFile, downloadJSON, exportExcel, readImport } = await import('../../src/files.native.js');
+const { chooseFile, downloadJSON, exportExcel, exportTransactionsCsv, readImport } = await import('../../src/files.native.js');
 
 beforeEach(() => {
   g_cachedFiles.clear();
@@ -127,4 +127,22 @@ test('native text import preserves UTF-8 CSV and recognizes uppercase JSON exten
   const state = createFinancialState({ transactions: [createTransaction()] });
   const backup = await readImport({ name: 'synthetic.JSON', text: async () => JSON.stringify(state) });
   assert.deepEqual(backup.backup, state);
+});
+
+// Owner decision L02: file names carry the phone's local date, not the UTC date.
+test('native backup and CSV file names use the local date when it differs from the UTC date', async t => {
+  const originalTimeZone = process.env.TZ;
+  process.env.TZ = 'Pacific/Auckland';
+  t.after(() => {
+    process.env.TZ = originalTimeZone;
+  });
+  // 19 November at 19:00 UTC is already 20 November in New Zealand.
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-19T19:00:00Z') });
+  const state = createFinancialState({ transactions: [createTransaction()] });
+
+  await downloadJSON(state);
+  await exportTransactionsCsv(state);
+
+  const fileNames = g_sharedFiles.map(file => file.uri.split('/').at(-1));
+  assert.deepEqual(fileNames, ['Havensum-backup-2026-11-20.json', 'Havensum-transactions-2026-11-20.csv']);
 });

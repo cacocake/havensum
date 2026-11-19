@@ -6,6 +6,7 @@ import {Buffer} from 'buffer';
 import {createWorkbook} from './workbook.js';
 import { isTextImport, parseImportContent } from './importFiles.js';
 import { createTransactionCsv, createQuickEntryTemplate, k_csvQuickGuide } from './csvExchange.js';
+import { backupFileName, transactionsCsvFileName } from './exportFileNames.js';
 export async function downloadSavedLedgerCopy(encodedLedger, fileName = 'Havensum-saved-ledger-recovery.txt') {
   await shareFile(fileName, encodedLedger, 'text/plain');
 }
@@ -18,7 +19,7 @@ async function shareFile(name, content, mimeType, encoding = FileSystem.Encoding
   await Sharing.shareAsync(uri, { mimeType, dialogTitle: 'Your Havensum data' });
 }
 export async function downloadJSON(state) {
-  const fileName = `Havensum-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  const fileName = backupFileName();
   await shareFile(fileName, JSON.stringify(state, null, 2), 'application/json');
 }
 export async function exportExcel(state, month) {
@@ -32,7 +33,7 @@ export async function exportExcel(state, month) {
   );
 }
 export async function exportTransactionsCsv(state) {
-  await shareFile(`Havensum-transactions-${new Date().toISOString().slice(0, 10)}.csv`, createTransactionCsv(state), 'text/csv');
+  await shareFile(transactionsCsvFileName(), createTransactionCsv(state), 'text/csv');
 }
 
 export async function downloadCsvTemplate() {
