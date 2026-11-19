@@ -9,9 +9,26 @@ const k_restoreMessages = Object.freeze({
   invalid: 'This backup could not be validated, so it cannot replace your ledger. Nothing was changed.'
 });
 
+export class RestoreRefusedError extends Error {}
+
 function isLedgerBackup(data) {
-  return data !== null && typeof data === 'object' && !Array.isArray(data)
-    && data.version !== undefined && k_ledgerCollections.every(collection => Array.isArray(data[collection]));
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) {
+    return false;
+  }
+  if (data.version === undefined) {
+    return false;
+  }
+  return k_ledgerCollections.every(collection => Array.isArray(data[collection]));
+}
+
+// Warnings a backup already carried join this restore's own review, so the
+// owner reviews every uncategorized row once.
+function withCarriedWarnings(missingCategories, carriedWarnings) {
+  const warnings = new Map((Array.isArray(carriedWarnings) ? carriedWarnings : []).map(warning => [warning.transactionId, warning]));
+  for (const warning of missingCategories) {
+    warnings.set(warning.transactionId, warning);
+  }
+  return [...warnings.values()];
 }
 
 export function restoreSummary(state) {
@@ -22,7 +39,8 @@ export function restoreSummary(state) {
     loans: state.loans.length,
     events: state.events.length,
     planYears: plannedYears(state).map(year => ({ year, revisions: planRevisions(state, year).length })),
-    scheduledRateAccounts: state.accounts.filter(account => account.interestSchedule?.length).length
+    scheduledRateAccounts: state.accounts.filter(account => account.interestSchedule?.length).length,
+    accountNames: state.accounts.map(account => account.name)
   };
 }
 
@@ -33,22 +51,23 @@ export function prepareFullRestore(fileText, currentState = null) {
   try {
     data = JSON.parse(fileText);
   } catch {
-    throw new SyntaxError(k_restoreMessages.unreadable);
+    throw new RestoreRefusedError(k_restoreMessages.unreadable);
   }
   if (!isLedgerBackup(data)) {
-    throw new SyntaxError(k_restoreMessages.notLedger);
+    throw new RestoreRefusedError(k_restoreMessages.notLedger);
   }
   let restoredState;
   let missingCategories;
   try {
     const reviewable = clearMissingTransactionCategories(data);
-    missingCategories = reviewable.missingCategories;
-    restoredState = migrateState(reviewable.state);
+    missingCategories = withCarriedWarnings(reviewable.missingCategories, data.migrationCategoryWarnings);
+    const { migrationCategoryWarnings, ...restorableState } = reviewable.state;
+    restoredState = migrateState(restorableState);
   } catch (error) {
     if (error instanceof UnsupportedStateVersionError) {
-      throw new SyntaxError(k_restoreMessages.futureVersion);
+      throw new RestoreRefusedError(k_restoreMessages.futureVersion);
     }
-    throw new SyntaxError(k_restoreMessages.invalid);
+    throw new RestoreRefusedError(k_restoreMessages.invalid);
   }
   return {
     restoredState,
@@ -58,7 +77,8 @@ export function prepareFullRestore(fileText, currentState = null) {
   };
 }
 
-// A preview only applies to the ledger it was compared with.
+// A preview only applies to the ledger it was compared with. Without a
+// recorded basis it is never treated as current.
 export function isRestorePreviewCurrent(preview, currentState) {
   return preview.basis === JSON.stringify(currentState);
 }

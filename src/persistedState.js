@@ -6,6 +6,10 @@ function invalidCopyKey(key, index) {
   return index === 0 ? prefix : `${prefix}:${index}`;
 }
 
+function keptCopyKey(key, index) {
+  return index === 0 ? key : `${key}:${index}`;
+}
+
 function latestInvalidCopyIndexKey(key) {
   return `${key}:recovery:invalid:latest-index`;
 }
@@ -92,6 +96,27 @@ export function createPersistedStorage(getStorage) {
           const copy = await storage.getItem(invalidCopyKey(key, index));
           if (copy === null) {
             return latest;
+          }
+          latest = copy;
+        }
+      });
+    },
+    // Keeps every distinct copy under `key`, `key:1`, `key:2`… and never
+    // overwrites an earlier one.
+    writeKeptCopy(key, state) {
+      const encodedState = JSON.stringify(migrateState(state));
+      return enqueue(async () => {
+        await retainRecoveryCopy(getStorage(), index => keptCopyKey(key, index), encodedState);
+      });
+    },
+    readLatestKeptCopy(key) {
+      return enqueue(async () => {
+        const storage = getStorage();
+        let latest = null;
+        for (let index = 0; ; index += 1) {
+          const copy = await storage.getItem(keptCopyKey(key, index));
+          if (copy === null) {
+            return latest === null ? null : migrateState(JSON.parse(latest));
           }
           latest = copy;
         }

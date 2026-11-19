@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isRestorePreviewCurrent, prepareFullRestore } from '../src/fullRestore.js';
 import { buildPlan } from '../src/planning.js';
+import { prepareLoadedLedger } from '../src/startupLedger.js';
 import { readRestoreRecovery, writeRestoreRecovery, readImportRecovery, writeImportRecovery, readMergeRecovery } from '../src/storage.web.js';
 import { installBrowserStorage } from './helpers/browserStorage.js';
 import { createFinancialState, createTransaction, planArchiveOf } from './helpers/financialFixtures.js';
@@ -31,7 +32,8 @@ test('a current backup is validated and summarised before anything is replaced',
   assert.deepEqual(preview.missingCategories, []);
   assert.deepEqual(preview.summary, {
     accounts: 2, transactions: 2, categories: backup.categories.length, loans: 0, events: 0,
-    planYears: [{ year: 2026, revisions: 1 }, { year: 2027, revisions: 1 }], scheduledRateAccounts: 1
+    planYears: [{ year: 2026, revisions: 1 }, { year: 2027, revisions: 1 }], scheduledRateAccounts: 1,
+    accountNames: ['Everyday', 'Reserve']
   });
 });
 
@@ -91,4 +93,38 @@ test('the pre-restore copy is kept apart from import and merge recovery', async 
   assert.deepEqual(await readRestoreRecovery(), deviceLedger);
   assert.deepEqual(await readImportRecovery(), importCopy);
   assert.equal(await readMergeRecovery(), null);
+});
+
+test('every distinct pre-restore copy is kept, so restoring twice cannot lose the original ledger', async context => {
+  const storage = installBrowserStorage(context);
+  const original = createFinancialState({ transactions: [createTransaction({ id: 'original' })] });
+  const wrongBackup = createFinancialState({ transactions: [createTransaction({ id: 'wrong' })] });
+
+  await writeRestoreRecovery(original);
+  await writeRestoreRecovery(wrongBackup);
+  await writeRestoreRecovery(wrongBackup);
+
+  assert.deepEqual(await readRestoreRecovery(), wrongBackup);
+  assert.deepEqual(JSON.parse(storage.getItem('havensum-restore-recovery-v1')), original);
+  assert.deepEqual(JSON.parse(storage.getItem('havensum-restore-recovery-v1:1')), wrongBackup);
+  assert.equal(storage.getItem('havensum-restore-recovery-v1:2'), null);
+});
+
+test('a restored ledger gets the same startup preparation as a loaded one', () => {
+  const backup = createFinancialState({ accounts: [{ id: 'reserve', name: 'Reserve', tag: 'Savings', openingBalance: 100000, interestSchedule: [{ since: '2026-09', rate: 12 }] }] });
+
+  const prepared = prepareLoadedLedger(backup, '2026-11');
+
+  assert.deepEqual(prepared.transactions.map(transaction => transaction.date), ['2026-09-30', '2026-10-31']);
+});
+
+test('category warnings carried in a backup join the restore review and are cleared from the restored ledger', () => {
+  const backup = backupLedger();
+  backup.transactions[1].category = null;
+  backup.migrationCategoryWarnings = [{ transactionId: 'two', categoryId: 'old-category' }];
+
+  const preview = prepareFullRestore(JSON.stringify(backup));
+
+  assert.deepEqual(preview.missingCategories, [{ transactionId: 'two', categoryId: 'old-category' }]);
+  assert.equal(preview.restoredState.migrationCategoryWarnings, undefined);
 });

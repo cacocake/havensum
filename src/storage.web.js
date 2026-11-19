@@ -88,17 +88,17 @@ export async function writePlanInvitationDeferral(year) {
   localStorage.setItem(k_planInvitationDeferralKey, String(year));
 }
 
-// The device ledger as it was before a full restore replaced it.
+// The device ledger as it was before each full restore. Every distinct copy is kept.
 export async function writeRestoreRecovery(state) {
   if (isDemoSession()) {
     return;
   }
-  await k_persistedStorage.write(k_restoreRecoveryStorageKey, state, { recoverInvalid: true });
+  await k_persistedStorage.writeKeptCopy(k_restoreRecoveryStorageKey, state);
 }
 
 export async function readRestoreRecovery() {
   if (isDemoSession()) {
     return null;
   }
-  return k_persistedStorage.read(k_restoreRecoveryStorageKey);
+  return k_persistedStorage.readLatestKeptCopy(k_restoreRecoveryStorageKey);
 }

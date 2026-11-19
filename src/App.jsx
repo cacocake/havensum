@@ -7,9 +7,9 @@ import {Squish,ConfettiNotice} from './Playful.jsx';
 import {AppContext} from './context.js';
 import {useInsets} from './insets';
 import {useHavensumFonts} from './fonts';
-import {upgradeCategoryVisuals} from './categoryVisuals.js';
+import { prepareLoadedLedger } from './startupLedger.js';
 import {seed} from './seed.js';
-import {compoundSavings, monthOf} from './engine.js';
+import {monthOf} from './engine.js';
 import {readState,writeState,readSavedLedgerCopy} from './storage';
 import { downloadSavedLedgerCopy } from './files';
 import Dashboard from './Dashboard.jsx';
@@ -56,7 +56,7 @@ export default function App(){
    try {
      const currentMonth = monthOf(new Date().toISOString());
      const initialState = savedState || seed();
-     setState(upgradeCategoryVisuals(compoundSavings(initialState, currentMonth)));
+     setState(prepareLoadedLedger(initialState, currentMonth));
      setCategoryReviewOpen(Boolean(initialState.migrationCategoryWarnings?.length));
    } catch {
      // An invalid saved structure must not be replaced with sample state either.

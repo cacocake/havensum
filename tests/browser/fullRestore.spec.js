@@ -60,6 +60,9 @@ test('a reviewed restore replaces the ledger only after confirmation and keeps t
   const summary = dialog.getByTestId('restore-summary');
   await expect(summary.getByText('Transactions', { exact: true })).toBeVisible();
   await expect(dialog.getByText('Archived plans in the backup: 2026 (1 revision).', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Archived plans on this device: none.', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Accounts in the backup: Everyday, Reserve.', { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('Transactions: 1 on this device, 2 in the backup', { exact: true })).toBeVisible();
   const restore = dialog.getByRole('button', { name: 'Restore this backup', exact: true });
   await expect(restore).toBeDisabled();
   expect(await stored(page, k_ledgerKey)).toBe(ledgerBefore);
@@ -69,7 +72,13 @@ test('a reviewed restore replaces the ledger only after confirmation and keeps t
   await expect(dialog).toHaveCount(0);
   await expect(page.getByText('Backup restored. Your previous ledger is kept as a pre-restore copy.', { exact: true })).toBeVisible();
 
-  expect(JSON.parse(await stored(page, k_ledgerKey))).toEqual(currentBackup());
+  const restoredLedger = JSON.parse(await stored(page, k_ledgerKey));
+  const backupIds = currentBackup().transactions.map(transaction => transaction.id);
+  expect(restoredLedger.transactions.filter(transaction => backupIds.includes(transaction.id))).toEqual(currentBackup().transactions);
+  // Interest for completed months is caught up at once, as it is at startup.
+  expect(restoredLedger.transactions.filter(transaction => transaction.title === 'Savings interest').map(transaction => transaction.date.slice(0, 7)))
+    .toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10']);
+  expect({ ...restoredLedger, transactions: [] }).toEqual({ ...currentBackup(), transactions: [] });
   expect(JSON.parse(await stored(page, k_restoreRecoveryKey))).toEqual(JSON.parse(ledgerBefore));
   expect(JSON.parse(await stored(page, k_baselineKey))).toEqual(baseline);
   await page.reload();
@@ -159,3 +168,18 @@ for (const [failingKey, message] of [
     await expect(page.getByLabel('View Device purchase', { exact: true })).toBeVisible();
   });
 }
+
+test('a ledger saved by another tab after the preview makes the preview stale', async ({ page }) => {
+  await openSettings(page);
+  await chooseBackupFile(page, JSON.stringify(currentBackup()));
+  const otherTabLedger = JSON.stringify({ ...deviceLedger(), theme: 'dark' });
+  await page.evaluate(({ key, bytes }) => localStorage.setItem(key, bytes), { key: k_ledgerKey, bytes: otherTabLedger });
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('switch', { name: "Replace this device's ledger", exact: true }).click();
+  await dialog.getByRole('button', { name: 'Restore this backup', exact: true }).click();
+
+  await expect(page.getByText('Your ledger changed after this preview. Choose the backup again to review it against the current ledger.', { exact: true })).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+  expect(await stored(page, k_ledgerKey)).toBe(otherTabLedger);
+  expect(await stored(page, k_restoreRecoveryKey)).toBeNull();
+});
