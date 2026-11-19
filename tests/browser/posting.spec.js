@@ -89,6 +89,20 @@ test.describe('west of UTC in the evening', () => {
   });
 });
 
+test.describe('west of UTC on New Year\'s Eve', () => {
+  test.use({ timezoneId: 'America/Los_Angeles' });
+
+  test('a new loan starts in the local month and its default end keeps that month', async ({ page }) => {
+    // 21:00 on 31 December in Los Angeles is already 1 January in UTC.
+    await openWithLedger(page, createFinancialState(), '2027-01-01T05:00:00Z');
+    await openMoreSection(page, 'Loans');
+    await page.getByRole('button', { name: 'Add loan', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByLabel('Start month · YYYY-MM', { exact: true })).toHaveValue('2026-12');
+    await expect(dialog.getByLabel('Last month · YYYY-MM', { exact: true })).toHaveValue('2029-12');
+  });
+});
+
 test.describe('east of UTC just after midnight', () => {
   test.use({ timezoneId: 'Pacific/Auckland' });
 
