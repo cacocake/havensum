@@ -182,7 +182,7 @@ test('an edit made while sync progress is being saved is kept and later saves in
   await assert.rejects(saveProgress({ state: synced, binding: createBinding('file-1', { revision: 'rev-3', snapshots: [] }) }), StaleLedgerError);
 });
 
-test('an edit during the save that collides with a synced change is not decided: the previous ledger and link come back for review', async context => {
+test('an edit during the save that collides with a synced change is not decided: the edit is saved with the previous link for review', async context => {
   installBrowserStorage(context);
   const snapshot = createFinancialState({ transactions: [createTransaction({ amount: 1000 })] });
   const snapshotBinding = createBinding('file-1', { revision: 'rev-1', snapshots: [] });
@@ -211,7 +211,7 @@ test('an edit during the save that collides with a synced change is not decided:
   await assert.rejects(saveProgress({ state: fromPartner, binding: createBinding('file-1', { revision: 'rev-2', snapshots: [] }) }), StaleLedgerError);
   assert.equal(adopted, false);
   assert.equal(appLedger, editedDuringSave);
-  assert.equal((await webStorage.readState()).transactions[0].amount, 1000);
+  assert.equal((await webStorage.readState()).transactions[0].amount, 2000);
   assert.equal((await webStorage.readSharedFileBinding()).lastSeenRevision, 'rev-1');
 });
 

@@ -130,12 +130,12 @@ export class StaleLedgerError extends Error {
 // Saving takes time, so the person may edit meanwhile. An edit that fits with
 // the saved ledger is merged onto it. An edit that collides with a change the
 // sync brought in (same field, or edit versus delete) is never decided here:
-// the previous ledger and link are put back, the edit stays in the app, and
+// the app's ledger (with the edit) is saved with the previous link, and
 // the next sync offers the collision for review. Either way, later saves in
 // this sync are refused so the edit is sent by the next sync.
 export function createSyncProgressSaver({ storage, snapshotState, snapshotBinding, readCurrentState, adoptSavedState }) {
   let expectedState = snapshotState;
-  let lastSaved = { state: snapshotState, binding: snapshotBinding };
+  let lastSavedBinding = snapshotBinding;
   return async function saveProgress({ state, binding }) {
     if (!isSameLedger(readCurrentState(), expectedState)) {
       throw new StaleLedgerError();
@@ -145,17 +145,19 @@ export function createSyncProgressSaver({ storage, snapshotState, snapshotBindin
     if (isSameLedger(currentState, expectedState)) {
       adoptSavedState(state);
       expectedState = state;
-      lastSaved = { state, binding };
+      lastSavedBinding = binding;
       return;
     }
     const merge = mergeSharedLedgers(expectedState, currentState, state);
     if (merge.conflicts.length) {
-      await storage.writeStateWithSharedFileBinding(lastSaved.state, lastSaved.binding);
+      // The app's ledger is the previous saved ledger plus the person's edits,
+      // so it fits the previous link and keeps the edit saved.
+      await storage.writeStateWithSharedFileBinding(readCurrentState(), lastSavedBinding);
       throw new StaleLedgerError();
     }
     adoptSavedState(withDeviceKeys(merge.result, currentState));
     expectedState = state;
-    lastSaved = { state, binding };
+    lastSavedBinding = binding;
   };
 }
 
