@@ -15,6 +15,10 @@ const k_borrowingMessages = Object.freeze({
   repayment: 'Record a borrowing repayment as an expense in the loan category.'
 });
 const k_objectiveLoanNote = 'This Cashew objective may be a loan. Pick the Havensum loan to record proceeds or a repayment, or classify it normally.';
+const k_loanMeanings = Object.freeze({
+  credit: 'Loan money received · adds to this account, never income',
+  debit: 'Payment on the loan · a repayment expense in the loan category'
+});
 const k_scheduledNote = 'From a scheduled Cashew entry exported as paid.';
 const k_transferNoteHeading = 'Transferred Balance';
 const k_transferRouteSeparator = '→';
@@ -189,4 +193,9 @@ export function isSuggestedTransferActive(review, row) {
     return false;
   }
   return review.rows[counterpartIndex]?.sourceRow === suggestedRow;
+}
+
+// K13: the sign follows the cash, so it alone decides what a loan-linked row becomes.
+export function loanMeaning(bank) {
+  return k_loanMeanings[bank.direction];
 }

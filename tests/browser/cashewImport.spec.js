@@ -110,6 +110,7 @@ test('a Cashew row with an objective shows its extra and may be recorded against
   await dialog.getByLabel('Type', { exact: true }).selectOption('expense');
   await dialog.getByLabel('Category', { exact: true }).selectOption('loan');
   await dialog.getByLabel('Havensum loan', { exact: true }).selectOption({ label: 'Car loan' });
+  await expect(dialog.getByText('Payment on the loan · a repayment expense in the loan category', { exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'Update draft', exact: true }).click();
   await expect(dialog.getByText('Loan · Car loan', { exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'Import transactions', exact: true }).click();

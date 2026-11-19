@@ -6,6 +6,7 @@ import { k_spendingBehaviors, k_transactionTypes } from './domainConstants.js';
 import { euro } from './money.js';
 import { bankClassificationAllows } from './realBankReview.js';
 import { k_cashewCsvProfile } from './cashewCsv.js';
+import { loanMeaning } from './cashewReview.js';
 
 const k_transactionOptions = [
   { value: k_transactionTypes.expense, label: 'Expense' },
@@ -172,6 +173,9 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
           { value: '', label: loanPlaceholder(bank, state.loans.length > 0) },
           ...state.loans.map(loan => ({ value: loan.id, label: loan.name }))
         ]} />
+      )}
+      {(bank?.loanRequired || (bank?.loanOptional && !isTransfer)) && draft.loanId && (
+        <T style={{ fontSize: 12, color: colors.sub }}>{loanMeaning(bank)}</T>
       )}
       <Field label="Note" value={draft.note} onChangeText={value => change('note', value)} multiline />
       {!!error && <T accessibilityRole="alert" style={{ color: colors.negative }}>{error}</T>}
