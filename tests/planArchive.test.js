@@ -266,7 +266,7 @@ test('revision numbers must be positive and increase within a year', async conte
   installBrowserStorage(context);
   const state = createFinancialState();
   const first = snapshot('plan-2026-a', 2026, 1, 100);
-  for (const revisions of [[{ ...first, revision: 0 }], [first, snapshot('plan-2026-b', 2026, 1, 200)]]) {
+  for (const revisions of [[{ ...first, revision: -1 }], [{ ...first, revision: 1.5 }], [first, snapshot('plan-2026-b', 2026, 1, 200)], [first, { ...snapshot('plan-2026-c', 2026, 2, 200), revision: 0 }]]) {
     await assert.rejects(writeState({ ...state, plans: { 2026: revisions } }), SyntaxError);
   }
 });
@@ -307,5 +307,19 @@ test('approval without a valid start month is rejected explicitly', () => {
   const draft = buildPlan(state, { year: 2026, fromMonth: 11, income: 1, cushion: 0 });
   for (const fromMonth of [undefined, 0, 13, 1.5]) {
     assert.throws(() => approvePlanRevision(state, draft, { id: 'plan-x', fromMonth, today: k_today }), /start month/);
+  }
+});
+
+test('legacy plans stored with a zero or null revision still open and save after migration', async context => {
+  for (const storedRevision of [0, null]) {
+    const storage = installBrowserStorage(context);
+    const legacyState = createLegacyLedger();
+    legacyState.plan.revision = storedRevision;
+    storage.setItem('melo-state-v1', JSON.stringify(legacyState));
+
+    const loadedState = await readState();
+    await writeState({ ...loadedState, theme: 'dark' });
+
+    assert.equal(latestPlan(await readState(), 2026).revision, storedRevision);
   }
 });

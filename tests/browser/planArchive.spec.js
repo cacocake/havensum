@@ -140,7 +140,7 @@ test('same-year plan histories with the same revision number need a choice and k
   }, { keys: { ledger: k_ledgerKey, baseline: k_baselineKey }, baseline, local });
   await page.goto('/');
   const review = await reviewBackup(page, remote);
-  await expect(review.getByText('2026 plan · revision history', { exact: true })).toBeVisible();
+  await expect(review.getByText('2026 plan · revision history', { exact: false })).toBeVisible();
   const apply = review.getByRole('button', { name: 'Apply reviewed merge', exact: true });
   await expect(apply).toBeDisabled();
   await review.getByText('BACKUP FILE', { exact: true }).click();

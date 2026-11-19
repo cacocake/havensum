@@ -78,8 +78,9 @@ function validatePlanArchive(plans) {
     let previousRevisionNumber = null;
     for (const revision of revisions) {
       validatePlan(revision);
-      // A migrated legacy plan may lack a number; it counts as revision 0.
-      const isMigratedWithoutNumber = previousRevisionNumber === null && revision.revision === undefined;
+      // Legacy plans were not required to carry a number. A first snapshot
+      // without one (missing, null or 0) counts as revision 0.
+      const isMigratedWithoutNumber = previousRevisionNumber === null && (revision.revision ?? 0) === 0;
       const revisionNumber = isMigratedWithoutNumber ? 0 : revision.revision;
       requireValid(isMigratedWithoutNumber || (Number.isSafeInteger(revisionNumber) && revisionNumber > 0), 'plan revision number');
       requireValid(previousRevisionNumber === null || revisionNumber > previousRevisionNumber, 'plan revision numbers must increase');

@@ -61,7 +61,7 @@ function mergeConflictTitle(conflict) {
     return `Payback task · ${conflict.id}`;
   }
   if (conflict.field === k_planYearConflictField) {
-    return `${conflict.id} plan · revision history`;
+    return `${conflict.id} plan · revision history (the chosen side replaces this year's whole history)`;
   }
   return `${conflict.collection} · ${conflict.id} · ${conflict.field === '$record' ? 'Edit vs. delete' : conflict.field}`;
 }
