@@ -142,13 +142,13 @@ Test installation and upgrade, offline startup, storage recovery, file picker an
 
 ### DRIVE-1 · Shared-file decisions
 
-**Needs:** Owner decisions on OAuth and sign-in, file ownership and discovery, revocation, and personal-account visibility.
+**Status:** Decided (owner answers G01–G10 in DECISIONS.md, 19 November 2026); see the DRIVE-1 handoff at the end. The access model is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md). Real-account verification of the access model moves to DRIVE-2, before any transport is implemented.
 
-Document who can find, read, and update the file and how access changes. Verify the agreed access model before implementing transport.
+Document who can find, read, and update the file and how access changes.
 
 ### DRIVE-2 · Shared Drive sync
 
-**Depends on:** DRIVE-1.
+**Depends on:** DRIVE-1 (decided). **Blocked on:** the owner's Google Cloud setup: a project with the Drive and Picker APIs, an External consent screen with only `drive.file` and both owners as test users, OAuth client IDs for Android (final package + SHA-1 of each signing key, so it also needs ANDROID-1) and web (authorized JavaScript origins), a Picker API key and the project number. Both owners' accounts are needed for the two-person checks. The full list is in [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md#drive-2-blocker-setup-the-owner-must-provide).
 
 Use the reviewed merge engine with revision-aware writes, offline retry and recovery, and visible conflict review. Verify two devices with independent edits, same-field edits, deletion, concurrent plan revisions, interrupted writes, and stale writes. Confirm the agreed account visibility.
 
@@ -308,7 +308,7 @@ The implementation note below records how these were built; it stores only per-y
   1. A late payment dated after today for a past planned cost (F15) is shown as Scheduled in that past month, but Expected for the past month and the year total leaves it out until its date. Should it count in Expected before its date?
   2. A payback recorded with a future date is shown as Scheduled but does not lower Expected spending until it arrives. Should a recorded future payback lower the prediction before its date?
   3. Home's Recent activity sorts newest date first, so several bills dated later this month can push today's entries out of the top five. Keep this, or show scheduled entries in their own "Upcoming" group?
-  4. L02: please confirm that the local date also drives the app's starting month and the default dates of new entries and loans (implemented that way).
+  4. L02: please confirm that the local date also drives the app's starting month and the default dates of new entries and loans (implemented that way). **Answered (19 November 2026): confirmed; the phone's local date is used everywhere.** Done on `codex/confirm-l02-local-date`: backup and transaction CSV file names (web and Android, through `src/exportFileNames.js`), a payback task's creation day in planned-cost evidence, and the dates shown for a frozen plan's approval, plan revisions and a payback closed without payment (through `localDateOfTimestamp` in `src/calendar.js`) now use the local date too. Imported Cashew/bank dates keep the date written in the file. An unreadable stored timestamp shows the existing "not recorded" text. The revision label in a merge-conflict review is covered through the shared helper's unit test, not a browser flow. UTC stays only where it is exact by design: stored timestamps and checks that a typed date such as 2026-11-19 is a real calendar date.
   5. Savings interest still posts only when the app starts or a backup is restored. An app left open across a month end shows the new month's balances but posts last month's interest only on the next start. Is that acceptable?
   6. The xlsx export's month summary and drift alerts were treated as monthly reports (posted entries only); raw transaction exports keep every entry. Confirm.
 - **Paybacks screen:** a later payback shows *Scheduled payback · counts from <date>*; the original's net and the header total count received paybacks only.
@@ -344,3 +344,35 @@ The implementation note below records how these were built; it stores only per-y
   5. In the import row editor a negative correction row cannot be edited (it can be imported or skipped).
 - **Review:** separate read-only Claude review (two blocking defects: an unscheduled legacy rate and a re-dated app entry each produced an unsaveable ledger; four should-fix items: backup/workbook round trips, repeated correction numbers, startup posting over corrected months, a typed rate ignored by Apply), then two focused re-reviews (two should-fix leftovers fixed in `870e6a0`); the last found no blocking or should-fix issues. All fixes were test-first.
 - **Not done (nits):** a correction cancelling an app entry re-dated into the next month is still dated in its own month, so that month's end balance dips until the re-dated entry's date; the review is not bounded in time (question 4); an older app build would report a ledger holding a negative correction as unreadable rather than as a newer version (all devices should run the same build).
+
+## Session handoff — DRIVE-1 (19 November 2026, Claude cloud session)
+
+- **Owner answers (multiple choice; the recommended option was chosen each time):**
+  - `drive.file` only (G01).
+  - Either person creates the file and shares it with the partner as editor. The partner picks it once in Google's picker (G02). The creator stays owner (G03).
+  - Sign-out or revocation keeps local data and pauses sync (G04).
+  - Everything except per-device display preferences is shared with both people (G05).
+  - Theme and display preferences stay per device (G06).
+- **Follow-up answers after review:**
+  - Create is blocked while example data is loaded (G07).
+  - A joining partner with local entries either adopts the file (after a recovery copy) or merges with a review of every one-sided record (G08).
+  - Setup offers Open first, and Create warns to check with the partner (G09).
+  - Sync runs automatically, with a Sync now button and a web Reconnect state (G10).
+- **Documents:**
+  - DECISIONS.md section "DRIVE-1" (G01–G10).
+  - [DRIVE_ACCESS_MODEL.md](DRIVE_ACCESS_MODEL.md): who can find, read and update the file; how access changes; transport constraints; what DRIVE-2 must verify; the owner's Cloud setup.
+- **Research limits:**
+  - Google's facts came from search results of the official pages. This session's network could not open developers.google.com or support.google.com directly.
+  - Not documented, so DRIVE-2 must verify:
+    - whether `drive.file` grants survive revocation and re-consent;
+    - the Android desktop/mobile Picker's redirect and client requirements;
+    - whether an unverified-app screen appears with only a non-sensitive scope.
+  - Drive v3 documents no conditional (If-Match) writes, so the write protocol cannot assume compare-and-swap.
+- **Open for DRIVE-2 (owner to confirm):** does a joining device that holds only the example data adopt the shared file without the adopt-or-merge choice?
+- **Not done:** no Drive code was written (out of scope for this ticket). Nothing is verified with real accounts. S03 (baseline/revision protocol) and the first-join merge for a partner who already has local data are DRIVE-2 design work.
+- **Review:** a separate read-only Claude review checked the docs against the codebase and Google's documentation. It could not fetch Google's pages either, so it checked against known documentation. It found no blocking defects. It raised five should-fix items: the empty-baseline merge was described wrongly; theme/device keys conflicted with "same as the backup"; and three unrecorded owner choices (demo data, two files, sync timing and first join), which the owner then answered as G07–G10. It also raised four nits. Two re-reviews followed; their items were fixed in `754e18d` and `8d7e7f6`. The last re-review found nothing blocking or should-fix.
+- **Checks:** this change is docs only. Develop gained the F16 follow-up code, so every check was rerun after merging the latest `origin/develop` (`75a8108`) into the branch:
+  - `npm run test:coverage` 432/432 with thresholds met (96.4% lines, 94.5% branches);
+  - `npm run test:browser` 402/402;
+  - `npm run build`;
+  - `npm run check:android` (Hermes compilation only; no device test).

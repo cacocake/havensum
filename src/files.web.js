@@ -1,13 +1,16 @@
 import {createWorkbook} from './workbook.js';
 import { isTextImport, parseImportContent } from './importFiles.js';
 import { createTransactionCsv, createQuickEntryTemplate, k_csvQuickGuide } from './csvExchange.js';
+import { backupFileName, transactionsCsvFileName } from './exportFileNames.js';
 import {euro,monthStats,accountBalance,categorySettings} from './engine.js';
 export function downloadSavedLedgerCopy(encodedLedger, fileName = 'Havensum-saved-ledger-recovery.txt') {
   download(new Blob([encodedLedger], { type: 'text/plain' }), fileName);
 }
-export function downloadJSON(state){download(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),`Havensum-backup-${new Date().toISOString().slice(0,10)}.json`);}
+export function downloadJSON(state) {
+  download(new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' }), backupFileName());
+}
 export async function exportTransactionsCsv(state) {
-  download(new Blob([createTransactionCsv(state)], { type: 'text/csv;charset=utf-8' }), `Havensum-transactions-${new Date().toISOString().slice(0, 10)}.csv`);
+  download(new Blob([createTransactionCsv(state)], { type: 'text/csv;charset=utf-8' }), transactionsCsvFileName());
 }
 
 export async function downloadCsvTemplate() {
