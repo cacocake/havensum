@@ -1,4 +1,4 @@
-import React,{useContext,useState} from 'react';
+import React,{useContext,useEffect,useState} from 'react';
 import {View} from 'react-native';
 import {useApp} from './context.js';
 import {Theme,T,H,Row,Button,Badge,Card,Empty,TileIcon} from './ui.jsx';
@@ -11,7 +11,9 @@ import ExpectedCosts from './ExpectedCosts.jsx';
 import OutlookSettings from './OutlookSettings.jsx';
 import MonthComparison from './MonthComparison.jsx';
 import { k_planRevisionStartKinds, latestPlan, planRevisionStart, planRevisions, plannedMonth, selectedPlan } from './planArchive.js';
-import { localCalendarDate, yearOfMonth } from './calendar.js';
+import { localCalendarDate, monthOf, yearOfMonth } from './calendar.js';
+import { planInvitationYear } from './planInvitation.js';
+import { readPlanInvitationDeferral, writePlanInvitationDeferral } from './storage';
 import { k_defaultHistoryWindow } from './domainConstants.js';
 const dateName=m=>new Date(m+'-01T12:00:00').toLocaleString('en',{month:'long',year:'numeric'});
 const signed=n=>(n>=0?'+':'−')+euro(Math.abs(n));
@@ -29,6 +31,7 @@ export default function PlanScreen(){
  const variance=forecast?.variance||0,positive=variance>=0;
  const tabs=['This month','Averages','Year ahead'];
  return <View style={{gap:19}}>
+  <PlanInvitation/>
   <Row style={{backgroundColor:c.soft,borderRadius:19,padding:4,gap:3}}>{tabs.map(name=><Squish key={name} accessibilityLabel={`Plan ${name}`} accessibilityState={{selected:tab===name}} onPress={()=>setTab(name)} style={{flex:1,minHeight:49,alignItems:'center',justifyContent:'center',padding:5,borderRadius:15,backgroundColor:tab===name?c.card:'transparent'}}><T style={{fontSize:12,fontWeight:tab===name?'700':'500',textAlign:'center',color:tab===name?c.text:c.sub}}>{name}</T></Squish>)}</Row>
   {tab==='This month'&&<>
   {forecast?<Card style={{padding:23,backgroundColor:c.cream,borderColor:'transparent',overflow:'hidden'}}>
@@ -66,4 +69,50 @@ function PlanRevisionPicker({ revisions, shownId, onSelect, color }) {
       </Squish>;
     })}
   </Row>;
+}
+
+// Offers the yearly interview when the current year has no plan. Later hides it
+// for this calendar year on this installation; no financial record changes.
+function PlanInvitation() {
+  const { state, setMonth, setModal, notify } = useApp();
+  const colors = useContext(Theme);
+  const [deferral, setDeferral] = useState({ loaded: false, year: null });
+  useEffect(() => {
+    let active = true;
+    readPlanInvitationDeferral()
+      .then(year => active && setDeferral({ loaded: true, year }))
+      .catch(() => active && setDeferral({ loaded: true, year: null }));
+    return () => {
+      active = false;
+    };
+  }, []);
+  if (!deferral.loaded) {
+    return null;
+  }
+  const today = localCalendarDate();
+  const invitedYear = planInvitationYear(state, { today, deferredYear: deferral.year });
+  if (invitedYear === null) {
+    return null;
+  }
+  function startInterview() {
+    setMonth(monthOf(today));
+    setModal({ type: 'plan' });
+  }
+  async function deferInterview() {
+    try {
+      await writePlanInvitationDeferral(invitedYear);
+      setDeferral({ loaded: true, year: invitedYear });
+      notify(`Plan invitation hidden for ${invitedYear}. You can still build a plan any time.`);
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+  return <Card testID="plan-invitation" style={{ padding: 21, backgroundColor: colors.soft, borderColor: 'transparent' }}>
+    <Row style={{ gap: 9 }}><Icon name="Sparkles" size={18} color={colors.accentText}/><H size={21} style={{ flex: 1 }}>Ready to plan {invitedYear}?</H></Row>
+    <T style={{ fontSize: 12, color: colors.sub, marginTop: 10, marginBottom: 16 }}>A short three-step interview builds a draft from your history. Nothing is saved until you freeze it.</T>
+    <Row style={{ gap: 10, flexWrap: 'wrap' }}>
+      <Button small icon="ArrowRight" onPress={startInterview}>Start the {invitedYear} interview</Button>
+      <Button small kind="soft" onPress={deferInterview} accessibilityLabel={`Ask me later in ${invitedYear}`}>Later</Button>
+    </Row>
+  </Card>;
 }

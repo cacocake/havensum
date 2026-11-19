@@ -95,6 +95,16 @@ test('native merge recovery keeps the pre-merge ledger apart from import recover
   assert.deepEqual(await readImportRecovery(), importRecovery);
 });
 
+test('native plan invitation deferral is kept apart from the ledger', async () => {
+  const { readPlanInvitationDeferral, writePlanInvitationDeferral } = await import('../../src/storage.native.js');
+  const state = createFinancialState();
+  await writeState(state);
+  assert.equal(await readPlanInvitationDeferral(), null);
+  await writePlanInvitationDeferral(2027);
+  assert.equal(await readPlanInvitationDeferral(), 2027);
+  assert.deepEqual(await readState(), state);
+});
+
 test('native storage retains legacy state and baseline independently', async () => {
   const state = createFinancialState();
   const snapshot = createFinancialState({ theme: 'dark' });
