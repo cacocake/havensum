@@ -71,10 +71,10 @@ function PlanRevisionPicker({ revisions, shownId, onSelect, color }) {
   </Row>;
 }
 
-// Offers the yearly interview when the current year has no plan. Later hides it
-// for this calendar year on this installation; no financial record changes.
 const k_deferralNotSavedMessage = 'Hidden for now. This device could not remember the choice, so the invitation may return.';
 
+// Offers the yearly interview when the current year has no plan. Later hides it
+// for this calendar year on this installation; no financial record changes.
 function PlanInvitation() {
   const { state, setMonth, setModal, notify } = useApp();
   const colors = useContext(Theme);
