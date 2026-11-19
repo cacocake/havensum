@@ -7,7 +7,7 @@ import { validatePaybackState } from './paybackState.js';
 const k_exchangeFields = [
   'type', 'title', 'amount', 'date', 'account', 'category', 'kind', 'note',
   'linkedId', 'toAccount', 'externalSource', 'externalId', 'sourceFingerprint', 'counterpartSourceFingerprint', 'loanId',
-  'plannedCost'
+  'plannedCost', 'correctsInterestMonth'
 ];
 const k_duplicateIgnoredFields = new Set(['externalSource', 'externalId', 'sourceFingerprint', 'counterpartSourceFingerprint', 'plannedCost']);
 

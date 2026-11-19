@@ -1,6 +1,6 @@
 import { euro, isPositiveCentAmount } from './money.js';
 import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
-import { k_calendarDateLength } from './calendar.js';
+import { k_calendarDateLength, monthOf } from './calendar.js';
 import { isPlannedCostLink } from './plannedCosts.js';
 import { categorySettings } from './ledger.js';
 
@@ -16,8 +16,18 @@ const k_errors = {
   destination: 'Choose a different destination account.',
   missingExpense: 'The linked expense no longer exists.',
   receivedPaybacks: 'This expense has linked reimbursements. Adjust those first.',
-  plannedCost: 'Choose a valid planned cost for an expense without a loan obligation.'
+  plannedCost: 'Choose a valid planned cost for an expense without a loan obligation.',
+  interestCorrection: 'An interest correction is non-zero interest income dated in the month it corrects.'
 };
+
+// LEDGER-2 (L04): a reviewed interest correction may lower a month's
+// interest, so it alone carries a signed amount.
+function isValidInterestCorrection(transaction) {
+  return transaction.type === k_transactionTypes.income
+    && transaction.category === k_systemCategoryIds.interest
+    && Number.isSafeInteger(transaction.amount) && transaction.amount !== 0
+    && typeof transaction.date === 'string' && monthOf(transaction.date) === transaction.correctsInterestMonth;
+}
 
 function hasIdentifier(value) {
   return value !== undefined && value !== null && value !== '';
@@ -30,7 +40,11 @@ export function validateTransaction(state, transaction) {
   if (typeof transaction.title !== 'string' || !transaction.title.trim()) {
     throw Error(k_errors.title);
   }
-  if (!isPositiveCentAmount(transaction.amount)) {
+  if (transaction.correctsInterestMonth !== undefined) {
+    if (!isValidInterestCorrection(transaction)) {
+      throw Error(k_errors.interestCorrection);
+    }
+  } else if (!isPositiveCentAmount(transaction.amount)) {
     throw Error(k_errors.amount);
   }
 
