@@ -161,7 +161,7 @@ export function getCashewDrafts(state, data, { accounts = {}, newAccounts = [] }
 // K02/K03: a Cashew borrowing row needs an existing Havensum loan. A credit is
 // loan proceeds (an unlinked balance adjustment); a debit is a repayment expense.
 // K12: a row with an objective may be a loan; once a loan is chosen the same
-// sign rule applies.
+// sign rule applies. K13: the owner confirmed the sign follows the cash.
 export function validateCashewLoanDraft(state, bank, transaction) {
   const isLoanEntry = bank.loanRequired || (bank.loanOptional && hasLoanLink(transaction));
   if (!isLoanEntry) {
@@ -195,7 +195,8 @@ export function isSuggestedTransferActive(review, row) {
   return review.rows[counterpartIndex]?.sourceRow === suggestedRow;
 }
 
-// K13: the sign follows the cash, so it alone decides what a loan-linked row becomes.
+// K13: the sign follows the cash, so it alone decides what a loan-linked row
+// becomes. Rows without a direction (unreadable amounts) have no meaning.
 export function loanMeaning(bank) {
   return k_loanMeanings[bank.direction];
 }

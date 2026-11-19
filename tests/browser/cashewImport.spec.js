@@ -75,6 +75,7 @@ test('a Cashew borrowing row imports as loan proceeds once a Havensum loan is ch
   await expect(dialog.getByText('Choose the Havensum loan for this Cashew borrowing entry.').first()).toBeVisible();
   await dialog.getByRole('button', { name: 'Edit row 2', exact: true }).click();
   await dialog.getByLabel('Havensum loan', { exact: true }).selectOption({ label: 'Car loan' });
+  await expect(dialog.getByText('Loan money received · adds to this account, never income', { exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'Update draft', exact: true }).click();
   await expect(dialog.getByText('Loan · Car loan', { exact: true })).toBeVisible();
   await expect(dialog.getByText('Projected €3,000.00', { exact: true })).toBeVisible();
@@ -109,8 +110,10 @@ test('a Cashew row with an objective shows its extra and may be recorded against
   await dialog.getByRole('button', { name: 'Edit row 2', exact: true }).click();
   await dialog.getByLabel('Type', { exact: true }).selectOption('expense');
   await dialog.getByLabel('Category', { exact: true }).selectOption('loan');
+  const repaymentMeaning = dialog.getByText('Payment on the loan · a repayment expense in the loan category', { exact: true });
+  await expect(repaymentMeaning).toHaveCount(0);
   await dialog.getByLabel('Havensum loan', { exact: true }).selectOption({ label: 'Car loan' });
-  await expect(dialog.getByText('Payment on the loan · a repayment expense in the loan category', { exact: true })).toBeVisible();
+  await expect(repaymentMeaning).toBeVisible();
   await dialog.getByRole('button', { name: 'Update draft', exact: true }).click();
   await expect(dialog.getByText('Loan · Car loan', { exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'Import transactions', exact: true }).click();

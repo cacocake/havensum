@@ -174,7 +174,7 @@ export default function ImportRowEditor({ transaction, state, expenses, lockAcco
           ...state.loans.map(loan => ({ value: loan.id, label: loan.name }))
         ]} />
       )}
-      {(bank?.loanRequired || (bank?.loanOptional && !isTransfer)) && draft.loanId && (
+      {(bank?.loanRequired || (bank?.loanOptional && !isTransfer)) && draft.loanId && bank.direction && (
         <T style={{ fontSize: 12, color: colors.sub }}>{loanMeaning(bank)}</T>
       )}
       <Field label="Note" value={draft.note} onChangeText={value => change('note', value)} multiline />

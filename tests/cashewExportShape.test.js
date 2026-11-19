@@ -171,4 +171,17 @@ test('the review spells out what a loan-linked Cashew row becomes from its sign 
   const review = previewImportFile(state, file, k_accountOptions);
   assert.deepEqual(review.rows.map(row => loanMeaning(row.bank)),
     ['Loan money received · adds to this account, never income', 'Payment on the loan · a repayment expense in the loan category']);
+  const asIncome = reviseTransactionImport(state, review, 0, { type: 'income', category: 'salary', loanId: 'car' });
+  assert.equal(asIncome.rows[0].status, 'invalid');
+  const asProceeds = reviseTransactionImport(state, review, 0, { type: 'reimbursement', linkedId: null, loanId: 'car' });
+  assert.equal(asProceeds.rows[0].status, 'new');
+  const asOrdinaryExpense = reviseTransactionImport(state, review, 1, { type: 'expense', category: 'groceries', loanId: 'car' });
+  assert.equal(asOrdinaryExpense.rows[1].status, 'invalid');
+  const asRepayment = reviseTransactionImport(state, review, 1, { type: 'expense', category: 'loan', loanId: 'car' });
+  assert.equal(asRepayment.rows[1].status, 'new');
+
+  const debtFile = await exportFile([exportRow({ account: 'Carteira', amount: '-50.0', title: 'Prestação', type: 'debt', 'category name': 'Dívidas' })]);
+  const debtReview = previewImportFile(state, debtFile, k_accountOptions);
+  assert.equal(debtReview.rows[0].bank.loanRequired, true);
+  assert.equal(loanMeaning(debtReview.rows[0].bank), 'Payment on the loan · a repayment expense in the loan category');
 });
