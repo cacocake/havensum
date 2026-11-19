@@ -7,21 +7,25 @@ import { accountBalance, reportingMonthStats } from '../src/ledger.js';
 import { plannedCostOptions } from '../src/plannedCosts.js';
 import { createFinancialState, createTransaction, planArchiveOf } from './helpers/financialFixtures.js';
 
-test('the planned-cost picker offers dated occurrences and retains a saved choice when the original month moved', () => {
+test('the planned-cost picker offers occurrences from the previous year onwards and retains a saved choice when the original month moved', () => {
   const events = [
     { id: 'service', name: 'Car service', year: 2027, month: 6 },
     { id: 'gifts', name: 'Gifts', month: 12 },
-    { id: 'past', name: 'Past event', year: 2027, month: 1 }
+    { id: 'past', name: 'Past event', year: 2027, month: 1 },
+    { id: 'long-ago', name: 'Long ago', year: 2025, month: 4 }
   ];
   const prior = { eventId: 'service', month: '2027-05', singleOccurrence: true };
   const options = plannedCostOptions(events, '2027-03-12', prior);
+  // Owner decision F15: a late settlement can link to an earlier occurrence.
   assert.deepEqual(options.map(option => JSON.parse(option.value)), [
+    { eventId: 'gifts', month: '2026-12' },
+    { eventId: 'past', month: '2027-01', singleOccurrence: true },
     prior,
     { eventId: 'service', month: '2027-06', singleOccurrence: true },
     { eventId: 'gifts', month: '2027-12' },
     { eventId: 'gifts', month: '2028-12' }
   ]);
-  assert.match(options[0].label, /original month 2027-05/);
+  assert.match(options[2].label, /original month 2027-05/);
 });
 
 test('two early payments count once in their specific planned month and keep their cash dates', () => {

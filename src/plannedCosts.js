@@ -24,17 +24,20 @@ export function needsPlannedCostReview(expense, event, month) {
     && ((link.singleOccurrence && event.year) || link.month.slice(0, 4) === month.slice(0, 4));
 }
 
+// Offers occurrences from the year before the payment onwards, so a payment
+// settled after its planned cost can still link to it (owner decision F15).
 export function plannedCostOptions(events, paymentDate, savedLink) {
   const paymentYear = Number(paymentDate.slice(0, 4));
+  const earliestYear = paymentYear - 1;
   const savedYear = savedLink ? Number(savedLink.month.slice(0, 4)) : paymentYear;
-  const years = new Set([paymentYear, paymentYear + 1, savedYear]);
+  const years = new Set([earliestYear, paymentYear, paymentYear + 1, savedYear]);
   const options = new Map();
   for (const event of events) {
     for (const year of event.year ? [event.year] : years) {
-      const month = `${year}-${String(event.month).padStart(2, '0')}`;
-      if (month < monthOf(paymentDate)) {
+      if (year < earliestYear) {
         continue;
       }
+      const month = `${year}-${String(event.month).padStart(2, '0')}`;
       const monthLabel = new Date(year, event.month - 1, 1).toLocaleDateString('en', { month: 'long', year: 'numeric' });
       const link = { eventId: event.id, month };
       if (event.year) {
