@@ -144,7 +144,7 @@ Let the owner move a recurring planned cost's month from a chosen year onward. E
 
 ### FORECAST-2 follow-up · Readable year-amount merge conflicts (F20)
 
-**Depends on:** FORECAST-2 (year amounts). **Status:** queued and unblocked (owner answer, 19 November 2026).
+**Depends on:** FORECAST-2 (year amounts). **Status:** done; reviewed and merged into `develop` from `codex/readable-year-amount-conflicts` (see the F20 handoff at the end).
 
 When two devices set different amounts for the same year of a recurring planned cost, the backup-merge conflict review should name the planned cost and the year and show euro amounts, for example "December celebrations · amount for 2027: €410.00 here, €450.00 on the other device", instead of the raw `yearAmounts` field and cents. Keep the merge decision itself unchanged: `yearAmounts` is one field, so differing year amounts form one conflict per planned cost, and choosing a side takes that side's whole set of year amounts. The card should list each differing year on its own line. Match the final wording to the review's side labels (*This device* / *Backup file*). Cover a conflict on one year; several differing years on one planned cost (one card, one line per year); years set on different sides from the same starting point (still one conflict, shown year by year); long names at narrow widths; and screen-reader text. An edit-versus-delete conflict on a planned cost is a different conflict type, not part of this ticket; it only must not regress. Separate merge choices per year would be a new owner question, not part of this ticket.
 
@@ -446,3 +446,24 @@ The implementation note below records how these were built; it stores only per-y
 - **Checks:** `npm run test:coverage` (449 pass on the tree merged with develop `5b2164d`; all files 96.65% lines), `npm run test:browser` (417 pass), `npm run build`, `npm run check:android` (Hermes export = compilation only).
 - **Review:** separate read-only Claude review found 1 blocking (debt credit usable as a transfer leg) and 4 should-fix items; all fixed test-first, the owner answered the pair-confirmation question (K09), and the re-review found nothing actionable.
 - **Still needs the owner:** a small sanitized Cashew export of their version with a transfer pair, a payback, a scheduled entry, a borrowing row and populated budget/objective, plus the expected Havensum result, to move these cases from synthetic to verified.
+
+## Session handoff — FORECAST-2 follow-up · Readable year-amount merge conflicts (F20) (19 November 2026, Claude cloud session)
+
+- **Implemented** (`fa0d73d`, review fix `2633179` on `codex/readable-year-amount-conflicts`):
+  - New `src/yearAmountConflicts.js`. After `mergeThreeWay`, it adds the planned cost's name and each side's usual amount to `events`/`yearAmounts` conflicts, for display only.
+  - The card title names the planned cost and the differing years, for example "December celebrations · amounts for 2027 and 2028".
+  - Each side (This device / Backup file) lists one line per differing year, such as "Amount for 2027: €410.00". A year with no year amount on a side reads "usual amount (€400.00)" with that side's usual amount. An empty set against no set reads "No year amounts; every year uses the usual amount (€X)".
+  - The merge decision is unchanged: one conflict per planned cost, and choosing a side takes that side's whole `yearAmounts`.
+  - The review card moved into a small `MergeConflictCard` component in src/Screens.jsx. Each side is now a button whose screen-reader name reads its label and every line, and which reports its selected state.
+  - Other conflict types are untouched. A browser test guards planned-cost edit-versus-delete.
+- **Tests:** tests/yearAmountConflicts.test.js (7 unit tests: one year, several years, years set on different sides, all year amounts cleared, empty set against none, an undescribed conflict, other conflicts passed through unchanged) and tests/browser/yearAmountConflicts.spec.js (choosing the backup takes its whole set plus accessible names; long name and large amounts at 320 px; edit-versus-delete still works).
+- **Checks** on the tree merged with origin/develop `f5e71d5`:
+  - `npm run test:coverage`: 495/495 (96.89% lines, 94.80% branches);
+  - `npm run test:browser`: 441/441;
+  - `npm run build`;
+  - `npm run check:android` (Hermes compilation only; no device test).
+- **Review:** a separate read-only Claude review found nothing blocking. It raised one should-fix (an empty `{}` against no year amounts gave a broken title) and one robustness nit (rendering an undescribed conflict would crash). Both were fixed test-first, and the re-review found nothing blocking.
+- **Deferred nits:**
+  - A short hint that the usual amount shown is each side's own.
+  - Moving the merge card into its own file. This was left alone to keep churn small in the shared Screens.jsx.
+- **Not done / owner:** separate merge choices per year would be a new owner question; nothing was asked.
