@@ -76,17 +76,45 @@ export function isValidMonthFromYear(event) {
     .every(([year, month]) => k_yearKeyPattern.test(year) && isMonthNumber(month));
 }
 
+// A one-off cost occurs in its own year. A recurring cost occurs every year
+// from its start year, set when a draft adds it (owner decision P04); one
+// without a start year occurs every year.
+export function plannedCostOccursInYear(event, year) {
+  if (event.year) {
+    return event.year === year;
+  }
+  if (event.fromYear === undefined) {
+    return true;
+  }
+  return year >= event.fromYear;
+}
+
+export function isValidFromYear(event) {
+  if (event.fromYear === undefined) {
+    return true;
+  }
+  return !event.year && Number.isSafeInteger(event.fromYear) && k_yearKeyPattern.test(String(event.fromYear));
+}
+
+// How a recurring cost repeats, for display: "every year" or "every year from 2027".
+export function plannedCostRepeatText(event) {
+  if (event.fromYear === undefined) {
+    return 'every year';
+  }
+  return `every year from ${event.fromYear}`;
+}
+
 // The planned costs that occur in a year, in month order, each with its month
 // for that year.
 export function plannedCostsInYear(events, year) {
-  return events.filter(event => !event.year || event.year === year)
+  return events.filter(event => plannedCostOccursInYear(event, year))
     .map(event => ({ event, month: plannedCostMonth(event, year) }))
     .sort((left, right) => left.month - right.month || left.event.name.localeCompare(right.event.name));
 }
 
 export function eventsInMonth(events, month) {
   const [year, monthNumber] = month.split('-').map(Number);
-  return events.filter(event => (!event.year || event.year === year) && plannedCostMonth(event, year) === monthNumber);
+  return events.filter(event => plannedCostOccursInYear(event, year) && plannedCostMonth(event, year) === monthNumber);
 }
 
 export function needsPlannedCostReview(expense, event, month) {
@@ -105,6 +133,10 @@ export function plannedCostOptions(events, paymentDate, savedLink) {
   const options = new Map();
   for (const event of events) {
     for (const year of event.year ? [event.year] : years) {
+      // A link saved to a year before a recurring cost's start falls back to its original month below.
+      if (!plannedCostOccursInYear(event, year)) {
+        continue;
+      }
       const month = plannedCostOccurrenceMonth(event, year);
       const isSavedOccurrence = savedLink?.eventId === event.id && month === savedLink.month;
       if (year < earliestYear && !isSavedOccurrence) {

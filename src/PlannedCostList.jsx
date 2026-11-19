@@ -4,17 +4,18 @@ import { useApp } from './context.js';
 import { Button, Card, H, Row, T, Theme } from './ui.jsx';
 import { euro } from './money.js';
 import { monthNumberName } from './monthLabels.js';
-import { plannedCostAmount, plannedCostsInYear } from './plannedCosts.js';
+import { plannedCostAmount, plannedCostRepeatText, plannedCostsInYear } from './plannedCosts.js';
 import MovePlannedCostDialog from './MovePlannedCostDialog.jsx';
 
 function recurrenceText(event, month, year) {
   if (event.year) {
     return `${monthNumberName(month)} ${year} only`;
   }
+  const repeatText = plannedCostRepeatText(event);
   if (month !== event.month) {
-    return `${monthNumberName(month)} · every year · moved from ${monthNumberName(event.month)}`;
+    return `${monthNumberName(month)} · ${repeatText} · moved from ${monthNumberName(event.month)}`;
   }
-  return `${monthNumberName(month)} · every year`;
+  return `${monthNumberName(month)} · ${repeatText}`;
 }
 
 // The year's planned costs. A recurring one can move from this year or a

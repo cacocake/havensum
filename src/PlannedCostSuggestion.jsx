@@ -1,7 +1,7 @@
 import React, { useContext, useMemo } from 'react';
 import { View } from 'react-native';
 import { Button, Row, Select, T, Theme } from './ui.jsx';
-import { plannedCostAmount, plannedCostsInYear } from './plannedCosts.js';
+import { plannedCostAmount, plannedCostRepeatText, plannedCostsInYear } from './plannedCosts.js';
 import { euro, k_centsPerEuro } from './money.js';
 import { comparableCostEstimate, comparableLikeChoices, comparableOccurrences, k_minimumComparableOccurrences } from './comparableCosts.js';
 import { shortMonthLabel } from './monthLabels.js';
@@ -79,7 +79,7 @@ export function DraftPlannedCosts({ state, evaluationDate, events, year, fromMon
     const storedEvent = state.events.find(candidate => candidate.id === event.id);
     return <View key={event.id}>
       <Row style={{ justifyContent: 'space-between', paddingVertical: 9 }}>
-        <T style={{ fontSize: 12, flexShrink: 1 }}>{event.name} · month {month}{event.year ? '' : ' · every year'}</T>
+        <T style={{ fontSize: 12, flexShrink: 1 }}>{event.name} · month {month}{event.year ? '' : ` · ${plannedCostRepeatText(event)}`}</T>
         <T style={{ fontSize: 12 }}>{euro(plannedCostAmount(event, year))}</T>
       </Row>
       {storedEvent && !storedEvent.year && <RecurringPlannedCostSuggestion state={state} evaluationDate={evaluationDate} event={storedEvent} year={year}
