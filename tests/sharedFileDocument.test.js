@@ -109,3 +109,14 @@ test('unreadable, foreign, newer or invalid files are refused with a readable er
     assert.throws(() => parseSharedDocument(encodedDocument), SyntaxError, encodedDocument.slice(0, 60));
   }
 });
+
+test('the write history keeps the newest ancestors up to its limit', async () => {
+  const { k_lineageLimit } = await import('../src/sharedFileDocument.js');
+  const longHistory = Array.from({ length: k_lineageLimit }, (_, index) => `write-${index}`);
+  const parent = { writeId: 'write-parent', lineage: longHistory };
+  const child = parseSharedDocument(createSharedDocument(createFinancialState(), { writeId: 'write-child', parent }));
+  assert.equal(child.lineage.length, k_lineageLimit);
+  assert.equal(child.lineage.at(-1), 'write-parent');
+  assert.equal(child.lineage[0], 'write-1');
+  assert.ok(k_lineageLimit >= 1000);
+});

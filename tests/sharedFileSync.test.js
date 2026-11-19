@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSharedFile, syncSharedFile, applySyncReview, reconcileAfterSync, k_maximumWriteAttempts } from '../src/sharedFileSync.js';
-import { openSharedFile, adoptSharedFile } from '../src/sharedFileJoin.js';
+import { createSharedFile, syncSharedFile, applySyncReview, k_maximumWriteAttempts } from '../src/sharedFileSync.js';
+import { openSharedFile, adoptSharedFile, mergeIntoSharedFile } from '../src/sharedFileJoin.js';
 import { createSharedDocument, parseSharedDocument, sharedLedgerOf } from '../src/sharedFileDocument.js';
 import { mergeConflictKey } from '../src/mergeReview.js';
 import { createInMemoryDriveTransport } from './helpers/inMemoryDriveTransport.js';
@@ -29,18 +29,26 @@ function remoteLedger(drive, fileId) {
   return parseSharedDocument(drive.headContent(fileId)).ledger;
 }
 
-// A device keeps its ledger and binding; an outcome replaces whichever it returns.
+// A device keeps its ledger and link. Each sync saves both together through
+// saveProgress, which a test can make fail to simulate a stopped app.
 function createDevice(name, transport, state) {
-  const device = { name, state, binding: null, createWriteId: createWriteIdSource(name) };
-  device.sync = async () => {
-    const outcome = await syncSharedFile({ transport, binding: device.binding, localState: device.state, createWriteId: device.createWriteId });
-    if (outcome.state) {
-      device.state = outcome.state;
+  const device = { name, state, binding: null, createWriteId: createWriteIdSource(name), failNextSave: false };
+  device.saveProgress = async ({ state: savedState, binding }) => {
+    if (device.failNextSave) {
+      device.failNextSave = false;
+      throw new Error('The app stopped');
     }
-    if (outcome.binding) {
-      device.binding = outcome.binding;
+    device.state = savedState;
+    device.binding = binding;
+  };
+  device.sync = () => syncSharedFile({ transport, binding: device.binding, localState: device.state, createWriteId: device.createWriteId, saveProgress: device.saveProgress });
+  device.resolve = (outcome, choices) => {
+    const applied = applySyncReview({ review: outcome.review, choices, currentState: device.state, binding: device.binding });
+    if (applied.status === 'resolved') {
+      device.state = applied.state;
+      device.binding = applied.binding;
     }
-    return outcome;
+    return applied;
   };
   return device;
 }
@@ -50,6 +58,7 @@ async function connectTwoDevices({ creatorState = createFinancialState({ theme: 
   const creator = createDevice('creator', drive.transport, creatorState);
   const partner = createDevice('partner', drive.transport, partnerState);
   const created = await createSharedFile({ transport: drive.transport, localState: creator.state, partnerEmail: k_partnerEmail, createWriteId: creator.createWriteId });
+  assert.equal(created.status, 'created');
   creator.binding = created.binding;
   const opened = await openSharedFile({ transport: drive.transport, fileId: created.binding.fileId, localState: partner.state });
   assert.equal(opened.status, 'adopt');
@@ -114,10 +123,7 @@ test('a same-field edit waits for review, writes nothing and leaves local data u
   assert.equal(conflict.local, 1700);
   assert.equal(conflict.remote, 1500);
 
-  const applied = applySyncReview({ review: outcome.review, choices: { [mergeConflictKey(conflict)]: 'remote' }, currentState: partner.state });
-  assert.equal(applied.status, 'resolved');
-  partner.state = applied.state;
-  partner.binding = applied.binding;
+  assert.equal(partner.resolve(outcome, { [mergeConflictKey(conflict)]: 'remote' }).status, 'resolved');
   assert.equal((await partner.sync()).status, 'synced');
   await creator.sync();
   assert.equal(partner.state.transactions[0].amount, 1500);
@@ -132,9 +138,7 @@ test('choosing this device in a review is written to the file', async () => {
   await creator.sync();
   const outcome = await partner.sync();
   const [conflict] = outcome.review.merge.conflicts;
-  const applied = applySyncReview({ review: outcome.review, choices: { [mergeConflictKey(conflict)]: 'local' }, currentState: partner.state });
-  partner.state = applied.state;
-  partner.binding = applied.binding;
+  partner.resolve(outcome, { [mergeConflictKey(conflict)]: 'local' });
   await partner.sync();
   assert.equal(remoteLedger(drive, fileId).transactions[0].amount, 1700);
   await creator.sync();
@@ -148,12 +152,15 @@ test('an unfinished or stale review is refused', async () => {
   partner.state = { ...partner.state, transactions: [createTransaction({ amount: 1700 })] };
   await creator.sync();
   const outcome = await partner.sync();
-  const unfinished = applySyncReview({ review: outcome.review, choices: {}, currentState: partner.state });
+  const unfinished = applySyncReview({ review: outcome.review, choices: {}, currentState: partner.state, binding: partner.binding });
   assert.equal(unfinished.status, 'incomplete');
   const editedMeanwhile = addTransaction(partner.state, { id: 'during-review' });
   const [conflict] = outcome.review.merge.conflicts;
-  const stale = applySyncReview({ review: outcome.review, choices: { [mergeConflictKey(conflict)]: 'local' }, currentState: editedMeanwhile });
+  const choices = { [mergeConflictKey(conflict)]: 'local' };
+  const stale = applySyncReview({ review: outcome.review, choices, currentState: editedMeanwhile, binding: partner.binding });
   assert.equal(stale.status, 'stale');
+  const otherFile = applySyncReview({ review: outcome.review, choices, currentState: partner.state, binding: { ...partner.binding, fileId: 'file-other' } });
+  assert.equal(otherFile.status, 'stale');
 });
 
 test('asking to sync again while a review is open recomputes the same review instead of overwriting', async () => {
@@ -245,16 +252,15 @@ test('a file that keeps being overwritten stops after a bounded number of attemp
   assert.deepEqual(transactionIds(remoteLedger(drive, fileId)), ['creator-coffee']);
 });
 
-test('a write that fails before landing changes neither the file nor this device', async () => {
+test('a write that fails before landing leaves the file unchanged and keeps every local entry', async () => {
   const { drive, creator, fileId } = await connectTwoDevices();
   creator.state = addTransaction(creator.state, { id: 'creator-coffee' });
-  const before = { state: creator.state, binding: creator.binding, revisions: drive.revisionCount(fileId) };
+  const revisions = drive.revisionCount(fileId);
   drive.failNext('write', 'offline');
   const outcome = await creator.sync();
   assert.equal(outcome.status, 'offline');
-  assert.equal(creator.state, before.state);
-  assert.equal(creator.binding, before.binding);
-  assert.equal(drive.revisionCount(fileId), before.revisions);
+  assert.deepEqual(transactionIds(creator.state), ['creator-coffee']);
+  assert.equal(drive.revisionCount(fileId), revisions);
   assert.equal((await creator.sync()).status, 'synced');
   assert.deepEqual(transactionIds(remoteLedger(drive, fileId)), ['creator-coffee']);
 });
@@ -265,14 +271,110 @@ test('a write that lands but whose reply is lost is recognised on the next sync'
   await partner.sync();
   creator.state = addTransaction(creator.state, { id: 'creator-coffee' });
   drive.onNextWriteLanded(() => {
-    throw new (class extends Error {})('connection reset');
+    throw new Error('connection reset');
   });
-  const interrupted = await creator.sync();
-  assert.equal(interrupted.status, 'retryLater');
-  assert.deepEqual(transactionIds(creator.state), ['creator-coffee']);
+  assert.equal((await creator.sync()).status, 'retryLater');
   assert.equal((await creator.sync()).status, 'synced');
   assert.deepEqual(transactionIds(creator.state), ['creator-coffee', 'partner-bread']);
   assert.deepEqual(transactionIds(remoteLedger(drive, fileId)), ['creator-coffee', 'partner-bread']);
+});
+
+test('after a lost write reply, the partner deleting the new entry is not undone (review B1)', async () => {
+  const { drive, creator, partner, fileId } = await connectTwoDevices();
+  creator.state = addTransaction(creator.state, { id: 'creator-coffee' });
+  drive.onNextWriteLanded(() => {
+    throw new Error('connection reset');
+  });
+  assert.equal((await creator.sync()).status, 'retryLater');
+  await partner.sync();
+  assert.deepEqual(transactionIds(partner.state), ['creator-coffee']);
+  partner.state = { ...partner.state, transactions: [] };
+  await partner.sync();
+  assert.equal((await creator.sync()).status, 'synced');
+  assert.deepEqual(transactionIds(creator.state), []);
+  assert.deepEqual(transactionIds(remoteLedger(drive, fileId)), []);
+});
+
+test('after a lost write reply, the partner setting a field back is not undone (review B1)', async () => {
+  const { drive, creator, partner, fileId } = await connectTwoDevices({ creatorState: createFinancialState({ transactions: [createTransaction({ amount: 1000 })] }) });
+  await partner.sync();
+  creator.state = { ...creator.state, transactions: [createTransaction({ amount: 2000 })] };
+  drive.onNextWriteLanded(() => {
+    throw new Error('connection reset');
+  });
+  await creator.sync();
+  await partner.sync();
+  partner.state = { ...partner.state, transactions: [createTransaction({ amount: 1000 })] };
+  await partner.sync();
+  assert.equal((await creator.sync()).status, 'synced');
+  assert.equal(creator.state.transactions[0].amount, 1000);
+  assert.equal(remoteLedger(drive, fileId).transactions[0].amount, 1000);
+});
+
+test('when the merged ledger cannot be saved, nothing is written', async () => {
+  const { drive, creator, fileId } = await connectTwoDevices();
+  creator.state = addTransaction(creator.state, { id: 'creator-coffee' });
+  const revisions = drive.revisionCount(fileId);
+  creator.failNextSave = true;
+  const outcome = await creator.sync();
+  assert.equal(outcome.status, 'retryLater');
+  assert.equal(outcome.reason, 'progressNotSaved');
+  assert.equal(drive.revisionCount(fileId), revisions);
+  assert.equal((await creator.sync()).status, 'synced');
+  assert.deepEqual(transactionIds(remoteLedger(drive, fileId)), ['creator-coffee']);
+});
+
+test('a category deleted on one device while the other starts using it waits for review (review B2)', async () => {
+  const { drive, creator, partner, fileId } = await connectTwoDevices();
+  await partner.sync();
+  creator.state = { ...creator.state, categories: creator.state.categories.filter(category => category.id !== 'shopping') };
+  await creator.sync();
+  partner.state = addTransaction(partner.state, { id: 'new-shoes', category: 'shopping' });
+  const revisions = drive.revisionCount(fileId);
+  const outcome = await partner.sync();
+  assert.equal(outcome.status, 'needsReview');
+  const [conflict] = outcome.review.merge.conflicts;
+  assert.equal(conflict.collection, 'categories');
+  assert.equal(conflict.id, 'shopping');
+  assert.equal(conflict.remote, undefined);
+  assert.equal(drive.revisionCount(fileId), revisions);
+  assert.equal(partner.resolve(outcome, { [mergeConflictKey(conflict)]: 'local' }).status, 'resolved');
+  assert.equal((await partner.sync()).status, 'synced');
+  await creator.sync();
+  assert.ok(creator.state.categories.some(category => category.id === 'shopping'));
+  assert.equal(creator.state.transactions[0].category, 'shopping');
+});
+
+test('choosing the deletion of an account that a new entry uses is refused with its reason (review B2)', async () => {
+  const { creator, partner } = await connectTwoDevices();
+  await partner.sync();
+  creator.state = { ...creator.state, accounts: creator.state.accounts.filter(account => account.id !== 'shared') };
+  await creator.sync();
+  partner.state = addTransaction(partner.state, { id: 'joint-dinner', account: 'shared' });
+  const outcome = await partner.sync();
+  assert.equal(outcome.status, 'needsReview');
+  const [conflict] = outcome.review.merge.conflicts;
+  assert.equal(conflict.collection, 'accounts');
+  const refused = partner.resolve(outcome, { [mergeConflictKey(conflict)]: 'remote' });
+  assert.equal(refused.status, 'invalid');
+  assert.match(refused.message, /account/i);
+});
+
+test('changes that combine into an invalid ledger are reported and nothing is written', async () => {
+  const expense = createTransaction({ id: 'dinner', amount: 4000 });
+  const { drive, creator, partner, fileId } = await connectTwoDevices({ creatorState: createFinancialState({ transactions: [expense] }) });
+  await partner.sync();
+  const payback = (id, amount) => createTransaction({ id, type: 'reimbursement', title: 'Half of dinner', amount, linkedId: 'dinner' });
+  creator.state = addTransaction(creator.state, payback('payback-creator', 3000));
+  partner.state = addTransaction(partner.state, payback('payback-partner', 3000));
+  await creator.sync();
+  const revisions = drive.revisionCount(fileId);
+  const before = partner.state;
+  const outcome = await partner.sync();
+  assert.equal(outcome.status, 'invalidMerge');
+  assert.match(outcome.message, /reimburse/i);
+  assert.equal(drive.revisionCount(fileId), revisions);
+  assert.equal(partner.state, before);
 });
 
 test('lost access, a missing file, an expired session and no network pause sync and keep everything', async () => {
@@ -324,42 +426,22 @@ test('an older-schema ledger written into the file is migrated and merged', asyn
 test('a replaced file with no shared history needs the one-sided-record review', async () => {
   const { drive, creator, fileId } = await connectTwoDevices();
   drive.replaceContent(fileId, createSharedDocument(createFinancialState(), { writeId: 'write-unrelated', parent: null }));
+  creator.state = addTransaction(creator.state, { id: 'creator-coffee' });
   const outcome = await creator.sync();
   assert.equal(outcome.status, 'needsJoin');
   assert.equal(outcome.opened.fileId, fileId);
+  assert.deepEqual(outcome.opened.review.oneSided.map(item => item.id), ['creator-coffee']);
+  const joined = mergeIntoSharedFile(outcome.opened, creator.state, {});
+  creator.state = joined.state;
+  creator.binding = joined.binding;
+  assert.equal((await creator.sync()).status, 'synced');
+  assert.deepEqual(transactionIds(remoteLedger(drive, fileId)), ['creator-coffee']);
 });
 
 test('without a stored link there is nothing to sync', async () => {
   const drive = createInMemoryDriveTransport();
-  const outcome = await syncSharedFile({ transport: drive.transport, binding: null, localState: createFinancialState(), createWriteId: createWriteIdSource('none') });
+  const outcome = await syncSharedFile({ transport: drive.transport, binding: null, localState: createFinancialState(), createWriteId: createWriteIdSource('none'), saveProgress: async () => {} });
   assert.equal(outcome.status, 'notConnected');
-});
-
-test('edits made while a sync ran are kept alongside the synced changes', () => {
-  const snapshot = createFinancialState();
-  const current = addTransaction(snapshot, { id: 'typed-during-sync' });
-  const synced = { ...addTransaction(snapshot, { id: 'from-partner' }), theme: 'dark' };
-  const reconciled = reconcileAfterSync({ snapshotState: snapshot, currentState: current, syncedState: synced });
-  assert.equal(reconciled.status, 'merged');
-  assert.deepEqual(transactionIds(reconciled.state), ['from-partner', 'typed-during-sync']);
-  assert.equal(reconciled.state.theme, 'light');
-});
-
-test('an edit during a sync that collides with a synced change waits for review', () => {
-  const snapshot = createFinancialState({ transactions: [createTransaction()] });
-  const current = { ...snapshot, transactions: [createTransaction({ amount: 2000 })] };
-  const synced = { ...snapshot, transactions: [createTransaction({ amount: 3000 })] };
-  const reconciled = reconcileAfterSync({ snapshotState: snapshot, currentState: current, syncedState: synced });
-  assert.equal(reconciled.status, 'needsReview');
-  assert.equal(reconciled.review.merge.conflicts[0].field, 'amount');
-});
-
-test('an unchanged device takes the synced ledger as it is', () => {
-  const snapshot = createFinancialState();
-  const synced = addTransaction(snapshot, { id: 'from-partner' });
-  const reconciled = reconcileAfterSync({ snapshotState: snapshot, currentState: snapshot, syncedState: synced });
-  assert.equal(reconciled.status, 'merged');
-  assert.deepEqual(reconciled.state, synced);
 });
 
 test('the shared missing-category review stays accepted once either person accepts it, and new entries reach both', async () => {
@@ -381,4 +463,12 @@ test('the shared missing-category review stays accepted once either person accep
   await partner.sync();
   await creator.sync();
   assert.deepEqual(creator.state.migrationCategoryWarnings, [secondWarning]);
+});
+
+test('creating a file while offline reports it and stores no link', async () => {
+  const drive = createInMemoryDriveTransport();
+  drive.failNext('create', 'offline');
+  const outcome = await createSharedFile({ transport: drive.transport, localState: createFinancialState(), partnerEmail: k_partnerEmail, createWriteId: createWriteIdSource('offline') });
+  assert.equal(outcome.status, 'offline');
+  assert.equal(outcome.binding, undefined);
 });

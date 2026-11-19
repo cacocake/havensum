@@ -104,16 +104,16 @@ The app never silently picks a different file, re-creates the file, or overwrite
 
 ## Sync core (DRIVE-2a)
 
-DRIVE-2a implements and tests, against an in-memory stand-in for Drive, everything that needs no Google credentials (decisions D2A-01–D2A-08 in DECISIONS.md):
+DRIVE-2a implements and tests, against an in-memory stand-in for Drive, everything that needs no Google credentials (decisions D2A-01–D2A-09 in DECISIONS.md):
 
 - **File shape** (`sharedFileDocument.js`): `{ format: 'havensum-shared-file', formatVersion: 1, writeId, lineage, ledger }`. The ledger holds only the shared keys; every read is validated and migrated like a stored ledger, and missing categories join the shared review.
 - **Link and baselines** (`sharedFileBinding.js`, storage key `havensum-shared-file-binding-v1`): file ID, last-seen revision and the incorporated snapshots. A baseline is chosen only for the same file ID and only if the remote file's write history contains it.
-- **Protocol** (`sharedFileSync.js`): read → validate/migrate → three-way merge of shared ledgers → stop for review on any conflict → write → read back. A replaced write is merged again against the snapshot the newer remote descends from; at most three writes per sync. Transport failures map to *Offline*, *Reconnect* (expired session) and *Paused* (lost access or missing file, G04); an unreadable remote is never merged or overwritten and its bytes stay downloadable.
+- **Protocol** (`sharedFileSync.js`): read → validate/migrate → three-way merge of shared ledgers → stop for review on any conflict, including a record deleted on one side and used on the other → validate → save the ledger and link together (write-ahead) → write → read back. A replaced write is merged again against the snapshot the newer remote descends from; at most three writes per sync. A sync stops before writing if the person edited meanwhile. Transport failures map to *Offline*, *Reconnect* (expired session) and *Paused* (lost access or missing file, G04); an unreadable remote is never merged or overwritten and its bytes stay downloadable.
 - **First join and a second file** (`sharedFileJoin.js`): adopt directly with no local entries or only example data; otherwise adopt (after a recovery copy in `havensum-shared-file-join-recovery-v1`) or merge with a review of every one-sided record and a choice for every record that differs. A second file merges into the kept file the same way and is never changed.
 - **Triggers and states** (`sharedFileStatus.js`): start, resume and edits (after a short pause) sync automatically when online; Sync now, Reconnect, and the status card texts. Create is unavailable with example data and Open comes first.
 - **Transport contract** (`sharedFileTransport.js`): `create`, `read`, `write` and typed failure reasons. DRIVE-2b implements it with Drive v3.
 
-Remaining limits: the stand-in proves the protocol, not Drive's behaviour. The review and join dialogs and the app's scheduler wiring are added with the transport in DRIVE-2b, because nothing can reach them before then; the Settings card shows "Not connected" with Open and Create disabled.
+Remaining limits: the stand-in proves the protocol, not Drive's behaviour. The link holds up to five full ledger snapshots in one storage entry; DRIVE-2b must check this against Android's AsyncStorage row limit (about 2 MB) with a realistic ledger. The review and join dialogs and the app's scheduler wiring are added with the transport in DRIVE-2b, because nothing can reach them before then; the Settings card shows "Not connected" with Open and Create disabled.
 
 ## What DRIVE-2 must verify (with real accounts)
 

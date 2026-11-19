@@ -154,7 +154,7 @@ The owner approved splitting DRIVE-2 on 19 November 2026: DRIVE-2a builds and te
 
 ### DRIVE-2a · Credential-free shared-file sync core
 
-**Depends on:** DRIVE-1 (decided). **Status:** Done on `codex/drive-sync-core`; see the DRIVE-2a handoff at the end for the commit, checks and review.
+**Depends on:** DRIVE-1 (decided). **Status:** Implemented on `codex/drive-sync-core`; see the DRIVE-2a handoff at the end for the commit, checks and review outcome.
 
 Shared-file document shape without device keys (G05/G06, every top-level key classified); a baseline tied to the file ID and last-seen revision (S03), separate from `melo-sync-base`; first join (adopt after a recovery copy, or merge with a review of every one-sided record, G08) and merging a second file in (G09); Create blocked with example data (G07); the read → validate/migrate → three-way merge → review → write → verify protocol behind a small transport interface, with lost-race recovery, pause-not-delete (G04) and the sync triggers and states (G10). Tested against an in-memory stand-in for Drive only. No Google OAuth, Picker or HTTP code, and Drive is not claimed to work.
 

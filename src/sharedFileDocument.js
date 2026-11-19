@@ -1,4 +1,4 @@
-import { clearMissingTransactionCategories, migrateState } from './stateSchema.js';
+import { clearMissingTransactionCategories, migrateState, UnsupportedStateVersionError } from './stateSchema.js';
 import { representedPlanYears } from './planMerge.js';
 import { representsInterestSchedules } from './interestMerge.js';
 
@@ -9,7 +9,8 @@ export const k_sharedFileFormat = 'havensum-shared-file';
 export const k_sharedFileFormatVersion = 1;
 // Older ancestors are dropped; a device whose known snapshots are all older
 // than this falls back to the one-sided-record review instead of guessing.
-export const k_lineageLimit = 50;
+// Write IDs are small, so the window covers years of frequent syncing.
+export const k_lineageLimit = 1000;
 
 export const k_sharedStateKeys = Object.freeze([
   'version',
@@ -123,6 +124,12 @@ export function parseSharedDocument(encodedDocument) {
   try {
     ledger = validateSharedLedger(document.ledger);
   } catch (error) {
+    if (error instanceof UnsupportedStateVersionError) {
+      throw new SyntaxError('This shared file cannot be read: it was written by a newer Havensum version. Update the app on this device.');
+    }
+    if (!(error instanceof SyntaxError)) {
+      throw error;
+    }
     throw new SyntaxError(`This shared file cannot be read: ${error.message}`);
   }
   // A ledger written by an older schema cannot represent every plan year or

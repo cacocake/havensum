@@ -1,3 +1,6 @@
+import { isSameLedger } from './sharedFileMerge.js';
+import { k_syncStatuses } from './sharedFileRead.js';
+
 // When sync runs and what the shared-file card shows (G04, G07, G09, G10).
 // Sync is automatic on start, resume and shortly after edits when online,
 // plus "Sync now". Conflicts, a join decision, a lost connection and an
@@ -13,10 +16,25 @@ export const k_syncTriggers = Object.freeze({
 export const k_editSyncDelayMilliseconds = 4000;
 
 const k_automaticTriggers = new Set([k_syncTriggers.start, k_syncTriggers.resume, k_syncTriggers.edit]);
-const k_statusesWaitingForPerson = new Set(['needsReview', 'needsJoin', 'reconnect', 'paused', 'invalidRemote']);
-const k_statusesNeedingReconnect = new Set(['reconnect', 'paused']);
+const k_statusesWaitingForPerson = new Set([
+  k_syncStatuses.needsReview,
+  k_syncStatuses.needsJoin,
+  k_syncStatuses.reconnect,
+  k_syncStatuses.paused,
+  k_syncStatuses.invalidRemote,
+  k_syncStatuses.invalidMerge
+]);
+const k_statusesNeedingReconnect = new Set([k_syncStatuses.reconnect, k_syncStatuses.paused]);
 // Sync now cannot replace signing in again or finishing a join.
-const k_statusesBlockingSyncNow = new Set(['reconnect', 'needsJoin']);
+const k_statusesBlockingSyncNow = new Set([k_syncStatuses.reconnect, k_syncStatuses.needsJoin]);
+// A queued trigger the person asked for outranks an automatic one.
+const k_triggerPriority = Object.freeze({
+  [k_syncTriggers.reconnect]: 3,
+  [k_syncTriggers.syncNow]: 2,
+  [k_syncTriggers.start]: 1,
+  [k_syncTriggers.resume]: 1,
+  [k_syncTriggers.edit]: 0
+});
 
 export function shouldSyncForTrigger({ status, trigger, isOnline, isConnected }) {
   if (!isConnected) {
@@ -34,21 +52,31 @@ export function shouldSyncForTrigger({ status, trigger, isOnline, isConnected })
   return isOnline && !k_statusesWaitingForPerson.has(status);
 }
 
-// Runs one sync at a time. Edits wait for a quiet moment; any trigger that
-// arrives during a sync runs once after it.
-export function createSyncScheduler({ runSync }) {
+function higherPriorityTrigger(queuedTrigger, trigger) {
+  if (!queuedTrigger) {
+    return trigger;
+  }
+  return k_triggerPriority[trigger] > k_triggerPriority[queuedTrigger] ? trigger : queuedTrigger;
+}
+
+// Runs one sync at a time. Edits wait for a quiet moment; triggers that arrive
+// during a sync run once after it, keeping the one the person asked for. A
+// failing sync is reported through onError and never stops later syncs.
+export function createSyncScheduler({ runSync, onError = () => {} }) {
   let editTimer = null;
   let isRunning = false;
   let queuedTrigger = null;
 
   async function run(trigger) {
     if (isRunning) {
-      queuedTrigger = queuedTrigger ?? trigger;
+      queuedTrigger = higherPriorityTrigger(queuedTrigger, trigger);
       return;
     }
     isRunning = true;
     try {
       await runSync(trigger);
+    } catch (error) {
+      onError(error);
     } finally {
       isRunning = false;
     }
@@ -85,16 +113,26 @@ export function createSyncScheduler({ runSync }) {
   };
 }
 
-// Saves a sync outcome: the ledger first, then the link. If the ledger
-// cannot be saved, the link keeps pointing at snapshots the saved ledger
-// contains, so the next sync merges again instead of losing changes.
-export async function commitSyncOutcome(storage, outcome) {
-  if (outcome.state) {
-    await storage.writeState(outcome.state);
+export class StaleLedgerError extends Error {
+  constructor() {
+    super('The ledger changed during the sync. It will sync again shortly.');
+    this.name = 'StaleLedgerError';
   }
-  if (outcome.binding) {
-    await storage.writeSharedFileBinding(outcome.binding);
-  }
+}
+
+// The saveProgress a sync uses: it refuses to save when the device ledger
+// changed since the sync started (or since its last save), so an edit is
+// never overwritten, and it saves the ledger and the link together.
+export function createSyncProgressSaver({ storage, snapshotState, readCurrentState }) {
+  let expectedState = snapshotState;
+  return async function saveProgress({ state, binding }) {
+    const currentState = await readCurrentState();
+    if (!isSameLedger(currentState, expectedState)) {
+      throw new StaleLedgerError();
+    }
+    await storage.writeStateWithSharedFileBinding(state, binding);
+    expectedState = state;
+  };
 }
 
 const k_action = Object.freeze({
@@ -124,7 +162,8 @@ const k_statusViews = Object.freeze({
   paused: { title: 'Paused', description: k_pausedDescriptions.accessLost, actions: [k_action.reconnect, k_action.open] },
   needsReview: { title: 'Changes to review', description: 'Both of you changed the same thing. Nothing is written until you choose.', actions: [k_action.review] },
   needsJoin: { title: 'Choose how to join', description: 'This file and this device share no history. Review the records found on only one side.', actions: [k_action.review] },
-  invalidRemote: { title: 'Shared file unreadable', description: 'The shared file was changed outside Havensum and cannot be read. This device was not changed.', actions: [k_action.downloadRemote, k_action.syncNow] }
+  invalidRemote: { title: 'Shared file unreadable', description: 'This version of Havensum cannot read the shared file, or it was changed outside Havensum. This device was not changed.', actions: [k_action.downloadRemote, k_action.syncNow] },
+  invalidMerge: { title: 'Changes do not fit together', description: 'Combining both sides would break an entry, for example a payback larger than its expense. Nothing was written. Correct the entry on either device.', actions: [k_action.syncNow] }
 });
 
 function setupActions({ isDemo, isTransportAvailable }) {
@@ -140,13 +179,13 @@ function setupActions({ isDemo, isTransportAvailable }) {
 }
 
 export function sharedFileStatusView({ status, reason = null, isDemo, isTransportAvailable }) {
-  if (status === 'notConnected' || !k_statusViews[status]) {
+  if (status === k_syncStatuses.notConnected || !k_statusViews[status]) {
     const description = isTransportAvailable
       ? 'Open the file your partner shared, or create one and share it.'
       : 'Google Drive sync is not set up in this build yet. Until then, exchange full backups manually.';
     return { title: 'Not connected', description, actions: setupActions({ isDemo, isTransportAvailable }) };
   }
   const view = k_statusViews[status];
-  const description = status === 'paused' && k_pausedDescriptions[reason] ? k_pausedDescriptions[reason] : view.description;
+  const description = status === k_syncStatuses.paused && k_pausedDescriptions[reason] ? k_pausedDescriptions[reason] : view.description;
   return { title: view.title, description, actions: view.actions.map(action => ({ ...action, disabled: false, hint: '' })) };
 }

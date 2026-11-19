@@ -120,6 +120,15 @@ export async function writeSharedFileBinding(binding) {
   await k_persistedStorage.writeRecord(k_sharedFileBindingStorageKey, binding);
 }
 
+// Saves the ledger and the shared-file link together, so the link never
+// describes a ledger that was not saved.
+export async function writeStateWithSharedFileBinding(state, binding) {
+  if (isDemoSession()) {
+    return;
+  }
+  await k_persistedStorage.writeWithRecord(k_stateStorageKey, state, k_sharedFileBindingStorageKey, binding);
+}
+
 // The device ledger as it was before each shared-file adoption or join merge. Every distinct copy is kept.
 export async function writeSharedFileJoinRecovery(state) {
   if (isDemoSession()) {

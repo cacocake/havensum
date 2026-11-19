@@ -9,12 +9,17 @@ const g_storageAdapter = {
   },
   async setItem(key, value) {
     g_values.set(key, value);
+  },
+  async multiSet(pairs) {
+    for (const [key, value] of pairs) {
+      g_values.set(key, value);
+    }
   }
 };
 
 // AsyncStorage is the device boundary. All application storage code stays real.
 mock.module('@react-native-async-storage/async-storage', { exports: { default: g_storageAdapter } });
-const { readState, writeState, readSnapshot, writeSnapshot, readSharedFileBinding, writeSharedFileBinding, writeSharedFileJoinRecovery, readSharedFileJoinRecovery } = await import('../../src/storage.native.js');
+const { readState, writeState, readSnapshot, writeSnapshot, readSharedFileBinding, writeSharedFileBinding, writeSharedFileJoinRecovery, readSharedFileJoinRecovery, writeStateWithSharedFileBinding } = await import('../../src/storage.native.js');
 const { createBinding } = await import('../../src/sharedFileBinding.js');
 
 beforeEach(() => {
@@ -207,6 +212,10 @@ test('native storage keeps the shared-file link and join recovery copies like th
   const previous = createFinancialState({ theme: 'dark' });
   await writeSharedFileJoinRecovery(previous);
   assert.deepEqual(await readSharedFileJoinRecovery(), previous);
+  const synced = createFinancialState({ theme: 'light' });
+  await writeStateWithSharedFileBinding(synced, createBinding('file-native', { revision: 'rev-2', snapshots: [] }));
+  assert.deepEqual(await readState(), synced);
+  assert.equal((await readSharedFileBinding()).lastSeenRevision, 'rev-2');
   g_values.set('havensum-shared-file-binding-v1', '{damaged');
   assert.equal(await readSharedFileBinding(), null);
   assert.equal(g_values.get('havensum-shared-file-binding-v1:recovery:invalid'), '{damaged');

@@ -1,10 +1,11 @@
-import { readSharedDocument } from './sharedFileSync.js';
+import { readSharedDocument } from './sharedFileRead.js';
+import { seed } from './seed.js';
 import { sharedLedgerOf, withDeviceKeys } from './sharedFileDocument.js';
 import { createBinding } from './sharedFileBinding.js';
 import { isSameValue } from './sharedFileMerge.js';
 import { withPaybackTasks } from './paybackState.js';
 import { validateState } from './stateSchema.js';
-import { applyMergeChoices, hasChosenEveryConflict } from './mergeReview.js';
+import { applyMergeChoices, hasChosenEveryConflict, k_mergeConflictFields } from './mergeReview.js';
 import { k_planYearConflictField } from './planMerge.js';
 
 // First join (G08) and merging a second file in (G09). Two ledgers with no
@@ -16,8 +17,9 @@ const k_paybackTasksCollection = 'paybackTasks';
 const k_recordCollections = ['accounts', 'categories', 'transactions', 'loans', 'events', k_paybackTasksCollection];
 const k_plansCollection = 'plans';
 const k_outlookCollection = 'outlook';
-const k_wholeRecordField = '$record';
 export const k_joinSides = Object.freeze({ local: 'local', remote: 'remote' });
+export const k_joinStatuses = Object.freeze({ adopt: 'adopt', choose: 'choose', sameFile: 'sameFile' });
+const k_categoriesCollection = 'categories';
 
 export function joinItemKey(item) {
   return `${item.collection}|${item.id}`;
@@ -40,7 +42,7 @@ function differingRecordConflict(collection, id, localRecord, remoteRecord) {
     // A year planned on both sides is chosen as a whole revision history.
     return { collection, id, field: k_planYearConflictField, base: undefined, local: localRecord.history, remote: remoteRecord.history };
   }
-  return { collection, id, field: k_wholeRecordField, base: undefined, local: localRecord, remote: remoteRecord };
+  return { collection, id, field: k_mergeConflictFields.record, base: undefined, local: localRecord, remote: remoteRecord };
 }
 
 function compareKeyedRecords(collection, localRecords, remoteRecords, review) {
@@ -67,20 +69,37 @@ export function createJoinReview(localLedger, remoteLedger) {
   const localOutlook = localLedger.outlook;
   const remoteOutlook = remoteLedger.outlook;
   if (!isEmptyRecord(localOutlook) && !isEmptyRecord(remoteOutlook) && !isSameValue(localOutlook, remoteOutlook)) {
-    review.conflicts.push({ collection: k_outlookCollection, id: k_outlookCollection, field: '$outlook', base: undefined, local: localOutlook, remote: remoteOutlook });
+    review.conflicts.push({ collection: k_outlookCollection, id: k_outlookCollection, field: k_mergeConflictFields.outlook, base: undefined, local: localOutlook, remote: remoteOutlook });
   }
   return review;
 }
 
-// Adopting loses nothing when this device holds only example data (owner
-// answer, 19 November 2026) or nothing the file lacks.
+// The categories a fresh installation starts with. Keeping them unchanged
+// after clearing the example data is not data of the person's own.
+function isDefaultCategory(category) {
+  return seed().categories.some(defaultCategory => isSameValue(defaultCategory, category));
+}
+
+function isOwnLocalEntry(item) {
+  if (item.side !== k_joinSides.local) {
+    return false;
+  }
+  return item.collection !== k_categoriesCollection || !isDefaultCategory(item.record);
+}
+
+function isOwnLocalDifference(conflict) {
+  return conflict.collection !== k_categoriesCollection || !isDefaultCategory(conflict.local);
+}
+
+// Adopting loses nothing of the person's own when this device holds only
+// example data (owner answer, 19 November 2026), nothing the file lacks, or
+// only the unchanged default categories.
 export function canAdoptWithoutChoice(localState, review) {
   if (localState.demo) {
     return true;
   }
-  const hasLocalOnlyRecords = review.oneSided.some(item => item.side === k_joinSides.local);
   const hasLocalOnlyOutlook = isEmptyRecord(review.remote.outlook) && !isEmptyRecord(review.local.outlook);
-  return !hasLocalOnlyRecords && !hasLocalOnlyOutlook && !review.conflicts.length;
+  return !review.oneSided.some(isOwnLocalEntry) && !hasLocalOnlyOutlook && !review.conflicts.some(isOwnLocalDifference);
 }
 
 export async function openSharedFile({ transport, fileId, localState }) {
@@ -89,15 +108,16 @@ export async function openSharedFile({ transport, fileId, localState }) {
     return read.outcome;
   }
   const review = createJoinReview(sharedLedgerOf(localState), read.document.ledger);
-  const status = canAdoptWithoutChoice(localState, review) ? 'adopt' : 'choose';
+  const status = canAdoptWithoutChoice(localState, review) ? k_joinStatuses.adopt : k_joinStatuses.choose;
   return { status, fileId, revision: read.revision, document: read.document, review };
 }
 
-// Replaces this device's ledger with the file. A device with entries of its
-// own must save a recovery copy first (commitSharedFileJoin does).
+// Replaces this device's ledger with the file. A recovery copy of this
+// device's ledger is always saved first (commitSharedFileJoin does), because
+// a device marked as example data may also hold entries of its own.
 export function adoptSharedFile(opened, localState) {
   const state = validateState({ ...withDeviceKeys(opened.document.ledger, localState), demo: false });
-  return { state, binding: createBinding(opened.fileId, { revision: opened.revision, snapshots: [opened.document] }), needsRecoveryCopy: !localState.demo };
+  return { state, binding: createBinding(opened.fileId, { revision: opened.revision, snapshots: [opened.document] }), needsRecoveryCopy: true };
 }
 
 function keptRecords(review, collection, droppedKeys) {
@@ -138,9 +158,20 @@ export function buildJoinedLedger(review, { droppedKeys = new Set(), choices = {
   }
   ledger.plans = plans;
   ledger.outlook = isEmptyRecord(review.remote.outlook) ? review.local.outlook : review.remote.outlook;
-  const warnings = [...(review.local.migrationCategoryWarnings ?? []), ...(review.remote.migrationCategoryWarnings ?? [])];
-  ledger.migrationCategoryWarnings = warnings.length ? warnings : undefined;
+  ledger.migrationCategoryWarnings = joinedCategoryWarnings(review, ledger.transactions);
   return applyMergeChoices(withConflictPlaceholders(ledger, review.conflicts), review.conflicts, choices);
+}
+
+// One warning per transaction, and only for transactions the join keeps.
+function joinedCategoryWarnings(review, keptTransactions) {
+  const keptTransactionIds = new Set(keptTransactions.map(transaction => transaction.id));
+  const warnings = new Map();
+  for (const warning of [...(review.remote.migrationCategoryWarnings ?? []), ...(review.local.migrationCategoryWarnings ?? [])]) {
+    if (keptTransactionIds.has(warning.transactionId) && !warnings.has(warning.transactionId)) {
+      warnings.set(warning.transactionId, warning);
+    }
+  }
+  return warnings.size ? [...warnings.values()] : undefined;
 }
 
 // A two-sided record starts from the remote copy so choosing either side
@@ -166,12 +197,15 @@ export function mergeIntoSharedFile(opened, localState, decisions) {
 
 // G09: a second file is merged into the ledger of the file being kept. The
 // link stays on the kept file and the other file is never changed or deleted.
-export async function openSecondSharedFile({ transport, fileId, localState }) {
+export async function openSecondSharedFile({ transport, fileId, localState, binding }) {
+  if (binding?.fileId === fileId) {
+    return { status: k_joinStatuses.sameFile };
+  }
   const read = await readSharedDocument(transport, fileId);
   if (read.outcome) {
     return read.outcome;
   }
-  return { status: 'choose', fileId, revision: read.revision, document: read.document, review: createJoinReview(sharedLedgerOf(localState), read.document.ledger) };
+  return { status: k_joinStatuses.choose, fileId, revision: read.revision, document: read.document, review: createJoinReview(sharedLedgerOf(localState), read.document.ledger) };
 }
 
 export function mergeSecondSharedFile(opened, localState, decisions) {
@@ -179,15 +213,15 @@ export function mergeSecondSharedFile(opened, localState, decisions) {
   return { state: validateState(withDeviceKeys(ledger, localState)), needsRecoveryCopy: true };
 }
 
-// Saves a join in a safe order: recovery copy first (a failure blocks the
-// join), then the ledger, then the link, so a link never points at
-// snapshots the saved ledger does not contain.
+// Saves a join: the recovery copy first (a failure blocks the join), then the
+// ledger together with its link, so a link never describes an unsaved ledger.
 export async function commitSharedFileJoin(storage, { state, binding, needsRecoveryCopy }, previousState) {
   if (needsRecoveryCopy) {
     await storage.writeSharedFileJoinRecovery(previousState);
   }
-  await storage.writeState(state);
   if (binding) {
-    await storage.writeSharedFileBinding(binding);
+    await storage.writeStateWithSharedFileBinding(state, binding);
+    return;
   }
+  await storage.writeState(state);
 }

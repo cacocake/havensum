@@ -32,6 +32,14 @@ async function retainRecoveryCopy(storage, keyAtIndex, encodedState) {
   }
 }
 
+async function restoreValue(storage, key, previousValue) {
+  if (previousValue !== null) {
+    await storage.setItem(key, previousValue);
+    return;
+  }
+  await storage.removeItem(key);
+}
+
 async function retainInvalidCopy(storage, key, encodedValue) {
   const recoveryIndex = await retainRecoveryCopy(storage, index => invalidCopyKey(key, index), encodedValue);
   await storage.setItem(latestInvalidCopyIndexKey(key), String(recoveryIndex));
@@ -169,6 +177,29 @@ export function createPersistedStorage(getStorage) {
     writeRecord(key, record) {
       const encodedRecord = JSON.stringify(record);
       return enqueue(() => getStorage().setItem(key, encodedRecord));
+    },
+    // Saves a ledger and a related record together. AsyncStorage's multiSet
+    // writes both in one batch; with plain getItem/setItem, a failed second
+    // write puts the ledger back, so neither is saved alone.
+    writeWithRecord(key, state, recordKey, record) {
+      const encodedState = JSON.stringify(migrateState(state));
+      const encodedRecord = JSON.stringify(record);
+      return enqueue(async () => {
+        const storage = getStorage();
+        await readPersistedState(storage, key, JSON.parse);
+        if (typeof storage.multiSet === 'function') {
+          await storage.multiSet([[key, encodedState], [recordKey, encodedRecord]]);
+          return;
+        }
+        const previousState = await storage.getItem(key);
+        await storage.setItem(key, encodedState);
+        try {
+          await storage.setItem(recordKey, encodedRecord);
+        } catch (error) {
+          await restoreValue(storage, key, previousState);
+          throw error;
+        }
+      });
     },
     // Raw saved bytes, read after any queued save so a pending write is included.
     readRaw(key) {

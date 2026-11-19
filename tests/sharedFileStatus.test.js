@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { shouldSyncForTrigger, sharedFileStatusView, createSyncScheduler, k_syncTriggers, k_editSyncDelayMilliseconds, commitSyncOutcome } from '../src/sharedFileStatus.js';
+import { shouldSyncForTrigger, sharedFileStatusView, createSyncScheduler, createSyncProgressSaver, StaleLedgerError, k_syncTriggers, k_editSyncDelayMilliseconds } from '../src/sharedFileStatus.js';
 import * as webStorage from '../src/storage.web.js';
 import { createBinding } from '../src/sharedFileBinding.js';
 import { installBrowserStorage } from './helpers/browserStorage.js';
@@ -13,7 +13,7 @@ test('automatic triggers sync when connected and online, and never bypass a revi
     assert.equal(shouldSyncForTrigger({ status: 'synced', trigger, isOnline: true, isConnected: true }), true, trigger);
     assert.equal(shouldSyncForTrigger({ status: 'synced', trigger, isOnline: false, isConnected: true }), false, `${trigger} offline`);
     assert.equal(shouldSyncForTrigger({ status: 'synced', trigger, isOnline: true, isConnected: false }), false, `${trigger} not connected`);
-    for (const waitingStatus of ['needsReview', 'needsJoin', 'reconnect', 'paused', 'invalidRemote']) {
+    for (const waitingStatus of ['needsReview', 'needsJoin', 'reconnect', 'paused', 'invalidRemote', 'invalidMerge']) {
       assert.equal(shouldSyncForTrigger({ status: waitingStatus, trigger, isOnline: true, isConnected: true }), false, `${trigger} ${waitingStatus}`);
     }
   }
@@ -61,6 +61,7 @@ test('each connected status names what the person can do next', () => {
   assert.deepEqual(actionsFor('needsReview'), ['review']);
   assert.deepEqual(actionsFor('needsJoin'), ['review']);
   assert.deepEqual(actionsFor('invalidRemote'), ['downloadRemote', 'syncNow']);
+  assert.deepEqual(actionsFor('invalidMerge'), ['syncNow']);
   assert.match(sharedFileStatusView({ status: 'paused', reason: 'fileMissing', isDemo: false, isTransportAvailable: true }).description, /trash/);
   assert.match(sharedFileStatusView({ status: 'paused', reason: 'accessLost', isDemo: false, isTransportAvailable: true }).description, /stays on this device/);
 });
@@ -99,25 +100,63 @@ test('edits are synced shortly after the last one, and a trigger during a sync r
   assert.equal(runs.length, 2);
 });
 
-test('a sync outcome saves the ledger before the link, so the link never gets ahead of the ledger', async context => {
+test('a person-requested trigger queued during a sync outranks a queued edit, and a failing sync is reported', async () => {
+  const runs = [];
+  const errors = [];
+  let finishRun;
+  const scheduler = createSyncScheduler({
+    runSync: trigger => {
+      runs.push(trigger);
+      if (trigger === k_syncTriggers.reconnect) {
+        return Promise.reject(new Error('boom'));
+      }
+      return new Promise(resolve => {
+        finishRun = resolve;
+      });
+    },
+    onError: error => errors.push(error.message)
+  });
+  scheduler.trigger(k_syncTriggers.start);
+  scheduler.trigger(k_syncTriggers.resume);
+  scheduler.trigger(k_syncTriggers.reconnect);
+  scheduler.trigger(k_syncTriggers.syncNow);
+  finishRun();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(runs, [k_syncTriggers.start, k_syncTriggers.reconnect]);
+  assert.deepEqual(errors, ['boom']);
+  scheduler.trigger(k_syncTriggers.syncNow);
+  assert.deepEqual(runs, [k_syncTriggers.start, k_syncTriggers.reconnect, k_syncTriggers.syncNow]);
+});
+
+test('sync progress saves the ledger and the link together and refuses to overwrite an edit made meanwhile', async context => {
+  installBrowserStorage(context);
+  const snapshot = createFinancialState();
+  await webStorage.writeState(snapshot);
+  let current = snapshot;
+  const saveProgress = createSyncProgressSaver({ storage: webStorage, snapshotState: snapshot, readCurrentState: async () => current });
+  const synced = { ...snapshot, transactions: [createTransaction()] };
+  await saveProgress({ state: synced, binding: createBinding('file-1', { revision: 'rev-2', snapshots: [] }) });
+  assert.deepEqual((await webStorage.readState()).transactions, [createTransaction()]);
+  assert.equal((await webStorage.readSharedFileBinding()).lastSeenRevision, 'rev-2');
+  current = { ...synced, transactions: [...synced.transactions, createTransaction({ id: 'typed-meanwhile' })] };
+  await assert.rejects(saveProgress({ state: synced, binding: createBinding('file-1', { revision: 'rev-3', snapshots: [] }) }), StaleLedgerError);
+  assert.equal((await webStorage.readSharedFileBinding()).lastSeenRevision, 'rev-2');
+});
+
+test('if the link cannot be saved, the ledger is put back so neither is saved alone', async context => {
   const storage = installBrowserStorage(context);
   const previous = createFinancialState();
   await webStorage.writeState(previous);
-  const synced = { ...previous, transactions: [createTransaction()] };
-  const binding = createBinding('file-1', { revision: 'rev-2', snapshots: [] });
+  const savedBefore = storage.getItem('melo-state-v1');
   const originalSetItem = storage.setItem;
   storage.setItem = (key, value) => {
-    if (key === 'melo-state-v1') {
+    if (key === 'havensum-shared-file-binding-v1') {
       throw new Error('Quota exceeded');
     }
     originalSetItem(key, value);
   };
-  await assert.rejects(commitSyncOutcome(webStorage, { state: synced, binding }), /Quota/);
+  const synced = { ...previous, transactions: [createTransaction()] };
+  await assert.rejects(webStorage.writeStateWithSharedFileBinding(synced, createBinding('file-1', { revision: 'rev-2', snapshots: [] })), /Quota/);
+  assert.equal(storage.getItem('melo-state-v1'), savedBefore);
   assert.equal(await webStorage.readSharedFileBinding(), null);
-  storage.setItem = originalSetItem;
-  await commitSyncOutcome(webStorage, { state: synced, binding });
-  assert.deepEqual((await webStorage.readState()).transactions, [createTransaction()]);
-  assert.equal((await webStorage.readSharedFileBinding()).lastSeenRevision, 'rev-2');
-  await commitSyncOutcome(webStorage, { status: 'offline' });
-  assert.equal((await webStorage.readSharedFileBinding()).lastSeenRevision, 'rev-2');
 });

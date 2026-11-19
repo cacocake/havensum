@@ -53,7 +53,8 @@ test('a device holding only the example data adopts the file directly and drops 
   assert.equal(opened.status, 'adopt');
   const adopted = adoptSharedFile(opened, exampleDevice);
   assert.equal(adopted.state.demo, false);
-  assert.equal(adopted.needsRecoveryCopy, false);
+  // Example data can hold entries of the person's own, so a copy is still kept.
+  assert.equal(adopted.needsRecoveryCopy, true);
   assert.deepEqual(transactionIds(adopted.state), ['creator-rent']);
 });
 
@@ -105,11 +106,15 @@ test('merging with review keeps what the person keeps, drops duplicates, and the
   assert.deepEqual(transactionIds(joined.state), ['creator-rent', 'partner-coffee']);
   assert.equal(joined.state.theme, 'light');
 
-  const synced = await syncSharedFile({ transport: drive.transport, binding: joined.binding, localState: joined.state, createWriteId: createWriteIdSource('partner') });
+  const synced = await syncSharedFile({ transport: drive.transport, binding: joined.binding, localState: joined.state, createWriteId: createWriteIdSource('partner'), saveProgress: async () => {} });
   assert.equal(synced.status, 'synced');
-  const creatorSynced = await syncSharedFile({ transport: drive.transport, binding: creatorBinding, localState: k_creatorState, createWriteId: createWriteIdSource('creator') });
-  assert.deepEqual(transactionIds(creatorSynced.state), ['creator-rent', 'partner-coffee']);
-  assert.equal(creatorSynced.state.theme, 'dark');
+  let creatorSaved = null;
+  const saveCreatorProgress = async progress => {
+    creatorSaved = progress;
+  };
+  await syncSharedFile({ transport: drive.transport, binding: creatorBinding, localState: k_creatorState, createWriteId: createWriteIdSource('creator'), saveProgress: saveCreatorProgress });
+  assert.deepEqual(transactionIds(creatorSaved.state), ['creator-rent', 'partner-coffee']);
+  assert.equal(creatorSaved.state.theme, 'dark');
 });
 
 test('dropping a remote record during the join removes it from the file on the next sync', async () => {
@@ -118,7 +123,7 @@ test('dropping a remote record during the join removes it from the file on the n
   const opened = await openSharedFile({ transport: drive.transport, fileId, localState: partnerDevice });
   const remoteRent = opened.review.oneSided.find(item => item.id === 'creator-rent');
   const joined = mergeIntoSharedFile(opened, partnerDevice, { droppedKeys: new Set([joinItemKey(remoteRent)]) });
-  await syncSharedFile({ transport: drive.transport, binding: joined.binding, localState: joined.state, createWriteId: createWriteIdSource('partner') });
+  await syncSharedFile({ transport: drive.transport, binding: joined.binding, localState: joined.state, createWriteId: createWriteIdSource('partner'), saveProgress: async () => {} });
   assert.deepEqual(transactionIds(parseSharedDocument(drive.headContent(fileId)).ledger), ['partner-rent']);
 });
 
@@ -177,15 +182,17 @@ test('adopting saves a recovery copy of this device first, and a failed copy blo
 test('a second file is merged into the kept file through the one-sided review and is never changed', async () => {
   const { drive, fileId: keptFileId, creatorBinding } = await createFileFrom(k_creatorState);
   const partnerState = createFinancialState({ transactions: [createTransaction({ id: 'partner-coffee' })] });
-  const { binding: otherBinding } = await createSharedFile({ transport: drive.transport, localState: partnerState, partnerEmail: k_partnerEmail, createWriteId: createWriteIdSource('partner') });
+  const { binding: otherBinding } = await createSharedFile({ transport: drive.transport, localState: partnerState, partnerEmail: k_partnerEmail, createWriteId: createWriteIdSource('partner'), saveProgress: async () => {} });
   const otherRevisions = drive.revisionCount(otherBinding.fileId);
 
-  const opened = await openSecondSharedFile({ transport: drive.transport, fileId: otherBinding.fileId, localState: k_creatorState });
+  const sameFile = await openSecondSharedFile({ transport: drive.transport, fileId: keptFileId, localState: k_creatorState, binding: creatorBinding });
+  assert.equal(sameFile.status, 'sameFile');
+  const opened = await openSecondSharedFile({ transport: drive.transport, fileId: otherBinding.fileId, localState: k_creatorState, binding: creatorBinding });
   assert.equal(opened.status, 'choose');
   assert.deepEqual(opened.review.oneSided.map(item => `${item.side}:${item.id}`).sort(), ['local:creator-rent', 'remote:partner-coffee']);
   const merged = mergeSecondSharedFile(opened, k_creatorState, {});
   assert.equal(merged.binding, undefined);
-  const synced = await syncSharedFile({ transport: drive.transport, binding: creatorBinding, localState: merged.state, createWriteId: createWriteIdSource('creator') });
+  const synced = await syncSharedFile({ transport: drive.transport, binding: creatorBinding, localState: merged.state, createWriteId: createWriteIdSource('creator'), saveProgress: async () => {} });
   assert.equal(synced.status, 'synced');
   assert.deepEqual(transactionIds(parseSharedDocument(drive.headContent(keptFileId)).ledger), ['creator-rent', 'partner-coffee']);
   assert.equal(drive.revisionCount(otherBinding.fileId), otherRevisions);
@@ -209,4 +216,27 @@ test('different prediction settings on both sides are a choice when joining', as
   assert.equal(conflict.collection, 'outlook');
   const ledger = buildJoinedLedger(opened.review, { droppedKeys: new Set(), choices: { [mergeConflictKey(conflict)]: 'local' } });
   assert.deepEqual(ledger.outlook, { window: 3 });
+});
+
+test('a device left with only the unchanged default categories adopts without a choice', async () => {
+  const { drive, fileId } = await createFileFrom({ ...k_creatorState, categories: k_creatorState.categories.map(category => ({ ...category, name: `${category.name} (ours)` })) });
+  const clearedDevice = createFinancialState({ accounts: [], categories: seed().categories });
+  const opened = await openSharedFile({ transport: drive.transport, fileId, localState: clearedDevice });
+  assert.equal(opened.status, 'adopt');
+  const customised = createFinancialState({ accounts: [], categories: [...seed().categories, { id: 'garden', name: 'Garden' }] });
+  assert.equal((await openSharedFile({ transport: drive.transport, fileId, localState: customised })).status, 'choose');
+});
+
+test('a joined ledger keeps one missing-category warning per kept transaction', async () => {
+  const uncategorized = createTransaction({ id: 'uncategorized', category: null });
+  const warning = { transactionId: 'uncategorized', categoryId: 'old' };
+  const { drive, fileId } = await createFileFrom({ ...k_creatorState, transactions: [...k_creatorState.transactions, uncategorized], migrationCategoryWarnings: [warning] });
+  const partnerDevice = createFinancialState({
+    transactions: [uncategorized, createTransaction({ id: 'partner-orphan', category: null })],
+    migrationCategoryWarnings: [warning, { transactionId: 'partner-orphan', categoryId: 'old' }]
+  });
+  const opened = await openSharedFile({ transport: drive.transport, fileId, localState: partnerDevice });
+  const orphan = opened.review.oneSided.find(item => item.id === 'partner-orphan');
+  const ledger = buildJoinedLedger(opened.review, { droppedKeys: new Set([joinItemKey(orphan)]) });
+  assert.deepEqual(ledger.migrationCategoryWarnings, [warning]);
 });
