@@ -1,6 +1,7 @@
-import { localCalendarDate, monthOf, k_calendarDateLength } from './calendar.js';
+import { localCalendarDate, monthOf } from './calendar.js';
 import { k_spendingBehaviors, k_transactionTypes } from './domainConstants.js';
 import { expenseReportingMonth } from './plannedCosts.js';
+import { postedLedger, scheduledTransactions } from './posting.js';
 
 const k_defaultCategory = {
   name: 'Uncategorized', color: '#aa9ca5', icon: 'Shapes', kind: k_spendingBehaviors.variable
@@ -31,6 +32,23 @@ export function netExpenses(transactions, month) {
     });
 }
 
+// The month whose report an entry changes: income by its date, an expense by
+// its reporting month and a linked payback by its original expense's month.
+// Transfers and unlinked balance adjustments change no report.
+function reportsInMonth(state, transaction, month) {
+  if (transaction.type === k_transactionTypes.income) {
+    return monthOf(transaction.date) === month;
+  }
+  if (transaction.type === k_transactionTypes.expense) {
+    return expenseReportingMonth(transaction) === month;
+  }
+  if (transaction.type !== k_transactionTypes.reimbursement) {
+    return false;
+  }
+  const original = state.transactions.find(candidate => candidate.type === k_transactionTypes.expense && candidate.id === transaction.linkedId);
+  return Boolean(original) && expenseReportingMonth(original) === month;
+}
+
 export function monthStats(state, month) {
   const expenses = netExpenses(state.transactions, month);
   const income = state.transactions
@@ -41,17 +59,25 @@ export function monthStats(state, month) {
   return { income, spent, balance: income - spent, expenses, reimbursed };
 }
 
-export function reportingMonthStats(state, month, today = new Date().toISOString().slice(0, k_calendarDateLength)) {
-  // Future months show registered entries. Past/current reports use received cash
-  // and expenses through the reporting date, including original-month paybacks.
-  if (month > monthOf(today)) {
-    return monthStats(state, month);
-  }
-  const recordedState = {
-    ...state,
-    transactions: state.transactions.filter(transaction => transaction.date <= today)
+export function reportingMonthStats(state, month, today = localCalendarDate()) {
+  // L01: every month reports the entries posted by today, including
+  // original-month paybacks received by then and early payments linked to a
+  // later occurrence. Scheduled entries count from their date.
+  return monthStats(postedLedger(state, today), month);
+}
+
+// What the month's report will gain once its scheduled entries post: income,
+// net spending (a scheduled payback lowers it) and their balance.
+export function scheduledMonthStats(state, month, today = localCalendarDate()) {
+  const posted = monthStats(postedLedger(state, today), month);
+  const registered = monthStats(state, month);
+  const count = scheduledTransactions(state.transactions, today).filter(transaction => reportsInMonth(state, transaction, month)).length;
+  return {
+    income: registered.income - posted.income,
+    spent: registered.spent - posted.spent,
+    balance: registered.balance - posted.balance,
+    count
   };
-  return monthStats(recordedState, month);
 }
 
 // L01: the current balance counts entries dated through today, by the device's
