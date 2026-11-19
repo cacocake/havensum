@@ -78,3 +78,22 @@ test('edit-versus-delete and other planned-cost conflicts are left exactly as th
   assert.deepEqual(described, conflicts);
   assert.deepEqual(described.map(conflict => [conflict.id, conflict.field]), [['celebrations', 'name'], ['spring-fair', '$record']]);
 });
+
+test('an empty set of year amounts against none reads as no year amounts on either side instead of a broken title', () => {
+  const [conflict] = reviewedYearAmountConflicts({
+    base: { ...k_celebrations, yearAmounts: { 2027: 40500 } },
+    local: { ...k_celebrations, yearAmounts: {} },
+    remote: k_celebrations
+  });
+
+  assert.equal(yearAmountConflictTitle(conflict), 'December celebrations · amounts by year');
+  assert.deepEqual(yearAmountConflictLines(conflict, 'local'), ['No year amounts; every year uses the usual amount (€400.00)']);
+  assert.deepEqual(yearAmountConflictLines(conflict, 'remote'), ['No year amounts; every year uses the usual amount (€400.00)']);
+});
+
+test('a year-amount conflict that was not described still reads by year without crashing', () => {
+  const conflict = { collection: 'events', id: 'celebrations', field: 'yearAmounts', base: undefined, local: { 2027: 41000 }, remote: {} };
+
+  assert.equal(yearAmountConflictTitle(conflict), 'celebrations · amount for 2027');
+  assert.deepEqual(yearAmountConflictLines(conflict, 'remote'), ['Amount for 2027: usual amount']);
+});

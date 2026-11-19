@@ -50,10 +50,22 @@ function yearListPhrase(years) {
   return `${years.slice(0, -1).join(', ')} and ${years.at(-1)}`;
 }
 
+function plannedCostLabel(conflict) {
+  return conflict.plannedCostName ?? String(conflict.id);
+}
+
 export function yearAmountConflictTitle(conflict) {
   const years = differingYears(conflict);
+  if (!years.length) {
+    return `${plannedCostLabel(conflict)} · amounts by year`;
+  }
   const amountWord = years.length === 1 ? 'amount' : 'amounts';
-  return `${conflict.plannedCostName} · ${amountWord} for ${yearListPhrase(years)}`;
+  return `${plannedCostLabel(conflict)} · ${amountWord} for ${yearListPhrase(years)}`;
+}
+
+function usualAmountPhrase(conflict, side) {
+  const usualAmount = conflict.usualAmounts?.[side];
+  return usualAmount === undefined ? 'usual amount' : `usual amount (${euro(usualAmount)})`;
 }
 
 // A year without its own amount on a side uses that side's usual amount.
@@ -62,9 +74,14 @@ function sideAmountPhrase(conflict, side, year) {
   if (yearAmount !== undefined) {
     return euro(yearAmount);
   }
-  return `usual amount (${euro(conflict.usualAmounts[side])})`;
+  return usualAmountPhrase(conflict, side);
 }
 
 export function yearAmountConflictLines(conflict, side) {
-  return differingYears(conflict).map(year => `Amount for ${year}: ${sideAmountPhrase(conflict, side, year)}`);
+  const years = differingYears(conflict);
+  // An empty set against no set at all still differs as stored, though no year does.
+  if (!years.length) {
+    return [`No year amounts; every year uses the ${usualAmountPhrase(conflict, side)}`];
+  }
+  return years.map(year => `Amount for ${year}: ${sideAmountPhrase(conflict, side, year)}`);
 }

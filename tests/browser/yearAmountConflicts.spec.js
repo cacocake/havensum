@@ -55,16 +55,18 @@ test('a long planned-cost name wraps inside a narrow conflict card', async ({ pa
   const plannedCost = { ...k_celebrations, name: k_longPlannedCostName };
   const baseline = createFinancialState({ events: [plannedCost] });
   const ledger = createFinancialState({ events: [{ ...plannedCost, yearAmounts: { 2027: 123456789 } }] });
-  const backup = createFinancialState({ events: [{ ...plannedCost, yearAmounts: { 2027: 987654321 } }] });
+  const backup = createFinancialState({ events: [{ ...plannedCost, yearAmounts: { 2027: 987654321, 2028: 876543210 } }] });
   await openLedger(page, ledger, { baseline });
 
   const review = await reviewBackupMerge(page, backup);
 
-  const title = review.getByText(`${k_longPlannedCostName} · amount for 2027`, { exact: true });
+  const title = review.getByText(`${k_longPlannedCostName} · amounts for 2027 and 2028`, { exact: true });
   await expect(title).toBeVisible();
   const backupLine = review.getByText('Amount for 2027: €9,876,543.21', { exact: true });
   await expect(backupLine).toBeVisible();
-  for (const element of [title, backupLine]) {
+  const usualAmountLine = review.getByText('Amount for 2028: usual amount (€400.00)', { exact: true });
+  await expect(usualAmountLine).toBeVisible();
+  for (const element of [title, backupLine, usualAmountLine]) {
     const box = await element.boundingBox();
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(k_narrowViewport.width);
