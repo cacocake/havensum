@@ -3,6 +3,7 @@ import { validateOutlookState } from './outlookInputs.js';
 import { validatePaybackState } from './paybackState.js';
 import { legacyPlanArchive } from './planArchive.js';
 import { isInterestRate } from './interestSchedule.js';
+import { k_interestBankChoices } from './interestEntries.js';
 import { isValidYearAmounts } from './plannedCosts.js';
 
 export const k_interestScheduleStateVersion = 4;
@@ -112,6 +113,22 @@ function validatePlans(state) {
   validatePlan(state.plan);
 }
 
+const k_validInterestBankChoices = new Set(Object.values(k_interestBankChoices));
+
+// LEDGER-2 (L05): one stored bank-interest choice per account and month.
+function validateInterestBankChoices(account) {
+  if (account.interestBankChoices === undefined) {
+    return;
+  }
+  requireValid(Array.isArray(account.interestBankChoices), 'bank interest choices');
+  const choiceMonths = new Set();
+  for (const choice of account.interestBankChoices) {
+    requireValid(isRecord(choice) && k_monthPattern.test(choice.month) && k_validInterestBankChoices.has(choice.choice), 'bank interest choice');
+    requireValid(!choiceMonths.has(choice.month), 'bank interest choices need unique months');
+    choiceMonths.add(choice.month);
+  }
+}
+
 function validateAccountInterest(version, account) {
   if (version < k_currentStateVersion) {
     if (account.interest !== undefined) {
@@ -127,6 +144,7 @@ function validateAccountInterest(version, account) {
     requireValid(isInterestRate(account.unscheduledInterest), 'unscheduled interest rate');
     requireValid(!account.interestSchedule?.length, 'an account keeps either a rate schedule or an unscheduled rate');
   }
+  validateInterestBankChoices(account);
   if (account.interestSchedule === undefined) {
     return;
   }

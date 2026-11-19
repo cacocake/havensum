@@ -205,3 +205,23 @@ test('canonical transaction CSV preserves an explicitly linked planned cost', as
   assert.equal(review.rows[0].status, 'new');
   assert.deepEqual(review.rows[0].transaction.plannedCost, plannedCost);
 });
+
+test('canonical transaction CSV keeps a downward interest correction signed and marked', async () => {
+  const { createTransactionCsv } = await import('../src/csvExchange.js');
+  const { previewImportFile } = await import('../src/importFileReview.js');
+  const correction = createTransaction({ id: 'interest-correction-everyday-2026-01-1', type: 'income', title: 'Interest correction', category: 'interest', date: '2026-01-31', amount: -462, correctsInterestMonth: '2026-01' });
+  const csv = createTransactionCsv(createFinancialState({ transactions: [correction] }));
+
+  assert.match(csv, /"-4\.62"/);
+  const review = previewImportFile(createFinancialState(), await readImport(new File([csv], 'corrections.csv')));
+  assert.equal(review.rows[0].status, 'new');
+  assert.equal(review.rows[0].transaction.amount, -462);
+  assert.equal(review.rows[0].transaction.correctsInterestMonth, '2026-01');
+});
+
+test('a negative CSV amount is still refused for an ordinary entry', async () => {
+  const { normalizeImportRows } = await import('../src/importNormalization.js');
+  const data = { rows: [{ Date: '2026-01-31', Title: 'Refund', Amount: '-4.62', Account: 'Everyday', Category: 'Groceries' }] };
+
+  assert.throws(() => normalizeImportRows(createFinancialState(), data), /positive amount/i);
+});
