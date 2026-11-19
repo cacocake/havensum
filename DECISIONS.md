@@ -95,7 +95,6 @@ As of 17 November 2026. Latest requirements in docs/HAVENSUM_REQUIREMENTS.md sup
 | F10 | Working estimate | Current-month outlook uses recorded costs plus remaining variable allowance; fixed/loans/reserves retain at least planned totals | Read-only estimate; never replaces frozen plan; model and limits in docs/UX_UPDATE.md |
 | U14 | Working choice | Crisp 120 ms press feedback and restrained state transitions | Reanimated native and CSS web; routine destination entrance removed; reduced motion supported |
 
-
 ## Latest owner requirements — local-repo handoff
 
 | ID | Status | Decision | Consequence |
@@ -139,6 +138,15 @@ These choices are approved requirements for the upcoming implementation, not cla
 | --- | --- | --- | --- |
 | L01 | Owner approved | An entry dated after today counts in current account balances and monthly reports from its date, by the device's local date | Until its date it is shown as upcoming/scheduled and still feeds forecasts. From that day it is included automatically, with no manual confirmation step |
 | L02 | Owner confirmed (19 November 2026, in chat) | "Today" is the device's local calendar date everywhere: what has posted, the starting month, and the default dates of new entries and loans | Replaces the UTC dates recorded in PLAN-4 Q4 and FORECAST-1 Q3 for balances, reports, forecasts, the starting month and new-entry dates |
+
+## LEDGER-2 — historical interest corrections (owner answers, 19 November 2026)
+
+| ID | Status | Decision | Consequence |
+| --- | --- | --- | --- |
+| L03 | Owner approved | Past interest is corrected only through a reviewed "Correct past interest" flow on the savings account | A corrected past balance is recorded as an ordinary dated entry or an explicit balance adjustment; the flow then shows its interest effect. Past rate periods can be changed only inside this flow, never in the normal rate editor |
+| L04 | Owner approved | A correction keeps every recorded interest entry and adds one marked *Interest correction* entry per affected month for the difference, dated that month's end | Nothing recorded is rewritten. A downward correction is a negative interest-income entry, so income, cash and the month total stay consistent. A completed month that never had an app entry gets its ordinary app entry instead |
+| L05 | Owner approved | When bank-posted interest (an imported or typed Interest income entry) exists for an account and month that also has, or would get, an app interest entry, the owner chooses per month: use the bank amount only, or keep both | Until chosen, the app posts no interest of its own for that month and the account shows the month as needing a choice. *Bank only* offsets an existing app entry with a correction; *keep both* keeps or posts the app entry. Each choice is stored on the account so it is asked once |
+| L06 | Owner approved | The review lists every affected completed month (recorded, corrected, difference) with later months marked *compounding effect*, plus a total; Apply corrects all listed months at once and Cancel changes nothing | A stale or repeated Apply is refused and re-reviewed, so corrections are never duplicated |
 
 ## ANDROID-1 — installable package (owner answers, 19 November 2026)
 

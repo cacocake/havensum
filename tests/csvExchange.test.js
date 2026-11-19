@@ -205,3 +205,50 @@ test('canonical transaction CSV preserves an explicitly linked planned cost', as
   assert.equal(review.rows[0].status, 'new');
   assert.deepEqual(review.rows[0].transaction.plannedCost, plannedCost);
 });
+
+test('canonical transaction CSV keeps a downward interest correction signed and marked', async () => {
+  const { createTransactionCsv } = await import('../src/csvExchange.js');
+  const { previewImportFile } = await import('../src/importFileReview.js');
+  const correction = createTransaction({ id: 'interest-correction-everyday-2026-01-1', type: 'income', title: 'Interest correction', category: 'interest', date: '2026-01-31', amount: -462, correctsInterestMonth: '2026-01' });
+  const csv = createTransactionCsv(createFinancialState({ transactions: [correction] }));
+
+  assert.match(csv, /"-4\.62"/);
+  const review = previewImportFile(createFinancialState(), await readImport(new File([csv], 'corrections.csv')));
+  assert.equal(review.rows[0].status, 'new');
+  assert.equal(review.rows[0].transaction.amount, -462);
+  assert.equal(review.rows[0].transaction.correctsInterestMonth, '2026-01');
+});
+
+test('a negative CSV amount is still refused for an ordinary entry', async () => {
+  const { normalizeImportRows } = await import('../src/importNormalization.js');
+  const data = { rows: [{ Date: '2026-01-31', Title: 'Refund', Amount: '-4.62', Account: 'Everyday', Category: 'Groceries' }] };
+
+  assert.throws(() => normalizeImportRows(createFinancialState(), data), /positive amount/i);
+});
+
+test('a JSON backup or workbook row keeps an interest correction signed and marked', async () => {
+  const { normalizeImportRows } = await import('../src/importNormalization.js');
+  const correction = { id: 'interest-correction-everyday-2026-01-1', type: 'income', title: 'Interest correction', category: 'interest', date: '2026-01-31', account: 'everyday', correctsInterestMonth: '2026-01' };
+  const state = createFinancialState();
+
+  const [fromBackup] = normalizeImportRows(state, { rows: [{ ...correction, amount: -462 }], backup: state });
+  const [fromWorkbook] = normalizeImportRows(state, { rows: [{ ...correction, amount: -4.62 }] });
+
+  for (const row of [fromBackup, fromWorkbook]) {
+    assert.equal(row.amount, -462);
+    assert.equal(row.correctsInterestMonth, '2026-01');
+  }
+});
+
+test('the workbook raw sheet carries the interest correction marker', async () => {
+  const ExcelJS = (await import('exceljs')).default;
+  const { createWorkbook } = await import('../src/workbook.js');
+  const correction = createTransaction({ id: 'c1', type: 'income', title: 'Interest correction', category: 'interest', date: '2026-01-31', amount: -462, correctsInterestMonth: '2026-01' });
+  const workbook = createWorkbook(ExcelJS, createFinancialState({ transactions: [correction] }), '2026-01');
+  const sheet = workbook.getWorksheet('Raw transactions');
+  const headers = sheet.getRow(1).values;
+  const values = sheet.getRow(2).values;
+
+  assert.equal(values[headers.indexOf('correctsInterestMonth')], '2026-01');
+  assert.equal(values[headers.indexOf('amount')], -4.62);
+});
