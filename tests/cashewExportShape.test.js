@@ -226,8 +226,33 @@ test('Cashew transfer legs up to a minute apart are still suggested as a pair (K
   assert.deepEqual(suggestedTypes(oneSecond), ['transfer', undefined]);
   const acrossMidnight = previewImportFile(state, await legsAt('2026-11-10 23:59:30.000', '2026-11-11 00:00:30.000'), k_accountOptions);
   assert.deepEqual(suggestedTypes(acrossMidnight), ['transfer', undefined]);
-  const tooFar = previewImportFile(state, await legsAt('2026-11-10 20:28:30.000', '2026-11-10 20:29:31.000'), k_accountOptions);
+  const minuteRollover = previewImportFile(state, await legsAt('2026-11-10 20:28:30.000', '2026-11-10 20:29:31.000'), k_accountOptions);
+  assert.deepEqual(suggestedTypes(minuteRollover), ['transfer', undefined]);
+  const tooFar = previewImportFile(state, await legsAt('2026-11-10 20:28:30.000', '2026-11-10 20:29:32.000'), k_accountOptions);
   assert.deepEqual(suggestedTypes(tooFar), [undefined, undefined]);
+  const dateOnly = previewImportFile(state, await legsAt('2026-11-10', '2026-11-10'), k_accountOptions);
+  assert.deepEqual(suggestedTypes(dateOnly), ['transfer', undefined]);
+  const unreadable = previewImportFile(state, await legsAt('2026-11-10 20:28:30.000', 'sometime 2026-11-10'), k_accountOptions);
+  assert.deepEqual(suggestedTypes(unreadable), [undefined, undefined]);
+});
+
+test('two Cashew credits inside the window at different times leave the transfer for manual pairing (K15)', async () => {
+  const state = createFinancialState();
+  const note = transferNote('Carteira', 'Cartão Vale');
+  const leg = (account, amount, date) => exportRow({ account, amount, title: 'Mover dinheiro', note, date, 'category name': 'Correção de saldo' });
+  const file = await exportFile([
+    leg('Carteira', '-25.0', '2026-11-10 20:28:30.000'),
+    leg('Cartão Vale', '25.0', '2026-11-10 20:28:31.000'),
+    leg('Cartão Vale', '25.0', '2026-11-10 20:29:10.000')
+  ]);
+  assert.deepEqual(suggestedTypes(previewImportFile(state, file, k_accountOptions)), [undefined, undefined, undefined]);
+});
+
+test('an account name with both arrows is never read as a transfer route (K14)', async () => {
+  const state = createFinancialState();
+  const note = 'Transferred Balance\nCarteira ← Vale → Cartão Vale';
+  const preview = previewImportFile(state, await exportFile([transferLeg('Carteira', '-25.0', note), transferLeg('Cartão Vale', '25.0', note)]), k_accountOptions);
+  assert.deepEqual(suggestedTypes(preview), [undefined, undefined]);
 });
 
 test('the objective note says to pick a loan only for money borrowed (K16)', async () => {

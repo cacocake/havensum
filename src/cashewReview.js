@@ -21,10 +21,15 @@ const k_loanMeanings = Object.freeze({
   debit: 'Payment on the loan · a repayment expense in the loan category'
 });
 const k_scheduledNote = 'From a scheduled Cashew entry exported as paid.';
-const k_transferArrows = [['→', false], ['←', true]];
-const k_timestampPattern = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/;
+const k_transferArrows = Object.freeze([
+  Object.freeze({ arrow: '→', isReversed: false }),
+  Object.freeze({ arrow: '←', isReversed: true })
+]);
+const k_timestampPattern = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/;
 const k_millisecondsPerSecond = 1000;
-const k_transferLegToleranceSeconds = 60;
+// K15: Cashew saves the legs one second apart, at :30 and :31, and up to 61
+// seconds apart when the save falls in the last second of a minute.
+const k_transferLegToleranceSeconds = 61;
 const k_transferLegToleranceMilliseconds = k_transferLegToleranceSeconds * k_millisecondsPerSecond;
 const k_readOnlySourceFields = ['budget', 'objective', 'extra'];
 const k_newAccountDefaults = { openingBalance: 0, tag: 'Personal', icon: 'Wallet', color: '#91A4CE' };
@@ -56,31 +61,27 @@ function transferRoute(note) {
   if (!k_cashewTransferNoteHeadings.has(heading.trim()) || rest.some(line => line.trim())) {
     return undefined;
   }
-  for (const [arrow, isReversed] of k_transferArrows) {
-    const accounts = route.split(arrow);
-    if (accounts.length !== 2 || route.includes(otherArrow(arrow))) {
-      continue;
-    }
-    const [left, right] = accounts.map(account => account.trim());
-    if (!left || !right) {
-      return undefined;
-    }
-    return isReversed ? { from: right, to: left } : { from: left, to: right };
+  const arrowsInRoute = k_transferArrows.filter(({ arrow }) => route.includes(arrow));
+  if (arrowsInRoute.length !== 1) {
+    return undefined;
   }
-  return undefined;
+  const [{ arrow, isReversed }] = arrowsInRoute;
+  const accounts = route.split(arrow).map(account => account.trim());
+  if (accounts.length !== 2 || accounts.some(account => !account)) {
+    return undefined;
+  }
+  const [left, right] = accounts;
+  return isReversed ? { from: right, to: left } : { from: left, to: right };
 }
 
-function otherArrow(arrow) {
-  return k_transferArrows.find(([candidate]) => candidate !== arrow)[0];
-}
-
-// K15: Cashew saves the two legs up to a second apart; allow a minute.
+// Cashew writes local wall-clock timestamps; both legs are compared on that
+// basis, ignoring any offset. A date-only value counts as midnight.
 function timestampMilliseconds(timestamp) {
   const match = k_timestampPattern.exec(timestamp);
   if (!match) {
     return Number.NaN;
   }
-  const [, year, month, day, hours, minutes, seconds = '0'] = match;
+  const [, year, month, day, hours = '0', minutes = '0', seconds = '0'] = match;
   return Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hours), Number(minutes), Number(seconds));
 }
 
