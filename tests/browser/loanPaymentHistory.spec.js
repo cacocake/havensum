@@ -258,3 +258,16 @@ test('an entry can be removed after moving the start month in the same edit', as
   const savedLoan = (await savedLedger(page)).loans[0];
   expect([savedLoan.start, savedLoan.paymentChanges]).toEqual(['2026-03', []]);
 });
+
+test('removing an entry at a later start, then moving the start back, keeps the earlier months', async ({ page }) => {
+  await openApp(page, ledgerWithApprovedPlan({ ...k_carLoan, payment: 10000, paymentChanges: [{ since: '2026-03', amount: 20000 }, { since: '2026-05', until: '2026-06', amount: 5000 }] }));
+  const dialog = await openLoanForm(page);
+  await dialog.getByLabel('Start month · YYYY-MM', { exact: true }).fill('2026-04');
+  await dialog.getByRole('button', { name: 'Remove €50.00 from May 2026 until June 2026', exact: true }).click();
+  await dialog.getByLabel('Start month · YYYY-MM', { exact: true }).fill('2026-01');
+  await expect(dialog.getByText('€200.00 from March 2026', { exact: true })).toBeVisible();
+  await saveLoanForm(dialog);
+
+  const savedLoan = (await savedLedger(page)).loans[0];
+  expect([savedLoan.start, savedLoan.payment, savedLoan.paymentChanges]).toEqual(['2026-01', 10000, [{ since: '2026-03', amount: 20000 }]]);
+});

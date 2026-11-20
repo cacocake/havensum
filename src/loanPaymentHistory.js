@@ -189,13 +189,33 @@ export function isValidPaymentChanges(loan) {
   return entries.size === loan.paymentChanges.length;
 }
 
+// Applies a form's edited history (`{ foldedAt, payment, paymentChanges }`,
+// listed as folded at `foldedAt`) to the loan. When the loan now starts
+// earlier, its own months before `foldedAt` stay as they were, and the
+// edited history applies from `foldedAt` on.
+export function withEditedHistory(loan, editedHistory) {
+  if (!editedHistory) {
+    return loan;
+  }
+  const { foldedAt, payment, paymentChanges } = editedHistory;
+  if (!foldedAt || loan.start >= foldedAt) {
+    return { ...loan, payment, paymentChanges };
+  }
+  const ownLoan = withNormalizedPayments(loan);
+  const lastMonthBefore = monthBefore(foldedAt);
+  const ownChangesBefore = ownLoan.paymentChanges
+    .filter(change => change.since < foldedAt)
+    .map(change => isTemporary(change) && change.until > lastMonthBefore ? { ...change, until: lastMonthBefore } : change);
+  const lastingBefore = ownChangesBefore.filter(change => !isTemporary(change)).at(-1)?.amount ?? ownLoan.payment;
+  const lastingAtFold = payment === lastingBefore ? [] : [{ since: foldedAt, amount: payment }];
+  return withNormalizedPayments({ ...ownLoan, paymentChanges: [...ownChangesBefore, ...lastingAtFold, ...paymentChanges].sort(byStartMonth) });
+}
+
 // Applies a loan form's save to the loan as it is now, folded at its start.
-// The form's history (`paymentHistory`: the starting payment and the changes
-// as listed) replaces the saved one only when the form changed it, so a change
-// synced while the form was open survives otherwise.
+// The form's edited history replaces the saved one only when the form changed
+// it, so a change synced while the form was open survives otherwise.
 export function withLoanFormEdits(currentLoan, { loanFields, paymentHistory = null, newPayment = null }) {
-  const savedLoan = withNormalizedPayments(currentLoan);
-  const loan = { ...savedLoan, ...loanFields, ...(paymentHistory ?? {}) };
+  const loan = withEditedHistory({ ...withNormalizedPayments(currentLoan), ...loanFields }, paymentHistory);
   if (!newPayment) {
     return withNormalizedPayments(loan);
   }

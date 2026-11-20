@@ -8,7 +8,7 @@ import { cents, euro, isPositiveCentAmount, k_centsPerEuro } from './money.js';
 import { k_transactionTypes, k_entityIdPrefixes } from './domainConstants.js';
 import { createEntityId } from './identifiers';
 import { isMonthKey, monthNumberOf, monthKeyOf, monthOf, yearOfMonth } from './calendar.js';
-import { loanPaymentInMonth, withLoanFormEdits, withNormalizedPayments, withoutLoanPaymentChange } from './loanPaymentHistory.js';
+import { loanPaymentInMonth, withEditedHistory, withLoanFormEdits, withNormalizedPayments, withoutLoanPaymentChange } from './loanPaymentHistory.js';
 
 const k_defaultLoanYears = 3;
 const k_loanFormMessages = {
@@ -79,7 +79,7 @@ export function LoanForm({ item, onClose }) {
   const [account, setAccount] = useState(item?.account || state.accounts[0]?.id || '');
   const [start, setStart] = useState(() => item?.start || currentMonth);
   const shownStart = isMonthKey(start) ? start : item?.start;
-  const historyLoan = item ? withNormalizedPayments({ ...withNormalizedPayments(item), ...(editedHistory ?? {}), start: shownStart }) : null;
+  const historyLoan = item ? withNormalizedPayments(withEditedHistory({ ...withNormalizedPayments(item), start: shownStart }, editedHistory)) : null;
   const [end, setEnd] = useState(() => item?.end || defaultLoanEnd(currentMonth));
   const [credit, setCredit] = useState(false);
   const [error, setError] = useState('');
@@ -90,7 +90,7 @@ export function LoanForm({ item, onClose }) {
 
   function removePaymentChange(entry) {
     const remaining = withoutLoanPaymentChange(historyLoan, entry);
-    setEditedHistory({ payment: remaining.payment, paymentChanges: remaining.paymentChanges });
+    setEditedHistory({ foldedAt: historyLoan.start, payment: remaining.payment, paymentChanges: remaining.paymentChanges });
   }
 
   function newPaymentOf(change) {
