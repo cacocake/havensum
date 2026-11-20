@@ -1,14 +1,16 @@
+import { loanPaymentInMonth } from './loanPaymentHistory.js';
 import { isLoanExpense, hasLoanLink } from './expectedBills.js';
 
 export function isLoanActive(loan, month) {
   return loan.start <= month && loan.end >= month;
 }
 
-// The scheduled payment in effect for `month`: the latest change, otherwise the loan's own payment.
+// The predicted payment for `month` (owner decision P12): the latest
+// Prediction-assumptions amount from its month, otherwise the loan's history.
 export function loanPaymentForMonth(state, loan, month) {
   const changes = (state.outlook?.loanChanges || []).filter(change => change.loanId === loan.id && change.since <= month)
     .sort((first, second) => first.since.localeCompare(second.since));
-  return changes.at(-1)?.amount ?? loan.payment;
+  return changes.at(-1)?.amount ?? loanPaymentInMonth(loan, month);
 }
 
 export function expectedLoanSpending(state, month, registered) {

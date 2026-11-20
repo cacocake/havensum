@@ -46,7 +46,7 @@ test('a legacy backup restores in its migrated form, keeping its plan and rate',
 
   const { restoredState, summary } = prepareFullRestore(JSON.stringify(legacy));
 
-  assert.equal(restoredState.version, 4);
+  assert.equal(restoredState.version, 5);
   assert.deepEqual(restoredState.accounts[0].interestSchedule, [{ since: '2026-03', rate: 2 }]);
   assert.deepEqual(summary.planYears, [{ year: 2026, revisions: 1 }]);
   assert.equal(restoredState.plans[2026][0].revision, 2);

@@ -56,7 +56,7 @@ export function seed(){
  add('lunch-11','expense','Lunch with Marina',2850,'2026-11-16','dining','joint');
  add('game-11','expense','Something for the collection',3499,'2026-11-15','fun');
  add('transport-11','expense','Navegante pass',4000,'2026-11-01','transport');
- let state={version:k_currentStateVersion,demo:true,accounts,categories,transactions,loans:[{id:'car',name:'Car loan',remaining:610500,payment:18500,start:'2025-09',end:'2029-08',account:'main',original:888000}],theme:'light',preferences:{visibility:'shared',cushion:true},plans:{},events:[{id:'winter',name:'December celebrations',month:12,amount:30000}]};
+ let state={version:k_currentStateVersion,demo:true,accounts,categories,transactions,loans:[{id:'car',name:'Car loan',remaining:610500,payment:18500,paymentChanges:[],start:'2025-09',end:'2029-08',account:'main',original:888000}],theme:'light',preferences:{visibility:'shared',cushion:true},plans:{},events:[{id:'winter',name:'December celebrations',month:12,amount:30000}]};
  state=compoundSavings(state,'2026-11');
  return { ...state, plans: { [String(k_examplePlanYear)]: [createExamplePlan(state)] } };
 }

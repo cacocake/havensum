@@ -85,7 +85,7 @@ test('an older-schema snapshot in a stored binding is migrated on read', async c
     version: 1, fileId: k_fileId, lastSeenRevision: null, knownSnapshots: [{ writeId: 'write-legacy', ledger: legacyLedger }]
   }));
   const binding = await readSharedFileBinding();
-  assert.equal(binding.knownSnapshots[0].ledger.version, 4);
+  assert.equal(binding.knownSnapshots[0].ledger.version, 5);
   assert.deepEqual(binding.knownSnapshots[0].ledger.plans, {});
 });
 

@@ -260,3 +260,22 @@ test('a late payment scheduled for a past planned cost shows as scheduled while 
   assert.deepEqual(outlook.months[2].expected, totals(200000, 80000), 'a past month expects its recorded result (FORECAST-1)');
   assert.deepEqual(yearOutlook(state, 2027, '2027-04-20').months[2].recorded, totals(200000, 105000));
 });
+
+test('loan payment changes from the history, temporary ones included, are explained in the forecast months', () => {
+  const state = steadyLedger({
+    outlook: { window: 3, completeMonths: k_firstQuarter },
+    loans: [{
+      id: 'car', name: 'Car loan', account: 'everyday', payment: 15000, start: '2027-01', end: '2027-12',
+      paymentChanges: [{ since: '2027-03', amount: 14000 }, { since: '2027-06', until: '2027-07', amount: 9000 }]
+    }]
+  });
+
+  const { drivers } = yearOutlook(state, 2027, '2027-04-10');
+
+  assert.deepEqual(drivers.activeLoans, [{ id: 'car', name: 'Car loan', payment: 14000, since: '2027-04', end: '2027-12' }]);
+  assert.deepEqual(drivers.loanChanges, [
+    { loanId: 'car', name: 'Car loan', since: '2027-06', amount: 9000 },
+    { loanId: 'car', name: 'Car loan', since: '2027-08', amount: 14000 }
+  ]);
+  assert.equal(drivers.loans, 7 * 14000 + 2 * 9000);
+});

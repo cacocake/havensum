@@ -1,9 +1,10 @@
 import { categorySettings, hasCategoryParent } from './ledger.js';
-import { localCalendarDate, previousMonths, yearOfMonth } from './calendar.js';
+import { localCalendarDate, monthKeyOf, previousMonths, yearOfMonth } from './calendar.js';
 import { latestPlan } from './planArchive.js';
 import { eventsInMonth, plannedCostAmount } from './plannedCosts.js';
 import { billsDueInMonth, lineSpending, planDraftEstimates } from './planDraftEstimates.js';
 import { postedLedger } from './posting.js';
+import { loanChangesFromHistory } from './loanPaymentHistory.js';
 import { k_defaultHistoryWindow, k_monthsPerYear, k_spendingBehaviors, k_systemCategoryIds } from './domainConstants.js';
 
 export const k_defaultPlanIncome = 245000;
@@ -26,7 +27,7 @@ export function buildPlan(state, {
   today = localCalendarDate(),
   estimates = planDraftEstimates(state, { year, fromMonth, window, today }),
   incomeChanges = latestPlan(state, year)?.incomeChanges || [],
-  loanChanges = latestPlan(state, year)?.loanChanges || []
+  loanChanges = loanChangesFromHistory(state.loans, monthKeyOf(year, fromMonth))
 }) {
   const approvedPlan = latestPlan(state, year);
   const rootCategories = state.categories.filter(category => !hasCategoryParent(category) && category.id !== k_systemCategoryIds.loan);

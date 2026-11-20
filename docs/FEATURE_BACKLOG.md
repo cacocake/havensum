@@ -68,7 +68,24 @@ Cover: a repeating cost added to next year's draft does not appear in this year 
 
 ### LOAN-1 · Loan payment history and an owner-chosen plan revision (P09)
 
-**Status:** Queued, not started. **Depends on:** PLAN-3 follow-up b (merged). **Owner decision (20 November 2026, P09 in DECISIONS.md):**
+**Status:** Split by the owner into three slices (P11, 20 November 2026). **LOAN-1a** (payment history with until months) is implemented on `codex/loan-payment-history`; see its handoff at the end. **LOAN-1b** and **LOAN-1c** follow in the same session at the owner's request (P18). **Depends on:** PLAN-3 follow-up b (merged).
+
+**Owner answers (20 November 2026, recorded as P11–P16 in DECISIONS.md):**
+
+- **Split (P11):** LOAN-1a payment history; LOAN-1b the **Keep my plan** / **Revise from <month>** prompt and the revision including passed months; LOAN-1c one-off extra and advance/down-payments.
+- **Prediction assumptions (P12):** Year Plan's "Prediction assumptions" loan amounts keep working as today: an amount typed there wins from its month for Expected savings; otherwise Expected savings follows the loan's history. The owner wants to readjust the plan case by case when a payment changes permanently (LOAN-1b) rather than see "over budget" every month.
+- **Interview (P13):** shows each loan's payment history read-only and points to the loan to change it; no more plan-only loan payment fields.
+- **Advance payment (P14, LOAN-1c):** a **Record advance payment** action on the loan card records the payment marked as an advance, lowers the remaining balance in the same save, then asks whether the monthly payment changed and from when.
+- **Balance-only change (P15, LOAN-1b):** does not offer the plan revision.
+- **AGENTS.md (P16, LOAN-1b):** add one line naming the P09 exception in LOAN-1b.
+
+**LOAN-1a · Payment history.** Loans keep `paymentChanges` (schema version 5, docs/STATE_MIGRATIONS.md). The loan form shows this month's payment; **Change the monthly payment** asks the new amount, **New payment from · YYYY-MM** (default the current local month, past or future, up to the loan's last month) and, optionally, **Until a chosen month** (P10: off means it lasts; a temporary or one-month payment returns to the earlier payment afterwards and leaves other changes untouched). A lasting payment replaces every later change; a mistaken entry can be removed; €0 is allowed for a pause. The loan card shows this month's payment and the history; **Record payment** prefills this month's amount. Drafts and new plans take loan payments from the history (superseding P05); the interview lists them read-only (P13); Year Outlook's drivers list the history's changes. Expected savings follows the history unless a Prediction-assumptions amount applies (P12); the copy toggle copies income only (P17) and saved prediction loan amounts are labelled with a Clear button (P20). Legacy ledgers and backups migrate once from every plan revision's changes with P05's rule (UTC edit month; a newer loan edit beats a carried restatement, P19); frozen plans and `paymentEditedAt` are kept. Merge offers different histories as one readable conflict.
+
+**LOAN-1b · Keep my plan / Revise from <month> (queued).** After a monthly-payment change on the loan (not a balance-only change, P15), offer **Keep my plan** (nothing changes; every snapshot byte-identical) or **Revise from <month>**, opening the interview from the change month with the history prefilled and other budgets editable, freezing a new revision that rewrites passed months of the current year from that month (P09 exception; earlier revisions kept; past years read-only; AGENTS.md line, P16). Cover a past month entered late, the revision's past months, and that Expected savings is unchanged by a target-only edit.
+
+**LOAN-1c · One-off extra and advance payments (queued).** A one-off extra payment is only a recorded payment (overspend in its month; history and plan unchanged). **Record advance payment** on the loan card (P14) records the payment marked as an advance and lowers the remaining balance, then asks for a new monthly payment and its month via the LOAN-1a history (never calculated), then LOAN-1b's prompt.
+
+**Owner decision (20 November 2026, P09 in DECISIONS.md):**
 
 - **Payment history:** a loan's monthly payment changes over time, up or down (a new rate, an advance or down-payment). The loan keeps a payment history ("€1,200 from 2026-01, €1,050 from 2026-09"). The loan form asks from which month a new payment applies, defaulting to the current local month (L02); past and future months are allowed, and entries can be corrected.
 - **Later changes:** every payment from the chosen month on uses the new amount, so a later scheduled change for that loan (in the history or carried from a plan) no longer applies. Earlier months are untouched.
@@ -752,4 +769,16 @@ The implementation note below records how these were built; it stores only per-y
 - **The P05 edge case** (a scheduled plan change between the loan edit and the draft start) goes away under P09: the new payment applies from its chosen month, and later scheduled changes for that loan no longer apply.
 - **AGENTS.md was not edited:** P09 records the owner-approved exception to "never rewrite a plan's historical months". The owner may want AGENTS.md updated to match.
 - **P10 (same day):** each loan payment change gets an until month (default "forever"). Temporary and one-month changes return to the earlier payment afterwards and get the same plan prompt. Added to LOAN-1.
+
+## Session handoff — LOAN-1a · Loan payment history (20 November 2026, Claude cloud session)
+
+- **Scope:** owner split LOAN-1 into 1a/1b/1c (P11) and asked to finish all three in this session without chaining (P18). Payment history stays loan-only; repeating bills and subscriptions stay as today (P18).
+- **Branch:** `codex/loan-payment-history` from `develop` (`dca73ac`), with `origin/develop` (P10, `d82eebf`) merged in. Schema version 5 adds `paymentChanges` (docs/STATE_MIGRATIONS.md).
+- **Owner answers:** P11–P22 in DECISIONS.md (this ticket's split, Prediction assumptions, interview, advance payment, balance-only prompt, AGENTS.md line, copy toggle, scope, migration carry rule, labelled prediction overrides). The sibling's P10 (until month) is implemented.
+- **Superseded:** P05's timestamp comparison now only shapes the one-time migration; `paymentEditedAt` is kept, no longer written. The cancelled follow-up c branch was not merged.
+- **Tests:** new unit files tests/loanPaymentHistory.test.js and tests/loanPaymentMigration.test.js (replacing tests/loanPaymentEdit.test.js); browser spec tests/browser/loanPaymentHistory.spec.js (replacing loanPaymentEdit.spec.js); plus carry-forward, Year Outlook and Prediction-assumptions cases. UI tests for the first loan form were written after the form, not test-first; later fixes were test-first.
+- **Review:** two separate read-only reviews; all blockers and should-fixes fixed test-first (same-year revisions, UTC edit month, start-month folding and overlapping temporaries, a one-month change in a lasting change's month, plans vs non-normalized histories, drivers card, copy toggle, explicit payment-change step, form saving onto the current loan). Owner questions from review answered as P19–P21; P22 (passed months in a revision change only the loan line) is queued for LOAN-1b. A third review found a migration crash on plans with two changes in one month and form/normalization issues, all fixed test-first.
+- **Checks:** `npm run test:coverage` 672/672 (97.43% lines, 95.21% branches); `npm run test:browser` 537/537 (full run before the last two wording/flag nits; the loan spec 45/45 after them); `npm run build` passes; `npm run check:android` exports (Hermes compilation only).
+- **Known nits (review, not fixed):** the loan form lists and edits the history as saved and folds at a new start only on save; when the form removed an entry, its list replaces a history change synced from another device while it was open; moving the start earlier shows no hint that the starting payment also covers the earlier months; a temporary payment equal to the amount already in effect still adds an entry.
+- **Not done here:** Android physical-device verification (Hermes export only). Pushing the task branch was refused by a permission check; `develop` is pushed after merge.
 

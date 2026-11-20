@@ -104,7 +104,7 @@ test('without a frozen target the outlook has no variance and labels months with
 test('the year outlook stays within narrow screens with long names and large amounts', async ({ page }) => {
   const ledger = createFinancialState({
     outlook: { window: 3, completeMonths: k_firstQuarter },
-    loans: [{ id: 'mortgage', name: 'A very long mortgage name for the family home in the countryside', account: 'everyday', payment: 9876543, remaining: 999999999, original: 999999999, start: '2027-01', end: '2040-12' }],
+    loans: [{ id: 'mortgage', name: 'A very long mortgage name for the family home in the countryside', account: 'everyday', payment: 9876543, paymentChanges: [], remaining: 999999999, original: 999999999, start: '2027-01', end: '2040-12' }],
     events: [{ id: 'renovation', name: 'Kitchen, bathroom and garden renovation with a very long description', year: 2027, month: 9, amount: 99999999 }],
     transactions: monthlyEntries([...k_firstQuarter, '2027-04'], { salary: 99999999, rent: 8765432, rentTitle: 'Monthly rent for the apartment near the river with parking' }),
     plans: frozenPlan(plannedMonthsFrom(1, { income: 99999999, expense: 98765432, balance: 1234567 }))
