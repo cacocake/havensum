@@ -54,11 +54,13 @@ function isLoanPaymentNewerThanPlan(loan, plan) {
 }
 
 // A payment change already in effect becomes a change at the period start,
-// unless the loan's payment was edited since; later changes carry once.
-// Changes for removed or closed loans are reported.
+// unless the loan's payment was edited since (owner decision P07: that change
+// is reported as replaced); later changes carry once. Changes for removed or
+// closed loans are reported.
 function carriedLoanChanges(state, plan, startMonth) {
   const loanChanges = [];
   const staleLoanChanges = [];
+  const replacedLoanChanges = [];
   const loanIds = new Set((plan.loanChanges ?? []).map(change => change.loanId));
   for (const loanId of loanIds) {
     const changes = plan.loanChanges.filter(change => change.loanId === loanId);
@@ -68,12 +70,14 @@ function carriedLoanChanges(state, plan, startMonth) {
       continue;
     }
     const effectiveChange = latestChangeBefore(changes, startMonth);
-    if (effectiveChange && !isLoanPaymentNewerThanPlan(loan, plan)) {
+    if (effectiveChange && isLoanPaymentNewerThanPlan(loan, plan)) {
+      replacedLoanChanges.push(effectiveChange);
+    } else if (effectiveChange) {
       loanChanges.push({ loanId, since: startMonth, amount: effectiveChange.amount });
     }
     loanChanges.push(...changes.filter(change => change.since > startMonth));
   }
-  return { loanChanges, staleLoanChanges };
+  return { loanChanges, staleLoanChanges, replacedLoanChanges };
 }
 
 // Earlier manual overrides are offered beside fresh suggestions. A same-year
@@ -92,11 +96,11 @@ function earlierOverrides(state, plan, startMonth, isSameYear) {
 export function carriedPlanAssumptions(state, { year, fromMonth }) {
   const plan = sourcePlan(state, year);
   if (!plan) {
-    return { source: null, income: null, incomeChanges: [], loanChanges: [], staleLoanChanges: [], overrides: [], window: null, tolerance: null, drift: null, cushion: null };
+    return { source: null, income: null, incomeChanges: [], loanChanges: [], staleLoanChanges: [], replacedLoanChanges: [], overrides: [], window: null, tolerance: null, drift: null, cushion: null };
   }
   const startMonth = monthKeyOf(year, fromMonth);
   const isSameYear = plan.year === year;
-  const { loanChanges, staleLoanChanges } = carriedLoanChanges(state, plan, startMonth);
+  const { loanChanges, staleLoanChanges, replacedLoanChanges } = carriedLoanChanges(state, plan, startMonth);
   const referenceMonth = plan.months[startMonth] ?? plan.months[latestPlannedMonthBefore(plan, startMonth)];
   return {
     source: { year: plan.year, revision: plan.revision },
@@ -104,6 +108,7 @@ export function carriedPlanAssumptions(state, { year, fromMonth }) {
     incomeChanges: (plan.incomeChanges ?? []).filter(change => change.since > startMonth),
     loanChanges,
     staleLoanChanges,
+    replacedLoanChanges,
     overrides: earlierOverrides(state, plan, startMonth, isSameYear),
     window: plan.window ?? null,
     tolerance: plan.tolerance ?? null,

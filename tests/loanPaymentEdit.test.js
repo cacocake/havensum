@@ -146,6 +146,7 @@ test('after a loan payment edit, a target-only edit to the next draft leaves Exp
 
   const march = candidate => expectedSavings(candidate, '2027-03', '2026-11-20');
 
+  assert.deepEqual(carried.replacedLoanChanges, [{ loanId: 'car', since: '2026-06', amount: 15000 }]);
   assert.equal(suggestedPlan.plans[2027][0].months['2027-03'].loan, 16000);
   assert.deepEqual(march(editedTargetPlan), march(suggestedPlan));
   assert.deepEqual(march(editedTargetPlan), march(state));
@@ -161,4 +162,64 @@ test('a source plan whose approval time is not an exact UTC instant keeps the ca
 
     assert.equal(carried.loanChanges[0].amount, 15000, looseApprovalTime);
   }
+});
+
+// Owner decision P07: the replaced change is reported as not applied.
+test('a loan change replaced by a newer loan payment is reported as not applied, without applying it', () => {
+  const state = withLoanPayment(ledgerWithApprovedPlan(), 16000, k_editedAfterApproval);
+
+  const carried = carriedPlanAssumptions(state, { year: 2027, fromMonth: 1 });
+
+  assert.deepEqual(carried.replacedLoanChanges, [{ loanId: 'car', since: '2026-06', amount: 15000 }]);
+  assert.deepEqual(carried.loanChanges, [{ loanId: 'car', since: '2027-06', amount: 0 }]);
+  assert.deepEqual(carried.staleLoanChanges, []);
+});
+
+test('no replaced loan change is reported for a legacy loan, an edit before approval or a plan without an exact approval time', () => {
+  const approved = ledgerWithApprovedPlan();
+  const looselyTimedPlan = { ...approved.plans[2026][0], createdAt: '2026-03-01' };
+  const ledgers = [
+    withLoanPayment(approved, 16000, undefined),
+    withLoanPayment(approved, 16000, '2026-02-28T23:59:59.999Z'),
+    withLoanPayment({ ...approved, plans: { 2026: [looselyTimedPlan] } }, 16000, k_editedAfterApproval)
+  ];
+
+  const replaced = ledgers.map(state => carriedPlanAssumptions(state, { year: 2027, fromMonth: 1 }).replacedLoanChanges);
+
+  assert.deepEqual(replaced, [[], [], []]);
+});
+
+test('a newer loan payment replaces nothing when no plan change is in effect at the draft start', () => {
+  const state = withLoanPayment(ledgerWithApprovedPlan(), 16000, k_editedAfterApproval);
+
+  const carried = carriedPlanAssumptions(state, { year: 2026, fromMonth: 3 });
+
+  assert.deepEqual(carried.replacedLoanChanges, []);
+  assert.deepEqual(carried.loanChanges, [{ loanId: 'car', since: '2026-06', amount: 15000 }, { loanId: 'car', since: '2027-06', amount: 0 }]);
+});
+
+test('an ended loan reports its changes as stale, not as replaced by its payment edit', () => {
+  const endedLoan = { ...k_carLoan, end: '2026-12' };
+  const state = withLoanPayment(ledgerWithApprovedPlan(endedLoan), 16000, k_editedAfterApproval);
+
+  const carried = carriedPlanAssumptions(state, { year: 2027, fromMonth: 1 });
+
+  assert.deepEqual(carried.replacedLoanChanges, []);
+  assert.equal(carried.staleLoanChanges.length, 2);
+});
+
+test('a same-year revision reports the replaced change and saves the same plan as without the note', () => {
+  const approved = ledgerWithApprovedPlan();
+  const firstSnapshot = structuredClone(approved.plans[2026][0]);
+  const state = withLoanPayment(approved, 16000, k_editedAfterApproval);
+
+  const carried = carriedPlanAssumptions(state, { year: 2026, fromMonth: 11 });
+  const revisionOptions = { year: 2026, fromMonth: 11, income: 200000, cushion: 0, loanChanges: carried.loanChanges, today: '2026-11-20' };
+  const revision = buildPlan(state, revisionOptions);
+  const revised = approvePlanRevision(state, revision, { id: 'plan-2026-second', fromMonth: 11, today: '2026-11-20' });
+
+  assert.deepEqual(carried.replacedLoanChanges, [{ loanId: 'car', since: '2026-06', amount: 15000 }]);
+  assert.deepEqual(revised.plans[2026].at(-1).loanChanges, [{ loanId: 'car', since: '2027-06', amount: 0 }]);
+  assert.deepEqual(['2026-11', '2026-12'].map(month => revised.plans[2026].at(-1).months[month].loan), [16000, 16000]);
+  assert.deepEqual(revised.plans[2026][0], firstSnapshot);
 });

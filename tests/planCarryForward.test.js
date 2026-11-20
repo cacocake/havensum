@@ -36,7 +36,7 @@ test('a new year starts from the earlier plan, using amounts effective in Januar
 test('without any earlier plan nothing is carried', () => {
   const carried = carriedPlanAssumptions(createFinancialState(), { year: 2027, fromMonth: 1 });
 
-  assert.deepEqual(carried, { source: null, income: null, incomeChanges: [], loanChanges: [], staleLoanChanges: [], overrides: [], window: null, tolerance: null, drift: null, cushion: null });
+  assert.deepEqual(carried, { source: null, income: null, incomeChanges: [], loanChanges: [], staleLoanChanges: [], replacedLoanChanges: [], overrides: [], window: null, tolerance: null, drift: null, cushion: null });
 });
 
 test('deliberately entered zeros are carried as zeros', () => {

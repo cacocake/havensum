@@ -4,11 +4,12 @@ import { openMoreSection, returnHome } from '../helpers/userFlows.js';
 import { buildPlan } from '../../src/planning.js';
 
 const k_ledgerKey = 'melo-state-v1';
+const k_replacedChangeNote = "Not applied: Car loan change to €150.00 from 2026-10, the loan's payment was edited since.";
 
 // A 2026 plan approved on 2 January lowers the car payment to €150 from October.
-function ledgerWithCarriedLoanChange() {
+function ledgerWithCarriedLoanChange(loanDetails = {}) {
   const ledger = createFinancialState({
-    loans: [{ id: 'car', name: 'Car loan', account: 'everyday', start: '2026-01', end: '2029-12', payment: 18500, remaining: 400000, original: 500000 }]
+    loans: [{ id: 'car', name: 'Car loan', account: 'everyday', start: '2026-01', end: '2029-12', payment: 18500, remaining: 400000, original: 500000, ...loanDetails }]
   });
   const plan = buildPlan(ledger, {
     year: 2026, fromMonth: 1, income: 200000, cushion: 0, today: '2026-01-02',
@@ -62,6 +63,7 @@ test('a loan payment edited after the plan was approved starts the next draft', 
   await expect(dialog.getByText('Car loan · €160.00/month from January', { exact: true })).toBeVisible();
   await expect(dialog.getByLabel('Car loan · new monthly payment, optional', { exact: true })).toHaveAttribute('placeholder', '160 · unchanged');
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(dialog.getByText(k_replacedChangeNote, { exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'Freeze my plan', exact: true }).click();
   await expect(dialog).toHaveCount(0);
 
@@ -77,4 +79,31 @@ test('renaming a loan is not a payment edit, so the carried change still starts 
   const dialog = await openNextYearLoanStep(page);
   await expect(dialog.getByText('Family car · €150.00/month from January', { exact: true })).toBeVisible();
   await expect(dialog.getByLabel('Family car · new monthly payment, optional', { exact: true })).toHaveAttribute('placeholder', '150 · unchanged');
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Freeze my plan', exact: true })).toBeVisible();
+  await expect(dialog.getByText(/payment was edited since/)).toHaveCount(0);
+});
+
+test('the replaced-change note for a long loan name stays inside the interview at narrow widths', async ({ page }) => {
+  const longLoanName = 'Family electric car loan from the credit union downtown';
+  const ledger = ledgerWithCarriedLoanChange({ name: longLoanName, payment: 1234567, paymentEditedAt: '2026-09-15T08:00:00.000Z' });
+  await page.clock.install({ time: new Date('2026-11-19T12:00:00') });
+  await page.addInitScript(({ key, ledger }) => {
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, JSON.stringify(ledger));
+    }
+  }, { key: k_ledgerKey, ledger });
+  await page.goto('/');
+
+  const dialog = await openNextYearLoanStep(page);
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  const note = dialog.getByText(`Not applied: ${longLoanName} change to €150.00 from 2026-10, the loan's payment was edited since.`, { exact: true });
+  await expect(note).toBeVisible();
+
+  const noteBox = await note.boundingBox();
+  const dialogBox = await dialog.boundingBox();
+  expect(noteBox.x).toBeGreaterThanOrEqual(dialogBox.x);
+  expect(noteBox.x + noteBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width);
+  expect(await note.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

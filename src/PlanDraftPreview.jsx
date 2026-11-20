@@ -70,6 +70,7 @@ export function CarriedAssumptionNotes({ carried, loans, lineIds }) {
     {staleOverrides.map(override => <T key={override.lineId} style={{ fontSize: 12, color: colors.sub }}>Not applied: {override.name} override {euro(override.amount)}, its category no longer exists.</T>)}
     {unmatchedOverrides.map(override => <T key={override.lineId} style={{ fontSize: 12, color: colors.sub }}>Not applied: {override.name} override {euro(override.amount)}, that plan line no longer exists.</T>)}
     {carried.staleLoanChanges.map(change => <T key={`${change.loanId}-${change.since}`} style={{ fontSize: 12, color: colors.sub }}>Not applied: {loanName(change.loanId)} payment change from {change.since}, the loan has ended or was removed.</T>)}
+    {carried.replacedLoanChanges.map(change => <T key={`replaced-${change.loanId}-${change.since}`} style={{ fontSize: 12, color: colors.sub }}>Not applied: {loanName(change.loanId)} change to {euro(change.amount)} from {change.since}, the loan's payment was edited since.</T>)}
   </View>;
 }
 
