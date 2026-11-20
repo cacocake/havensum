@@ -1,5 +1,7 @@
 # Architecture and data contracts
 
+> **Note (20 November 2026):** parts of this file predate the later features. [TECH_SPEC.md](TECH_SPEC.md) is the current overview, with a plain-language companion in [USER_GUIDE.md](USER_GUIDE.md).
+
 ## Stack and execution
 
 React 19.1, React Native 0.81.5 and Expo SDK 54 form the native application. Vite and React Native Web render the same component tree in a browser. Metro resolves `.native` modules for Android; Vite resolves `.web` modules and aliases `react-native` to React Native Web.

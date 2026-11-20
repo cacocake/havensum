@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**IMPORT-2 (Cashew verification) is done, reviewed, merged into `develop` and pushed**, including its follow-ups for the owner's real test export (K10–K12) and loan-sign confirmation (K13); see its handoff notes at the end. **The FORECAST-2 follow-up (move a recurring planned cost from a chosen year, F16–F18) is done, reviewed and merged into `develop`** (see its handoff note at the end). **LEDGER-1 is done, reviewed and merged into `develop`**. **FORECAST-2 is done, reviewed and merged into `develop`** after the owner's answers (see "FORECAST-2 owner answers" and the implementation handoff at the end). No other ticket is unblocked: each needs owner input, samples, credentials or a device. PLAN-1–4, SAVINGS-1, BACKUP-1 and FORECAST-1 are done and merged into `develop`. Every other ticket needs owner input, samples, credentials or a device; see the session summaries at the end of this file. Work through PLAN-1 to PLAN-4 in order, one ticket per session, then SAVINGS-1. The later tickets are queued. ETF work is parked. This board is the handoff for Luna and future sessions.
+**Board status (20 November 2026): every authorized ticket is done, reviewed, merged into `develop` and pushed** (code at `4c1eb70`). What remains needs the owner: **DRIVE-2b** (the owner's Google Cloud setup listed in the DRIVE-2b ticket), **ANDROID-2** (QA on a physical phone), and **ETF-1/ETF-2** (parked). See "Session summary — 20 November 2026" at the end. A plain-language guide is in [USER_GUIDE.md](USER_GUIDE.md) and a short technical overview in [TECH_SPEC.md](TECH_SPEC.md). Older status lines below describe earlier snapshots.
 
 ## Starting point and workflow
 
@@ -801,3 +801,29 @@ The implementation note below records how these were built; it stores only per-y
 - **Checks:** `npm run test:coverage` 697/697 (97.51% lines, 95.30% branches); `npm run test:browser` 576/576 (full run before the last balance fix; the loan, plan-revision and transaction specs 159/159 after it); `npm run build` passes; `npm run check:android` exports (Hermes compilation only).
 - **Known limitations:** deleting or editing an advance later does not restore the remaining balance; CSV and the workbook do not export the advance mark; a re-imported advance moved to another loan keeps its mark while neither balance is adjusted.
 
+
+## Session summary — 20 November 2026 (Claude cloud sessions)
+
+**Merged into `develop` and pushed since the 19 November summary** (each through a `codex/` branch, the full check suite and a separate read-only Claude review, test-first except where a handoff note says otherwise; IMPORT-1's closure and DRIVE-1 were decisions and docs only):
+- FORECAST-1 (full-year outlook), FORECAST-2 (comparable-cost suggestions) and its follow-ups F16–F18 (move a recurring planned cost) and F20 (readable year-amount conflicts).
+- LEDGER-1 (scheduled versus posted entries by the phone's local date, L01/L02), LEDGER-2 and LEDGER-2a (reviewed past-interest corrections and bank-interest choices).
+- PLAN-3 follow-ups: repeating planned costs from the plan's year (P04) and a draft loan payment from a newer loan edit (P05, superseded by LOAN-1). PLAN-3 follow-up c was cancelled by the owner.
+- LOAN-1a/1b/1c: loan payment history with until months (schema v5), **Keep my plan / Revise from <month>** after a payment change (the one owner-approved exception to never rewriting passed months, recorded in AGENTS.md), and advance and one-off extra payments.
+- IMPORT-2 (Cashew verification, K01–K16) and the closure of IMPORT-1 as not needed.
+- DRIVE-1 (shared-file access decisions) and DRIVE-2a (credential-free sync core; no Google transport yet).
+- ANDROID-1 (installable package configuration; by the owner's report, the release APK installs and starts on their phone) and the release startup-crash fix.
+- BUG-1 (stale full-restore preview) and BUG-2 (legacy-rate past start).
+- Documentation: USER_GUIDE.md and TECH_SPEC.md. This summary's commit refreshes them for LOAN-1 and points ARCHITECTURE.md to TECH_SPEC.md.
+
+**Still needs the owner:**
+- DRIVE-2b: the owner's Google Cloud setup listed in the DRIVE-2b ticket (APIs, consent screen, client IDs, Picker key, both accounts as test users); the app's own autosave must then use `writeStateIfUnchanged` while sync is wired.
+- ANDROID-2: QA on a physical phone (only startup has been confirmed).
+- ETF-1/ETF-2: parked until the owner asks for them.
+
+**Open, non-blocking owner questions and known limits** are listed in each handoff note above. Notable ones:
+- LEDGER-1 Q1–Q3 and Q5–Q6 (scheduled late payments and paybacks in Expected; an Upcoming group on Home; interest posting only at startup; monthly exports).
+- PLAN-4 Q1–Q3 (example data and the plan invitation).
+- BACKUP-1 Q2 (no retention limit for pre-restore copies).
+- LOAN-1: an edited or deleted advance doesn't restore the remaining balance, and CSV/Excel exports don't carry the advance mark.
+
+**Environment note:** pushes from cloud sessions were sometimes refused by the session's permission check until the owner confirmed in that session.

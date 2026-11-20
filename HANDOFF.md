@@ -1,6 +1,6 @@
 # Havensum — developer handoff
 
-For the current task board and session handoff, see [docs/FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md). PLAN-1–4, SAVINGS-1, BACKUP-1, FORECAST-1, FORECAST-2 (including moving a recurring planned cost from a chosen year) and LEDGER-1 (posted versus future-dated activity) are integrated in `develop`; the remaining tickets are blocked on owner input, samples, credentials or a device. The dated sections below describe earlier implementation snapshots.
+For the current task board and session handoff, see [docs/FEATURE_BACKLOG.md](docs/FEATURE_BACKLOG.md) ("Session summary — 20 November 2026"). Every authorized ticket is integrated in `develop`, including the forecast, ledger, interest-correction, import, loan-history, Android packaging and Drive sync-core work. What remains needs the owner: Google Drive transport (DRIVE-2b), physical-phone QA (ANDROID-2), and parked ETF work. For how the app works, start with [docs/USER_GUIDE.md](docs/USER_GUIDE.md) and [docs/TECH_SPEC.md](docs/TECH_SPEC.md). The dated sections below describe earlier implementation snapshots.
 
 ## Migration foundation — 18 November 2026
 
