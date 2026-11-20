@@ -196,7 +196,7 @@ test('loan amounts must be finite safe integer cents before a loan can be saved'
   await dialog.getByLabel('Monthly payment · EUR', { exact: true }).fill('100');
   await dialog.getByRole('button', { name: 'Add loan', exact: true }).click();
 
-  await expect(dialog.getByText('Enter a name, positive amounts and a valid month range (YYYY-MM).', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Enter a name, a remaining balance (zero or more for an existing loan), a positive payment and a valid month range (YYYY-MM).', { exact: true })).toBeVisible();
   await dialog.getByLabel('Remaining balance · EUR', { exact: true }).fill('90071992547409.92');
   await dialog.getByRole('button', { name: 'Add loan', exact: true }).click();
   await expect(dialog).toBeVisible();

@@ -47,4 +47,3 @@ const k_enteredAmountPattern = /^\d+([.,]\d{1,2})?$/;
 export function isEnteredAmount(text) {
   return k_enteredAmountPattern.test(String(text));
 }
-
