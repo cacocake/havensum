@@ -13,7 +13,8 @@ export const k_moveErrors = Object.freeze({
   notRecurring: 'Choose a recurring planned cost to move.',
   invalidMonth: 'Choose a month from January to December.',
   pastYear: 'A move can start this year or a later year.',
-  pastMonth: 'That month has already passed this year. Start the move next year.'
+  pastMonth: 'That month has already passed this year. Start the move next year.',
+  beforeStart: 'A move can start from the first year this planned cost repeats.'
 });
 
 function currentYear(today) {
@@ -30,8 +31,15 @@ function canMoveThisYear(today, event) {
   return plannedCostMonth(event, currentYear(today)) >= currentMonthNumber(today);
 }
 
+// A cost that starts repeating in a later year (owner decision P04) can only
+// move from that year.
+function firstMoveYear(today, event) {
+  const firstCalendarYear = canMoveThisYear(today, event) ? currentYear(today) : currentYear(today) + 1;
+  return Math.max(firstCalendarYear, event.fromYear ?? firstCalendarYear);
+}
+
 export function plannedCostMoveYears(today, event) {
-  const firstYear = canMoveThisYear(today, event) ? currentYear(today) : currentYear(today) + 1;
+  const firstYear = firstMoveYear(today, event);
   return Array.from({ length: k_moveYearsAhead + 1 }, (_, offset) => firstYear + offset);
 }
 
@@ -127,6 +135,9 @@ function checkMoveStart(today, event, fromYear, month) {
   }
   if (!Number.isInteger(fromYear) || fromYear < currentYear(today)) {
     throw Error(k_moveErrors.pastYear);
+  }
+  if (event.fromYear !== undefined && fromYear < event.fromYear) {
+    throw Error(k_moveErrors.beforeStart);
   }
   if (fromYear !== currentYear(today)) {
     return;

@@ -5,7 +5,7 @@ import { localDateOfTimestamp, monthOf, yearOfMonth } from './calendar.js';
 import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
 import { hasCategoryParent, netExpenses } from './ledger.js';
 import { paybackTaskSummary } from './paybackTasks.js';
-import { needsPlannedCostReview, plannedCostOccurrenceMonth } from './plannedCosts.js';
+import { needsPlannedCostReview, plannedCostOccurrenceMonth, plannedCostOccursInYear } from './plannedCosts.js';
 import { sumCents } from './money.js';
 
 export const k_occurrenceStatus = Object.freeze({
@@ -35,7 +35,7 @@ function earliestDate(dates) {
 }
 
 // A one-off cost has its own year. A recurring cost occurs every year from the
-// first year the ledger records anything.
+// first year the ledger records anything, or from its start year if later.
 function pastOccurrenceMonths(recordedTransactions, event, evaluationDate) {
   const currentMonth = monthOf(evaluationDate);
   if (event.year) {
@@ -50,7 +50,7 @@ function pastOccurrenceMonths(recordedTransactions, event, evaluationDate) {
   const months = [];
   for (let year = firstRecordedYear; year <= yearOfMonth(currentMonth); year += 1) {
     const month = plannedCostOccurrenceMonth(event, year);
-    if (month < currentMonth) {
+    if (plannedCostOccursInYear(event, year) && month < currentMonth) {
       months.push(month);
     }
   }

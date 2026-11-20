@@ -1,5 +1,6 @@
 import { latestPlan, plannedYears } from './planArchive.js';
 import { monthKeyOf } from './calendar.js';
+import { isTimestamp } from './paybackState.js';
 
 // The plan whose assumptions a draft starts from: this year's latest approved
 // revision, otherwise the latest plan of the nearest earlier year.
@@ -37,25 +38,37 @@ function incomeAtStart(plan, startMonth) {
   return earlierMonth ? plan.months[earlierMonth].income : null;
 }
 
-function isLoanActiveFrom(state, loanId, startMonth) {
-  const loan = state.loans.find(candidate => candidate.id === loanId);
+function isLoanActiveFrom(loan, startMonth) {
   return Boolean(loan) && loan.end >= startMonth;
 }
 
-// A payment change already in effect becomes a change at the period start;
-// later changes carry once. Changes for removed or closed loans are reported.
+// Owner decision P05: a payment entered on the loan after the source plan was
+// approved is newer than the plan's change in effect, so the draft starts from
+// the loan's own payment. Both times must be exact UTC instants, so every
+// platform reads them alike; otherwise the plan's change stands.
+function isLoanPaymentNewerThanPlan(loan, plan) {
+  if (!isTimestamp(loan.paymentEditedAt) || !isTimestamp(plan.createdAt)) {
+    return false;
+  }
+  return Date.parse(loan.paymentEditedAt) > Date.parse(plan.createdAt);
+}
+
+// A payment change already in effect becomes a change at the period start,
+// unless the loan's payment was edited since; later changes carry once.
+// Changes for removed or closed loans are reported.
 function carriedLoanChanges(state, plan, startMonth) {
   const loanChanges = [];
   const staleLoanChanges = [];
   const loanIds = new Set((plan.loanChanges ?? []).map(change => change.loanId));
   for (const loanId of loanIds) {
     const changes = plan.loanChanges.filter(change => change.loanId === loanId);
-    if (!isLoanActiveFrom(state, loanId, startMonth)) {
+    const loan = state.loans.find(candidate => candidate.id === loanId);
+    if (!isLoanActiveFrom(loan, startMonth)) {
       staleLoanChanges.push(...changes);
       continue;
     }
     const effectiveChange = latestChangeBefore(changes, startMonth);
-    if (effectiveChange) {
+    if (effectiveChange && !isLoanPaymentNewerThanPlan(loan, plan)) {
       loanChanges.push({ loanId, since: startMonth, amount: effectiveChange.amount });
     }
     loanChanges.push(...changes.filter(change => change.since > startMonth));

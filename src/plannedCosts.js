@@ -1,4 +1,4 @@
-import { monthKeyOf, monthOf } from './calendar.js';
+import { monthKeyOf, monthOf, yearOfMonth } from './calendar.js';
 import { longMonthLabel } from './monthLabels.js';
 import { k_monthsPerYear } from './domainConstants.js';
 
@@ -76,23 +76,63 @@ export function isValidMonthFromYear(event) {
     .every(([year, month]) => k_yearKeyPattern.test(year) && isMonthNumber(month));
 }
 
+// A one-off cost occurs in its own year. A recurring cost occurs every year
+// from its start year, set when a draft adds it (owner decision P04); one
+// without a start year occurs every year.
+export function plannedCostOccursInYear(event, year) {
+  if (event.year) {
+    return event.year === year;
+  }
+  if (event.fromYear === undefined) {
+    return true;
+  }
+  return year >= event.fromYear;
+}
+
+export function isValidFromYear(event) {
+  if (event.fromYear === undefined) {
+    return true;
+  }
+  return !event.year && Number.isSafeInteger(event.fromYear) && k_yearKeyPattern.test(String(event.fromYear));
+}
+
+// How a recurring cost repeats, for display: "every year" or "every year from 2027".
+export function plannedCostRepeatText(event) {
+  if (event.fromYear === undefined) {
+    return 'every year';
+  }
+  return `every year from ${event.fromYear}`;
+}
+
 // The planned costs that occur in a year, in month order, each with its month
 // for that year.
 export function plannedCostsInYear(events, year) {
-  return events.filter(event => !event.year || event.year === year)
+  return events.filter(event => plannedCostOccursInYear(event, year))
     .map(event => ({ event, month: plannedCostMonth(event, year) }))
     .sort((left, right) => left.month - right.month || left.event.name.localeCompare(right.event.name));
 }
 
 export function eventsInMonth(events, month) {
   const [year, monthNumber] = month.split('-').map(Number);
-  return events.filter(event => (!event.year || event.year === year) && plannedCostMonth(event, year) === monthNumber);
+  return events.filter(event => plannedCostOccursInYear(event, year) && plannedCostMonth(event, year) === monthNumber);
 }
 
 export function needsPlannedCostReview(expense, event, month) {
   const link = expense.plannedCost;
   return isPlannedCostLink(link) && link.eventId === event.id && link.month !== month
     && ((link.singleOccurrence && event.year) || link.month.slice(0, 4) === month.slice(0, 4));
+}
+
+// A saved link that no longer matches an occurrence: either before the cost
+// starts repeating (owner decision P04) or to a month it has moved from.
+function savedLinkLabel(event, savedLink) {
+  if (!event) {
+    return `Former planned cost · original month ${savedLink.month}`;
+  }
+  if (!event.year && !plannedCostOccursInYear(event, yearOfMonth(savedLink.month))) {
+    return `${event.name} · ${savedLink.month}, before it repeats`;
+  }
+  return `${event.name} · original month ${savedLink.month}`;
 }
 
 // Offers occurrences from the year before the payment onwards, so a payment
@@ -105,6 +145,10 @@ export function plannedCostOptions(events, paymentDate, savedLink) {
   const options = new Map();
   for (const event of events) {
     for (const year of event.year ? [event.year] : years) {
+      // A link saved to a year before a recurring cost's start falls back to its original month below.
+      if (!plannedCostOccursInYear(event, year)) {
+        continue;
+      }
       const month = plannedCostOccurrenceMonth(event, year);
       const isSavedOccurrence = savedLink?.eventId === event.id && month === savedLink.month;
       if (year < earliestYear && !isSavedOccurrence) {
@@ -120,10 +164,7 @@ export function plannedCostOptions(events, paymentDate, savedLink) {
   }
   if (savedLink && !options.has(JSON.stringify(savedLink))) {
     const event = events.find(candidate => candidate.id === savedLink.eventId);
-    options.set(JSON.stringify(savedLink), {
-      label: `${event?.name ?? 'Former planned cost'} · original month ${savedLink.month}`,
-      month: savedLink.month
-    });
+    options.set(JSON.stringify(savedLink), { label: savedLinkLabel(event, savedLink), month: savedLink.month });
   }
   return [...options].sort(([, left], [, right]) => left.month.localeCompare(right.month) || left.label.localeCompare(right.label))
     .map(([value, option]) => ({ value, label: option.label }));
