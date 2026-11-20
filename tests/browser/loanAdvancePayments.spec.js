@@ -151,3 +151,27 @@ test('an advance amount needs at most two decimals, and an empty date is refused
   const saved = await savedLedger(page);
   expect([saved.loans, saved.transactions]).toEqual([ledger.loans, []]);
 });
+
+test('a paid-off €0 balance must be typed: a cleared or negative balance is refused, and a new loan still needs a balance (P26)', async ({ page }) => {
+  const ledger = ledgerWithPlan();
+  await openLoans(page, ledger);
+  await page.getByRole('button', { name: 'Edit Car loan', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  for (const balance of ['', '-5', '1e3']) {
+    await dialog.getByLabel('Remaining balance · EUR', { exact: true }).fill(balance);
+    await dialog.getByRole('button', { name: 'Save loan', exact: true }).click();
+    await expect(dialog.getByText('Enter a name, a remaining balance (zero or more for an existing loan), a positive payment and a valid month range (YYYY-MM).', { exact: true })).toBeVisible();
+  }
+  expect((await savedLedger(page)).loans).toEqual(ledger.loans);
+  await dialog.getByLabel('Remaining balance · EUR', { exact: true }).fill('0');
+  await dialog.getByRole('button', { name: 'Save loan', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect((await savedLedger(page)).loans[0].remaining).toBe(0);
+
+  await page.getByRole('button', { name: 'Add loan', exact: true }).click();
+  await dialog.getByLabel('Loan name', { exact: true }).fill('Bike');
+  await dialog.getByLabel('Remaining balance · EUR', { exact: true }).fill('0');
+  await dialog.getByLabel('Monthly payment · EUR', { exact: true }).fill('50');
+  await dialog.getByRole('button', { name: 'Add loan', exact: true }).click();
+  await expect(dialog.getByText(/^Enter a name, a remaining balance/)).toBeVisible();
+});
