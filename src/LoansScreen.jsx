@@ -54,6 +54,7 @@ function LoanCard({ loan }) {
     <Divider />
     <T style={{ fontSize: 11, color: colors.sub }}>Repayments count as expenses when recorded. Your recorded remaining balance is manual; interest and principal allocations are not guessed.</T>
     <Row style={{ marginTop: 17, justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+      <Button small kind="outline" icon="HandCoins" onPress={() => setModal({ type: 'loanAdvance', loan })}>Record advance payment</Button>
       <Button small kind="soft" icon="Plus" onPress={() => setModal({ type: 'transaction', item: null, initialType: k_transactionTypes.expense, loan })}>Record payment</Button>
     </Row>
   </Card>;

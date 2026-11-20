@@ -90,3 +90,7 @@ A plan revision may hold `loanRestatedFrom: 'YYYY-MM'`. It is written only when 
 
 Planned months built from LOAN-1b on also hold `loanPayments`, each active loan's integer-cent share of `loan` (P25). It is optional and validated; months frozen earlier lack it, and a restatement then removes at most the frozen `loan` line for the edited loan.
 
+## Advance payments on loans (LOAN-1c, version 5, additive)
+
+A transaction may hold `loanAdvance: true`. It is written by **Record advance payment** on a loan card (P14): an expense in the Loan payments category, linked to the loan (`loanId`), titled "<loan> · advance payment". The same save lowers the loan's recorded `remaining` by the amount, never below zero. Validation accepts the mark only as `true` on an expense with a `loanId`; editing a marked entry into anything else drops the mark. The payment history and plans are untouched; the owner is then asked whether the monthly payment changed, which is entered on the loan (never calculated) and can lead to the LOAN-1b prompt. Deleting or editing an advance later does not change `remaining` back (the balance is the owner's manual figure). JSON backups and reviewed merge carry the mark; canonical CSV and the workbook do not export it, so a re-imported advance is an ordinary loan payment.
+

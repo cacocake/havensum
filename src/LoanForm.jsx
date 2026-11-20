@@ -53,6 +53,10 @@ function newPaymentProblem({ paymentText, paymentFrom, isTemporary, paymentUntil
   return '';
 }
 
+function newPaymentChange(currentMonth) {
+  return { amount: '', from: currentMonth, isTemporary: false, until: currentMonth };
+}
+
 // The new monthly payment, the month it applies from and, optionally, the
 // last month of a temporary payment (owner decisions P09 and P10).
 function PaymentChangeFields({ change, onChange, onCancel }) {
@@ -68,7 +72,7 @@ function PaymentChangeFields({ change, onChange, onCancel }) {
   </View>;
 }
 
-export function LoanForm({ item, onClose }) {
+export function LoanForm({ item, onClose, startWithPaymentChange = false }) {
   const { setState, setModal, state, notify, today } = useApp();
   const colors = useContext(Theme);
   const currentMonth = monthOf(today);
@@ -80,7 +84,8 @@ export function LoanForm({ item, onClose }) {
   const [paymentChanges, setPaymentChanges] = useState(savedHistoryLoan?.paymentChanges ?? []);
   const isHistoryEdited = Boolean(savedHistoryLoan) && paymentChanges !== savedHistoryLoan.paymentChanges;
   const historyLoan = savedHistoryLoan ? { ...savedHistoryLoan, paymentChanges } : null;
-  const [paymentChange, setPaymentChange] = useState(null);
+  // After an advance payment (P14) the form opens ready for the new payment.
+  const [paymentChange, setPaymentChange] = useState(() => startWithPaymentChange ? newPaymentChange(currentMonth) : null);
   const [account, setAccount] = useState(item?.account || state.accounts[0]?.id || '');
   const [start, setStart] = useState(() => item?.start || currentMonth);
   const [end, setEnd] = useState(() => item?.end || defaultLoanEnd(currentMonth));
@@ -89,7 +94,7 @@ export function LoanForm({ item, onClose }) {
   const [error, setError] = useState('');
 
   function startPaymentChange() {
-    setPaymentChange({ amount: '', from: currentMonth, isTemporary: false, until: currentMonth });
+    setPaymentChange(newPaymentChange(currentMonth));
   }
 
   function removePaymentChange(entry) {

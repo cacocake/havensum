@@ -89,6 +89,9 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
        loanId: savedLoanId(),
        kind: kind || undefined
      };
+     // An advance stays marked only while it is still an expense on a loan (P14).
+     const isStillLoanExpense = type === k_transactionTypes.expense && transaction.loanId != null;
+     transaction.loanAdvance = isStillLoanExpense ? item?.loanAdvance : undefined;
      if (isTransfer) {
        transaction.toAccount = toAccount;
        if (item?.toAccount === toAccount) {
