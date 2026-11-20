@@ -28,13 +28,18 @@ Optional details: a note, a different behaviour (Fixed / Variable / Occasional) 
 - **Savings interest:** in a savings account, add rate periods (yearly rate and start month). The app posts interest once a month for completed months. A 0% period ends a promotional rate. To fix past interest, open the account and use **Correct past interest** (it reads **Review past interest** when months already differ). It previews every affected month, then adds a marked correction entry. It never edits the old entries. When the bank posted interest itself, choose *Bank amount only* or *Keep both* for that month.
 - **Categories:** your own names, icons and colours, with one level of subcategories. Each subcategory setting can inherit from its parent. A budget only drives the overspend bar.
 - **Loans:** adding an existing loan does not add money to an account unless you choose to record the proceeds. Repayments are normal expenses you record.
+  - **Payment history:** in the loan form, change the monthly payment from any month, past or future. Add an *until* month for a temporary change; afterwards the earlier payment comes back. Forecasts and new plans follow this history.
+  - **After a payment change** you choose **Keep my plan** or **Revise from <month>**. Revising from a month that has already passed changes only that loan's line in those months. Everything else in the plan stays frozen, and the revision is marked in Year Plan.
+  - **Record advance payment** on a loan card records the payment and lowers the remaining balance in one go, then asks whether the monthly payment changed. The app never works out the bank's new amount. A loan can be paid down to €0.
+  - **One-off extras** such as a fee are just a recorded payment; they don't change the history or the plan.
+  - Deleting or editing an advance later doesn't put the remaining balance back, so correct the balance by hand.
 
 ## Year Plan
 
 Three tabs:
 
 - **This month:** Expected savings, the plan's target, outlook settings and expected costs.
-  - In outlook settings you mark months *complete* once everything is entered, and set the history window and income or loan changes.
+  - In outlook settings you mark months *complete* once everything is entered, and set the history window and income changes. A loan amount entered there overrides the loan's own history from its month, and is labelled with a **Clear** button.
   - In expected costs you tap a bill to mark it cancelled from a month.
 - **Averages:** your real monthly averages.
 - **Year ahead:**
@@ -45,10 +50,10 @@ Three tabs:
 
 **Building a plan.** Use the three-step interview. It is offered whenever this year has no plan; **Later** hides it for this year on this device.
 1. **Make room for your year:** expected monthly income, a cushion for occasional costs, the history window, and review thresholds.
-2. **The things coming up:** income changes, planned costs and loan payment changes. A repeating cost can start from the plan's year, and past costs can suggest an amount.
+2. **The things coming up:** income changes and planned costs. A repeating cost can start from the plan's year, and past costs can suggest an amount. Loan payments come from each loan's history and are shown read-only.
 3. **Fine-tune:** adjust bill and category amounts, then check the month-by-month preview.
 
-Nothing is saved until **Freeze my plan**. A frozen plan never moves on its own. **Revise remaining year** saves a new revision and leaves earlier months and revisions untouched. Past years are read-only.
+Nothing is saved until **Freeze my plan**. A frozen plan never moves on its own. **Revise remaining year** saves a new revision and leaves earlier months and revisions untouched. Past years are read-only. The one exception is **Revise from <month>** after a loan payment change, which can restate that loan's line in passed months of this year.
 
 **Expected vs Planned.** *Planned* is the target you froze. *Expected* is a live prediction from your history and known costs. Editing only a target never changes Expected. Months marked *partial* rest on history you haven't marked complete. *Unavailable* months have no evidence yet.
 
