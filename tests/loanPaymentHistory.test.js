@@ -5,7 +5,7 @@ import { approvePlanRevision } from '../src/planArchive.js';
 import { carriedPlanAssumptions } from '../src/planCarryForward.js';
 import { expectedSavings } from '../src/expectedSavings.js';
 import { createFinancialState } from './helpers/financialFixtures.js';
-import { isValidPaymentChanges, withEditedHistory, withLoanFormEdits, loanChangesFromHistory, loanPaymentInMonth, loanPaymentHistory, withLoanPaymentFrom, withNormalizedPayments, withoutLoanPaymentChange } from '../src/loanPaymentHistory.js';
+import { isValidPaymentChanges, withLoanFormEdits, loanChangesFromHistory, loanPaymentInMonth, loanPaymentHistory, withLoanPaymentFrom, withNormalizedPayments, withoutLoanPaymentChange } from '../src/loanPaymentHistory.js';
 
 // A €1,200 loan from January 2026 to December 2030 (P09's example).
 const k_homeLoan = { id: 'home', name: 'Home', account: 'everyday', start: '2026-01', end: '2030-12', payment: 120000, paymentChanges: [], remaining: 9000000, original: 9000000 };
@@ -213,7 +213,7 @@ test('saving the loan form keeps a history change synced while it was open, unle
 
   const renamed = withLoanFormEdits(syncedWhileOpen, { loanFields });
   const withNewPayment = withLoanFormEdits(syncedWhileOpen, { loanFields, newPayment: { since: '2027-06', amount: 14000 } });
-  const historyEdited = withLoanFormEdits(syncedWhileOpen, { loanFields, paymentHistory: { payment: 18500, paymentChanges: [] } });
+  const historyEdited = withLoanFormEdits(syncedWhileOpen, { loanFields, paymentChanges: [] });
 
   assert.deepEqual([renamed.name, renamed.paymentChanges], ['Family car', [{ since: '2027-02', amount: 15000 }]]);
   assert.deepEqual(withNewPayment.paymentChanges, [{ since: '2027-02', amount: 15000 }, { since: '2027-06', amount: 14000 }]);
@@ -261,19 +261,20 @@ test('a form save onto a loan whose stored history starts before its start keeps
   const listedWithoutTemporary = [];
   const loanFields = { name: 'Home', remaining: 9000000, start: '2026-03', end: '2030-12', account: 'everyday' };
 
-  const saved = withLoanFormEdits(notNormalized, { loanFields, paymentHistory: { payment: 20000, paymentChanges: listedWithoutTemporary } });
+  const saved = withLoanFormEdits(notNormalized, { loanFields, paymentChanges: listedWithoutTemporary });
 
   assert.deepEqual(paymentsIn(saved, ['2026-03', '2026-06', '2027-01']), [20000, 20000, 20000]);
 });
 
-test('a removal made at a later start keeps the loan\'s own months when the start moves back earlier', () => {
-  const loan = { ...k_homeLoan, payment: 10000, paymentChanges: [{ since: '2026-03', amount: 20000 }, { since: '2026-05', until: '2026-06', amount: 5000 }] };
-  const shownAtApril = withNormalizedPayments({ ...loan, start: '2026-04' });
-  const afterRemoval = withoutLoanPaymentChange(shownAtApril, { since: '2026-05', until: '2026-06' });
-  const editedHistory = { foldedAt: '2026-04', payment: afterRemoval.payment, paymentChanges: afterRemoval.paymentChanges };
+test('removals made on the saved history stay removed whatever start month the form saves with', () => {
+  const loan = { ...k_homeLoan, payment: 10000, paymentChanges: [{ since: '2026-03', until: '2026-03', amount: 5000 }, { since: '2026-08', amount: 20000 }] };
+  const loanFields = month => ({ name: 'Home', remaining: 9000000, start: month, end: '2030-12', account: 'everyday' });
+  const bothRemoved = withoutLoanPaymentChange(withoutLoanPaymentChange(loan, { since: '2026-03', until: '2026-03' }), { since: '2026-08' }).paymentChanges;
 
-  const backToJanuary = withEditedHistory({ ...loan, start: '2026-01' }, editedHistory);
+  const savedAtJanuary = withLoanFormEdits(loan, { loanFields: loanFields('2026-01'), paymentChanges: bothRemoved });
+  const savedAtMay = withLoanFormEdits(loan, { loanFields: loanFields('2026-05'), paymentChanges: bothRemoved });
 
-  assert.deepEqual(paymentsIn(backToJanuary, ['2026-01', '2026-02', '2026-03', '2026-05', '2026-07']), [10000, 10000, 20000, 20000, 20000]);
-  assert.deepEqual(loanPaymentHistory(backToJanuary), [{ since: '2026-01', amount: 10000 }, { since: '2026-03', amount: 20000 }]);
+  assert.deepEqual(paymentsIn(savedAtJanuary, ['2026-03', '2026-08']), [10000, 10000]);
+  assert.deepEqual(loanPaymentHistory(savedAtJanuary), [{ since: '2026-01', amount: 10000 }]);
+  assert.deepEqual(loanPaymentHistory(savedAtMay), [{ since: '2026-05', amount: 10000 }]);
 });

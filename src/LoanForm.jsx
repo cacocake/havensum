@@ -8,7 +8,7 @@ import { cents, euro, isPositiveCentAmount, k_centsPerEuro } from './money.js';
 import { k_transactionTypes, k_entityIdPrefixes } from './domainConstants.js';
 import { createEntityId } from './identifiers';
 import { isMonthKey, monthNumberOf, monthKeyOf, monthOf, yearOfMonth } from './calendar.js';
-import { loanPaymentInMonth, withEditedHistory, withLoanFormEdits, withNormalizedPayments, withoutLoanPaymentChange } from './loanPaymentHistory.js';
+import { loanPaymentInMonth, withLoanFormEdits, withNormalizedPayments, withoutLoanPaymentChange } from './loanPaymentHistory.js';
 
 const k_defaultLoanYears = 3;
 const k_loanFormMessages = {
@@ -19,6 +19,7 @@ const k_loanFormMessages = {
   invalidUntilMonth: 'Choose the last month of the temporary payment (YYYY-MM), from its first month on.',
   saved: 'Loan saved · revise the remaining Year Plan to include it',
   proceedsNote: 'Loan balance adjustment; excluded from income.',
+  startMovedHint: 'Saving with the later start month folds the payments before it into the starting payment; every month from the start keeps its payment.',
   lastingHint: 'Every payment from this month on uses the new amount. Later changes are replaced; earlier months stay as they were.',
   temporaryHint: 'Only these months use the new amount. Afterwards the payment returns to what applies without it; other changes stay.'
 };
@@ -72,15 +73,16 @@ export function LoanForm({ item, onClose }) {
   const [name, setName] = useState(item?.name || '');
   const [remaining, setRemaining] = useState(item ? amountText(item.remaining) : '');
   const [payment, setPayment] = useState('');
-  // A removal edits the history as listed: its starting payment and changes,
-  // folded at the start month shown.
-  const [editedHistory, setEditedHistory] = useState(null);
+  // The form lists and edits the history as saved, folded at the saved start.
+  const [savedHistoryLoan] = useState(() => item ? withNormalizedPayments(item) : null);
+  const [paymentChanges, setPaymentChanges] = useState(savedHistoryLoan?.paymentChanges ?? []);
+  const isHistoryEdited = paymentChanges !== (savedHistoryLoan?.paymentChanges ?? []);
+  const historyLoan = savedHistoryLoan ? { ...savedHistoryLoan, paymentChanges } : null;
   const [paymentChange, setPaymentChange] = useState(null);
   const [account, setAccount] = useState(item?.account || state.accounts[0]?.id || '');
   const [start, setStart] = useState(() => item?.start || currentMonth);
-  const shownStart = isMonthKey(start) ? start : item?.start;
-  const historyLoan = item ? withNormalizedPayments(withEditedHistory({ ...withNormalizedPayments(item), start: shownStart }, editedHistory)) : null;
   const [end, setEnd] = useState(() => item?.end || defaultLoanEnd(currentMonth));
+  const isStartMovedLater = Boolean(item) && isMonthKey(start) && start > item.start;
   const [credit, setCredit] = useState(false);
   const [error, setError] = useState('');
 
@@ -89,8 +91,7 @@ export function LoanForm({ item, onClose }) {
   }
 
   function removePaymentChange(entry) {
-    const remaining = withoutLoanPaymentChange(historyLoan, entry);
-    setEditedHistory({ foldedAt: historyLoan.start, payment: remaining.payment, paymentChanges: remaining.paymentChanges });
+    setPaymentChanges(changes => withoutLoanPaymentChange({ paymentChanges: changes }, entry).paymentChanges);
   }
 
   function newPaymentOf(change) {
@@ -114,7 +115,7 @@ export function LoanForm({ item, onClose }) {
 
     const loanId = item?.id || createEntityId(k_entityIdPrefixes.loan);
     const loanFields = { name, remaining: remainingInCents, start, end, account };
-    const formEdits = { loanFields, paymentHistory: editedHistory, newPayment: paymentChange ? newPaymentOf(paymentChange) : null };
+    const formEdits = { loanFields, paymentChanges: isHistoryEdited ? paymentChanges : null, newPayment: paymentChange ? newPaymentOf(paymentChange) : null };
     setState(currentState => {
       const loans = item
         ? currentState.loans.map(loan => loan.id === loanId ? withLoanFormEdits(loan, formEdits) : loan)
@@ -133,7 +134,7 @@ export function LoanForm({ item, onClose }) {
     onClose();
   }
 
-  const isDirty = useDirtyForm([name, remaining, payment, paymentChange, editedHistory, account, start, end, credit]);
+  const isDirty = useDirtyForm([name, remaining, payment, paymentChange, paymentChanges, account, start, end, credit]);
   return <Dialog dirty={isDirty} title="A loan, accounted for" subtitle="Monthly repayments are expenses. Borrowed money is not earnings." onClose={onClose}>
     <Field label="Loan name" value={name} onChangeText={setName} placeholder="e.g. Car loan" />
     <Row style={{ gap: 12, flexWrap: 'wrap' }}>
@@ -146,6 +147,7 @@ export function LoanForm({ item, onClose }) {
     </View>}
     {paymentChange && <PaymentChangeFields change={paymentChange} onChange={setPaymentChange} onCancel={() => setPaymentChange(null)} />}
     {historyLoan && <EditablePaymentHistory loan={historyLoan} onRemove={removePaymentChange} />}
+    {isStartMovedLater && <T style={{ fontSize: 11, color: colors.sub, marginTop: -9, marginBottom: 17 }}>{k_loanFormMessages.startMovedHint}</T>}
     <Select label="Payment account" value={account} onChange={setAccount} options={state.accounts.map(candidate => ({ value: candidate.id, label: candidate.name }))} />
     <Row style={{ gap: 12, flexWrap: 'wrap' }}>
       <Field label="Start month · YYYY-MM" value={start} onChangeText={setStart} style={{ flex: 1, minWidth: 140 }} />
