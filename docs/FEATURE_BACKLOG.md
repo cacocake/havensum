@@ -49,7 +49,7 @@ Use integer EUR cents. Cash follows its transaction date, including for early pa
 
 ### PLAN-3 follow-up · "Repeats every year" for new planned costs, from the plan's year onwards
 
-**Depends on:** PLAN-3, FORECAST-2 follow-ups (F16 year amounts and moves). **Status:** Done, reviewed and merged into `develop` from `codex/recurring-planned-cost-from-year` (implementation `aaab9a3`, `fb65dad`; review fixes `a1a1582`, `1df059b`); see the PLAN-3 follow-up handoff at the end. Follow-up b (P05, draft loan payment from a newer loan edit) is also done and merged.
+**Depends on:** PLAN-3, FORECAST-2 follow-ups (F16 year amounts and moves). **Status:** Done, reviewed and merged into `develop` from `codex/recurring-planned-cost-from-year` (implementation `aaab9a3`, `fb65dad`; review fixes `a1a1582`, `1df059b`); see the PLAN-3 follow-up handoff at the end. Follow-up b (P05, draft loan payment from a newer loan edit) is also done and merged; follow-up c was cancelled and superseded by LOAN-1 (P09).
 
 **Owner answers (19 November 2026, in chat; P04–P06 in DECISIONS.md):**
 1. **Repeat start (P04):** a new planned cost marked as repeating every year in the Year Plan interview counts from the year of the plan being drafted onwards. Earlier years, their forecasts/Expected savings and frozen plans are untouched. Stored as an optional `fromYear` on the recurring planned cost; recurring planned costs without it keep applying to every year.
@@ -64,7 +64,23 @@ Cover: a repeating cost added to next year's draft does not appear in this year 
 
 #### PLAN-3 follow-up c · Note a loan change replaced by a newer loan payment (P07)
 
-**Status:** Queued, not started. **Depends on:** PLAN-3 follow-up b (merged). **Owner decision (20 November 2026, P07):** when a newer payment entered on the loan replaces the source plan's loan change at the draft start (P05), the interview shows it as not applied, like changes for ended loans. Example wording: "Not applied: Car loan change to €150.00 from 2026-10, the loan's payment was edited since." Return the replaced changes from `carriedPlanAssumptions` beside `staleLoanChanges`, without applying them. Cover: the note in the interview; no note for legacy loans or for edits before approval; later changes still carry; the saved plan unchanged by the note; narrow layouts with long loan names; a target-only edit leaving Expected savings unchanged.
+**Status:** Cancelled by the owner (20 November 2026) before merge; superseded by **LOAN-1** (P09). Its unmerged work is on origin branch `codex/replaced-loan-change-note` (`77f5196` implementation; `88598fa` marks P07 implemented and must not be merged).
+
+### LOAN-1 · Loan payment history and an owner-chosen plan revision (P09)
+
+**Status:** Queued, not started. **Depends on:** PLAN-3 follow-up b (merged). **Owner decision (20 November 2026, P09 in DECISIONS.md):**
+
+- **Payment history:** a loan's monthly payment changes over time, up or down (a new rate, an advance or down-payment). The loan keeps a payment history ("€1,200 from 2026-01, €1,050 from 2026-09"). The loan form asks from which month a new payment applies, defaulting to the current local month (L02); past and future months are allowed, and entries can be corrected.
+- **Later changes:** every payment from the chosen month on uses the new amount, so a later scheduled change for that loan (in the history or carried from a plan) no longer applies. Earlier months are untouched.
+- **One-off extra payment:** a payment above the usual amount (e.g. a fixed service fee) is only a recorded payment. It changes neither the loan's monthly payment nor the plan, and shows as overspend in its month.
+- **Advance or down-payment:** recorded as a payment on the loan, marked as an advance, and it lowers the recorded remaining balance. The app then asks whether the monthly payment changed, the new amount and from which month. It never calculates the bank's new payment; principal and interest are not guessed.
+- **Plan revision prompt:** after any change to the monthly payment, offer to revise that year's plan: **Keep my plan** (nothing changes; the difference shows against the plan) or **Revise from <month>**. Revising opens the existing interview with the payment history prefilled and other budgets editable, and freezes a new revision; earlier revisions stay viewable. Nothing changes without the owner's choice.
+- **Past months:** that revision follows the payment history from the month it changed, including months already passed in the current year. This is an owner-approved exception to "never rewrite a plan's historical months", allowed only through a revision the owner approves, with the earlier revision kept. Past years stay read-only.
+- **Drafts:** a new year's draft takes each loan's payments from its history, which supersedes P05's timestamp comparison. Decide how `paymentEditedAt` (PLAN-3 follow-up b) and the plans' `loanChanges` migrate into or coexist with the history, without data loss for legacy loans, backups or frozen snapshots.
+
+**Ask the owner before implementing (multiple choice, recommended option first) if genuinely ambiguous:** where Outlook settings' expected loan payments fit with the history; how an advance payment is marked (transaction field or loan action); whether the prompt also appears for a change only in the remaining balance.
+
+**Cover:** a payment raised and one lowered from a future month; a past month entered late, and the revision updating its past months while the earlier revision is kept; **Keep my plan** leaving every snapshot byte-identical; a later scheduled change replaced; a one-off extra payment changing nothing but that month's actuals; an advance payment lowering the remaining balance and prompting for a new payment; legacy loans and backups (validation, migration, docs/STATE_MIGRATIONS.md, full restore, three-way merge with owner-chosen conflicts); Expected savings following the payment history while a target-only edit leaves it unchanged; the interview's step 2 and carried changes; narrow layouts with long loan names; reduced motion.
 
 ### PLAN-4 · Offer the interview and verify rollover
 
@@ -727,3 +743,11 @@ The implementation note below records how these were built; it stores only per-y
 - **Implemented:** transfer notes accepted with any of Cashew's 43 translated headings (`src/cashewTransferHeadings.js`, attributed, matching data only) and either arrow; legs up to 61 seconds apart (K15 raised from 60 after review); date-only timestamps compare at midnight; the objective note warns that Havensum loans are for money borrowed only (K16).
 - **Checks:** `npm run test:coverage`, `npm run test:browser`, `npm run build`, `npm run check:android` on the merged tree (counts in the merge commit message). Hermes export is compilation only.
 - **Review:** separate read-only Claude review (one should-fix: Cashew's minute rollover can put the legs 61 s apart, answered by the owner as K15 = 61 s; nits fixed); re-review found nothing blocking.
+
+## Session handoff — owner answers after PLAN-3 follow-up b (20 November 2026)
+
+- **P07 cancelled:** the owner stopped the "Not applied" note (PLAN-3 follow-up c) mid-session. Nothing merged. Its branch `codex/replaced-loan-change-note` is on origin for reference only.
+- **P09 recorded, queued as LOAN-1:** loan payment history with a month for each change, one-off extra payments and advance payments, and an owner-chosen plan revision that follows the history from the month the payment changed, including passed months of the current year. See the LOAN-1 ticket and DECISIONS.md.
+- **The P05 edge case** (a scheduled plan change between the loan edit and the draft start) goes away under P09: the new payment applies from its chosen month, and later scheduled changes for that loan no longer apply.
+- **AGENTS.md was not edited:** P09 records the owner-approved exception to "never rewrite a plan's historical months". The owner may want AGENTS.md updated to match.
+
