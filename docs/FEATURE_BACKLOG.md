@@ -62,6 +62,10 @@ Cover: a repeating cost added to next year's draft does not appear in this year 
 
 **Status:** Done, reviewed and merged into `develop` from `codex/loan-payment-edit-date` (implementation `3a5b76d`, docs `aa7e069`, review fix `8cf22f1`); see the PLAN-3 follow-up b handoff at the end. **Depends on:** PLAN-3 follow-up. Record when a loan's monthly payment is edited (new optional field, validated, kept by restore, merged three-way), and when a carried loan change in effect at the draft start predates a later edit of the loan's payment, start the draft from the loan's payment instead. Cover legacy loans without the field (keep today's carried change), a later plan change after the edit, merge conflicts, and the step-2 placeholder.
 
+#### PLAN-3 follow-up c · Note a loan change replaced by a newer loan payment (P07)
+
+**Status:** Queued, not started. **Depends on:** PLAN-3 follow-up b (merged). **Owner decision (20 November 2026, P07):** when a newer payment entered on the loan replaces the source plan's loan change at the draft start (P05), the interview shows it as not applied, like changes for ended loans. Example wording: "Not applied: Car loan change to €150.00 from 2026-10, the loan's payment was edited since." Return the replaced changes from `carriedPlanAssumptions` beside `staleLoanChanges`, without applying them. Cover: the note in the interview; no note for legacy loans or for edits before approval; later changes still carry; the saved plan unchanged by the note; narrow layouts with long loan names; a target-only edit leaving Expected savings unchanged.
+
 ### PLAN-4 · Offer the interview and verify rollover
 
 **Status:** Done, reviewed and merged into `develop` from `codex/plan-invitation` (implementation `d6326c5`, review fixes `46d5a5e`). See the PLAN-4 handoff note below. **Depends on:** PLAN-3.
@@ -713,6 +717,6 @@ The implementation note below records how these were built; it stores only per-y
 - **Deferred nits:**
   - Readable merge-conflict wording for `paymentEditedAt`, which is shown raw like `fromYear`.
   - Importing the storage key in browser specs, which other specs also hard-code.
-- **Owner question (non-blocking; current behaviour follows P05 as specified):** when a newer loan edit replaces the plan's change, that change disappears from the interview without a note, unlike changes for ended loans ("Not applied: …"). Should step 3 say so? Options: (a) add a note such as "Not applied: Car loan change to €150.00 from 2026-10, the loan's payment was edited since" (recommended), (b) leave it silent as now.
+- **Owner answers (20 November 2026):** add a "Not applied: …" note for a loan change replaced by a newer loan payment (P07, queued as **PLAN-3 follow-up c**). The PLAN-3 follow-up question about a repeating cost whose month has passed in a same-year revision is answered: keep as is and add it from next year's interview (P08).
 - **Open edge, not asked:** a plan change scheduled between the edit and the draft start (for example a December drop approved in March, with the payment edited in September) also yields to the edit, because the rule compares approval times as specified.
 
