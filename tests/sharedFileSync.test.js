@@ -420,7 +420,7 @@ test('an older-schema ledger written into the file is migrated and merged', asyn
   drive.replaceContent(fileId, JSON.stringify({ format: 'havensum-shared-file', formatVersion: 1, writeId: 'write-legacy', lineage: [head.writeId], ledger: legacyLedger }));
   assert.equal((await creator.sync()).status, 'synced');
   assert.deepEqual(transactionIds(creator.state), ['legacy-entry']);
-  assert.equal(creator.state.version, 4);
+  assert.equal(creator.state.version, 5);
 });
 
 test('a replaced file with no shared history needs the one-sided-record review', async () => {

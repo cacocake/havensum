@@ -82,7 +82,7 @@ function octoberTransferIn() {
 
 test('an unscheduled legacy rate earns nothing until its start month is chosen, from the first entry at the earliest', async ({ page }) => {
   await openLedger(page, legacyRateLedger({ openingBalance: 0, transactions: [octoberTransferIn()] }));
-  await expect.poll(async () => (await page.evaluate(key => JSON.parse(localStorage.getItem(key)), k_ledgerKey)).version).toBe(4);
+  await expect.poll(async () => (await page.evaluate(key => JSON.parse(localStorage.getItem(key)), k_ledgerKey)).version).toBe(5);
   expect((await storedTransactions(page)).map(transaction => transaction.id)).toEqual(['october-transfer']);
 
   const dialog = await editAccount(page, 'Imported savings');

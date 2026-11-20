@@ -15,13 +15,14 @@ function ledgerWithApprovedPlan(planOptions, stateOverrides = {}) {
 }
 
 test('a new year starts from the earlier plan, using amounts effective in January and carrying later changes once', () => {
+  // Loan payments come from the loan's own history (P09), not from the plan.
+  const carWithHistory = { ...k_carLoan, paymentChanges: [{ since: '2026-10', amount: 15000 }, { since: '2027-06', amount: 0 }] };
   const state = ledgerWithApprovedPlan({
     income: 200000,
     window: 3,
     incomeChanges: [{ since: '2026-07', amount: 250000 }, { since: '2027-03', amount: 260000 }],
-    loanChanges: [{ loanId: 'car', since: '2026-10', amount: 15000 }, { loanId: 'car', since: '2027-06', amount: 0 }],
     overrides: { groceries: 0 }
-  });
+  }, { loans: [carWithHistory] });
 
   const carried = carriedPlanAssumptions(state, { year: 2027, fromMonth: 1 });
 

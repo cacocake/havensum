@@ -1,5 +1,6 @@
 const k_planArchiveVersion = 3;
-const k_currentVersion = 4;
+const k_interestScheduleVersion = 4;
+const k_currentVersion = 5;
 
 // Ledgers before version 3 hold one frozen plan; later ledgers archive plans by year.
 export function createFinancialState(overrides = {}) {
@@ -57,18 +58,21 @@ function expectedScheduledAccount(account) {
 
 // The expected ledger after migration: a single legacy plan moves under its
 // year unchanged, gaining only the snapshot ID chosen by migration.
-export function expectedMigratedLedger(legacyState, migratedState) {
+// Loans gain a payment history in version 5: empty unless the test names the
+// changes it expects from the legacy plans (`expectedPaymentChanges` by loan ID).
+export function expectedMigratedLedger(legacyState, migratedState, expectedPaymentChanges = {}) {
   const { plan, ...unchangedFields } = legacyState;
-  const accounts = legacyState.version < k_currentVersion ? legacyState.accounts.map(expectedScheduledAccount) : legacyState.accounts;
+  const accounts = legacyState.version < k_interestScheduleVersion ? legacyState.accounts.map(expectedScheduledAccount) : legacyState.accounts;
+  const loans = legacyState.loans.map(loan => ({ ...loan, paymentChanges: expectedPaymentChanges[loan.id] ?? [] }));
   if (legacyState.version >= k_planArchiveVersion) {
-    return { ...legacyState, version: k_currentVersion, accounts };
+    return { ...legacyState, version: k_currentVersion, accounts, loans };
   }
   if (!plan) {
-    return { ...unchangedFields, version: k_currentVersion, accounts, plans: {} };
+    return { ...unchangedFields, version: k_currentVersion, accounts, loans, plans: {} };
   }
   const yearKey = String(plan.year);
   const migratedId = migratedState?.plans?.[yearKey]?.[0]?.id;
-  return { ...unchangedFields, version: k_currentVersion, accounts, plans: { [yearKey]: [{ ...plan, id: migratedId }] } };
+  return { ...unchangedFields, version: k_currentVersion, accounts, loans, plans: { [yearKey]: [{ ...plan, id: migratedId }] } };
 }
 
 // Wraps a frozen plan as the only approved revision of its year.

@@ -73,7 +73,7 @@ test('an older-schema ledger in the file is migrated in memory', () => {
   const legacyLedger = createFinancialState({ version: 2, accounts: [{ id: 'savings', name: 'Savings', openingBalance: 1000, interest: 3, interestStart: '2026-01' }] });
   const encodedDocument = JSON.stringify({ format: 'havensum-shared-file', formatVersion: 1, writeId: 'write-legacy', lineage: [], ledger: sharedLedgerOf(legacyLedger) });
   const { ledger } = parseSharedDocument(encodedDocument);
-  assert.equal(ledger.version, 4);
+  assert.equal(ledger.version, 5);
   assert.deepEqual(ledger.accounts[0].interestSchedule, [{ since: '2026-01', rate: 3 }]);
   assert.deepEqual(ledger.plans, {});
 });

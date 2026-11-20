@@ -6,13 +6,16 @@ import { isInterestRate } from './interestSchedule.js';
 import { k_interestBankChoices } from './interestEntries.js';
 import { isMonthNumber, isValidFromYear, isValidMonthFromYear, isValidYearAmounts } from './plannedCosts.js';
 import { isValidPaymentEditedAt } from './loanPaymentEdits.js';
+import { isValidPaymentChanges } from './loanPaymentHistory.js';
+import { loanWithPaymentHistory } from './loanPaymentMigration.js';
 
 export const k_interestScheduleStateVersion = 4;
-export const k_currentStateVersion = k_interestScheduleStateVersion;
+export const k_loanPaymentHistoryStateVersion = 5;
+export const k_currentStateVersion = k_loanPaymentHistoryStateVersion;
 const k_legacyStateVersion = 1;
 const k_singlePlanStateVersion = 2;
 export const k_planArchiveStateVersion = 3;
-const k_supportedStateVersions = new Set([k_legacyStateVersion, k_singlePlanStateVersion, k_planArchiveStateVersion, k_currentStateVersion]);
+const k_supportedStateVersions = new Set([k_legacyStateVersion, k_singlePlanStateVersion, k_planArchiveStateVersion, k_interestScheduleStateVersion, k_currentStateVersion]);
 const k_yearKeyPattern = /^\d{4}$/;
 const k_collectionNames = ['accounts', 'categories', 'transactions', 'loans', 'events'];
 const k_spendingKinds = new Set(['Fixed', 'Variable', 'Occasional']);
@@ -131,7 +134,7 @@ function validateInterestBankChoices(account) {
 }
 
 function validateAccountInterest(version, account) {
-  if (version < k_currentStateVersion) {
+  if (version < k_interestScheduleStateVersion) {
     if (account.interest !== undefined) {
       requireValid(isInterestRate(account.interest), 'account interest');
     }
@@ -220,6 +223,9 @@ export function validateState(state) {
     requireValid(k_monthPattern.test(loan.start) && k_monthPattern.test(loan.end), 'loan months');
     requireValid(state.accounts.some(account => account.id === loan.account), 'loan account');
     requireValid(isValidPaymentEditedAt(loan), 'loan payment edit time');
+    if (state.version >= k_loanPaymentHistoryStateVersion) {
+      requireValid(isValidPaymentChanges(loan), 'loan payment history');
+    }
   }
   for (const event of state.events) {
     requireValid(isIdentifier(event.name), 'event name');
@@ -256,7 +262,8 @@ export function validateState(state) {
 }
 
 // Version 2 established a validated persistence boundary. Version 3 archives
-// the single frozen plan by year. Version 4 schedules savings interest rates. Neither renumbers records or changes money,
+// the single frozen plan by year. Version 4 schedules savings interest rates.
+// Version 5 gives each loan a payment history. None renumbers records or changes money,
 // links, plan figures, overrides or custom fields.
 export function migrateState(state) {
   validateState(state);
@@ -268,8 +275,12 @@ export function migrateState(state) {
     const { plan, ...unchangedFields } = migratedState;
     migratedState = { ...unchangedFields, plans: legacyPlanArchive(plan) };
   }
+  if (migratedState.version < k_interestScheduleStateVersion) {
+    migratedState = { ...migratedState, accounts: migratedState.accounts.map(scheduledAccount) };
+  }
+  const loans = migratedState.loans.map(loan => loanWithPaymentHistory(migratedState, loan));
   // Fields a legacy schema did not check are validated in their migrated form.
-  return validateState({ ...migratedState, version: k_currentStateVersion, accounts: migratedState.accounts.map(scheduledAccount) });
+  return validateState({ ...migratedState, version: k_currentStateVersion, loans });
 }
 
 export function clearMissingTransactionCategories(state) {
