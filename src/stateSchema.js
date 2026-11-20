@@ -46,6 +46,17 @@ function validateCentFields(record, fields) {
   }
 }
 
+// LOAN-1b (P25): each active loan's non-negative share of a planned month's
+// loan line, adding up to that line.
+function isValidLoanShares(plannedMonth) {
+  if (!isRecord(plannedMonth.loanPayments)) {
+    return false;
+  }
+  const shares = Object.values(plannedMonth.loanPayments);
+  const isEveryShareValid = shares.every(share => Number.isSafeInteger(share) && share >= 0);
+  return isEveryShareValid && shares.reduce((total, share) => total + share, 0) === plannedMonth.loan;
+}
+
 function validatePlan(plan) {
   if (plan === null) {
     return;
@@ -55,6 +66,9 @@ function validatePlan(plan) {
   requireValid(isRecord(plan.months), 'plan months');
   requireValid(Number.isInteger(plan.window) && plan.window > 0, 'plan history window');
   validateCentFields(plan, ['tolerance']);
+  // LOAN-1b (P22): a revision may restate loan lines of passed months from a month.
+  const isRestatementInPlanYear = k_monthPattern.test(plan.loanRestatedFrom) && Number(plan.loanRestatedFrom.slice(0, 4)) === plan.year;
+  requireValid(plan.loanRestatedFrom === undefined || isRestatementInPlanYear, 'plan loan restatement month');
   requireValid(typeof plan.drift === 'number' && Number.isFinite(plan.drift) && plan.drift > 0, 'plan drift');
   for (const collectionName of ['incomeChanges', 'loanChanges']) {
     requireValid(Array.isArray(plan[collectionName]), `plan ${collectionName}`);
@@ -77,6 +91,9 @@ function validatePlan(plan) {
     requireValid(k_monthPattern.test(month) && Number(month.slice(0, 4)) === plan.year, 'plan month key');
     requireValid(isRecord(plannedMonth), 'planned month');
     validateCentFields(plannedMonth, ['income', 'expense', 'balance', 'cushion', 'loan', 'event']);
+    if (plannedMonth.loanPayments !== undefined) {
+      requireValid(isValidLoanShares(plannedMonth), 'plan loan shares');
+    }
     requireValid(Array.isArray(plannedMonth.lines), 'plan lines');
     for (const line of plannedMonth.lines) {
       requireValid(isRecord(line), 'plan line');

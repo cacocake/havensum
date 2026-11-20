@@ -3,6 +3,7 @@ import { useApp } from './context.js';
 import { View } from 'react-native';
 import { Theme, T, Row, Button, Field, Select, Toggle, Dialog } from './ui.jsx';
 import { EditablePaymentHistory } from './LoanPaymentHistory.jsx';
+import { loanRevisionOffer } from './loanPlanRevision.js';
 import { useDirtyForm } from './useDirtyForm.js';
 import { cents, euro, isPositiveCentAmount, k_centsPerEuro } from './money.js';
 import { k_transactionTypes, k_entityIdPrefixes } from './domainConstants.js';
@@ -18,6 +19,7 @@ const k_loanFormMessages = {
   paymentBeforeStart: 'A new payment starts in the loan\'s start month or later.',
   invalidUntilMonth: 'Choose the last month of the temporary payment (YYYY-MM), from its first month on.',
   saved: 'Loan saved · revise the remaining Year Plan to include it',
+  savedPaymentChange: 'Loan payment saved',
   proceedsNote: 'Loan balance adjustment; excluded from income.',
   startMovedHint: 'Saving with the later start month folds the payments before it into the starting payment; folding alone changes no month from the new start on.',
   lastingHint: 'Every payment from this month on uses the new amount. Later changes are replaced; earlier months stay as they were.',
@@ -67,7 +69,7 @@ function PaymentChangeFields({ change, onChange, onCancel }) {
 }
 
 export function LoanForm({ item, onClose }) {
-  const { setState, state, notify, today } = useApp();
+  const { setState, setModal, state, notify, today } = useApp();
   const colors = useContext(Theme);
   const currentMonth = monthOf(today);
   const [name, setName] = useState(item?.name || '');
@@ -116,6 +118,7 @@ export function LoanForm({ item, onClose }) {
     const loanId = item?.id || createEntityId(k_entityIdPrefixes.loan);
     const loanFields = { name, remaining: remainingInCents, start, end, account };
     const formEdits = { loanFields, paymentChanges: isHistoryEdited ? paymentChanges : null, newPayment: paymentChange ? newPaymentOf(paymentChange) : null };
+    const revisionOffer = item ? planRevisionOfferAfter(formEdits) : null;
     setState(currentState => {
       const loans = item
         ? currentState.loans.map(loan => loan.id === loanId ? withLoanFormEdits(loan, formEdits) : loan)
@@ -130,8 +133,23 @@ export function LoanForm({ item, onClose }) {
       }
       return { ...currentState, loans, transactions };
     });
+    if (revisionOffer) {
+      notify(k_loanFormMessages.savedPaymentChange);
+      setModal({ type: 'loanPlanPrompt', ...revisionOffer, loanName: name });
+      return;
+    }
     notify(k_loanFormMessages.saved);
     onClose();
+  }
+
+  // LOAN-1b: a monthly-payment change offers to revise the plan of the year it
+  // changes in; a balance or name edit offers nothing (P15).
+  function planRevisionOfferAfter(formEdits) {
+    const savedLoan = state.loans.find(loan => loan.id === item.id) ?? item;
+    const editedLoan = withLoanFormEdits(savedLoan, formEdits);
+    const editedState = { ...state, loans: state.loans.map(loan => loan.id === item.id ? editedLoan : loan) };
+    const offer = loanRevisionOffer(editedState, savedLoan, editedLoan, today);
+    return offer ? { offer, previousLoan: savedLoan } : null;
   }
 
   const isDirty = useDirtyForm([name, remaining, payment, paymentChange, paymentChanges, account, start, end, credit]);

@@ -40,9 +40,17 @@ async function changeMonthlyPayment(dialog, amount) {
   await dialog.getByLabel('New monthly payment · EUR', { exact: true }).fill(amount);
 }
 
+// Saves the loan form; a payment change in a planned year then offers a plan
+// revision (LOAN-1b), which these history tests answer with Keep my plan.
 async function saveLoanForm(dialog) {
   await dialog.getByRole('button', { name: 'Save loan', exact: true }).click();
-  await expect(dialog).toHaveCount(0);
+  const keepMyPlan = dialog.getByRole('button', { name: 'Keep my plan', exact: true });
+  await expect(async () => {
+    if (await keepMyPlan.count()) {
+      await keepMyPlan.click();
+    }
+    await expect(dialog).toHaveCount(0, { timeout: 500 });
+  }).toPass();
 }
 
 function savedLedger(page) {
