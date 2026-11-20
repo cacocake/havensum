@@ -64,20 +64,22 @@ export function buildPlan(state, {
       .filter(change => change.since <= month)
       .sort((first, second) => first.since.localeCompare(second.since))
       .reduce((previousIncome, change) => change.amount, income);
-    const monthlyLoan = state.loans
+    // Each active loan's share of the loan line (LOAN-1b, P25), then its total.
+    const loanPayments = Object.fromEntries(state.loans
       .filter(loan => loan.start <= month && loan.end >= month)
-      .reduce((total, loan) => {
+      .map(loan => {
         const payment = loanChanges
           .filter(change => change.loanId === loan.id && change.since <= month)
           .sort((first, second) => first.since.localeCompare(second.since))
           .reduce((previousPayment, change) => change.amount, loan.payment);
-        return total + payment;
-      }, 0);
+        return [loan.id, payment];
+      }));
+    const monthlyLoan = Object.values(loanPayments).reduce((total, payment) => total + payment, 0);
     const event = eventsInMonth(state.events || [], month)
       .reduce((total, event) => total + plannedCostAmount(event, year), 0);
     const monthLines = linesForMonth(month);
     const expense = monthLines.reduce((total, line) => total + line.amount, 0) + monthlyLoan + cushion + event;
-    months[month] = { income: monthlyIncome, expense, cushion, loan: monthlyLoan, event, lines: monthLines, balance: monthlyIncome - expense };
+    months[month] = { income: monthlyIncome, expense, cushion, loan: monthlyLoan, loanPayments, event, lines: monthLines, balance: monthlyIncome - expense };
   }
   return {
     year, incomeChanges, loanChanges, createdAt: new Date().toISOString(), window,

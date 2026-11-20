@@ -45,11 +45,21 @@ export function loanRevisionOffer(state, loanBefore, loanAfter, today) {
   return null;
 }
 
-// Owner decisions P22 and P23: in passed months from the revision month, the
-// new revision changes only the changed loan's part of the loan line, by the
-// difference between its payment before the edit (`previousLoan`) and its
-// history now, and the totals that line is part of; everything else stays as
-// frozen, including other loans. The revision records where this starts.
+// The changed loan's share of a frozen month's loan line: as the plan recorded
+// it, otherwise (plans from before shares were recorded) its earlier payment,
+// never more than the line held (owner decision P25).
+function heldPayment(frozenMonth, loanId, previousPayment) {
+  if (frozenMonth.loanPayments) {
+    return frozenMonth.loanPayments[loanId] ?? 0;
+  }
+  return Math.min(previousPayment, frozenMonth.loan);
+}
+
+// Owner decisions P22, P23 and P25: in passed months from the revision month,
+// the new revision replaces only the changed loan's share of the loan line
+// with its history now, and the totals that line is part of; everything else
+// stays as frozen, including other loans. A loan the plan never held is only
+// added. The revision records the first month restated.
 export function revisionWithRestatedLoanLines(plan, state, offer, previousLoan) {
   if (!offer.passedFrom) {
     return plan;
@@ -57,15 +67,28 @@ export function revisionWithRestatedLoanLines(plan, state, offer, previousLoan) 
   const changedLoan = state.loans.find(loan => loan.id === offer.loanId);
   const interviewStart = monthKeyOf(offer.year, offer.interviewFromMonth);
   const months = { ...plan.months };
+  let firstRestatedMonth = null;
   for (let month = offer.passedFrom; month < interviewStart; month = nextMonth(month)) {
     const frozenMonth = months[month];
     if (!frozenMonth) {
       continue;
     }
+    firstRestatedMonth ??= month;
     const paymentNow = changedLoan ? paymentWhileActive(changedLoan, month) : 0;
-    const loan = frozenMonth.loan + paymentNow - paymentWhileActive(previousLoan, month);
+    const loan = frozenMonth.loan - heldPayment(frozenMonth, offer.loanId, paymentWhileActive(previousLoan, month)) + paymentNow;
     const expense = frozenMonth.expense - frozenMonth.loan + loan;
-    months[month] = { ...frozenMonth, loan, expense, balance: frozenMonth.income - expense };
+    const loanPayments = frozenMonth.loanPayments ? { ...frozenMonth.loanPayments, [offer.loanId]: paymentNow } : undefined;
+    months[month] = { ...frozenMonth, loan, ...(loanPayments ? { loanPayments } : {}), expense, balance: frozenMonth.income - expense };
   }
-  return { ...plan, months, loanRestatedFrom: offer.passedFrom };
+  return { ...plan, months, loanRestatedFrom: firstRestatedMonth ?? offer.passedFrom };
+}
+
+// On save the interview rechecks its offer: a calendar move refreshes it, and
+// an offer that vanished or now points to another year cannot be saved.
+export function loanRevisionRecheck(shownOffer, currentOffer) {
+  if (!currentOffer || currentOffer.year !== shownOffer.year) {
+    return { kind: 'gone' };
+  }
+  const isUnchanged = currentOffer.interviewFromMonth === shownOffer.interviewFromMonth && currentOffer.passedFrom === shownOffer.passedFrom;
+  return isUnchanged ? { kind: 'unchanged' } : { kind: 'moved', offer: currentOffer };
 }

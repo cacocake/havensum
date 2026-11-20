@@ -59,6 +59,7 @@ test('Revise from a passed month freezes a revision that restates only the passe
   const dialog = await changeCarPayment(page, '160', '2026-03');
 
   await dialog.getByRole('button', { name: 'Revise from March 2026', exact: true }).click();
+  await expect(dialog.getByText('Step 1 of 3 · 2026 · Only November–December will change, plus loan payments from March 2026.', { exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(dialog.getByText('Car loan · €160.00/month from November', { exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
@@ -70,7 +71,8 @@ test('Revise from a passed month freezes a revision that restates only the passe
   expect(earlier).toEqual(ledger.plans['2026'][0]);
   expect(latest.months['2026-02']).toEqual(earlier.months['2026-02']);
   expect([latest.months['2026-03'].loan, latest.months['2026-03'].expense]).toEqual([16000, earlier.months['2026-03'].expense - 2500]);
-  expect(latest.months['2026-03'].lines).toEqual(earlier.months['2026-03'].lines);
+  const outsideLoanLine = plannedMonth => ({ ...plannedMonth, loan: 0, loanPayments: {}, expense: 0, balance: 0 });
+  expect(outsideLoanLine(latest.months['2026-03'])).toEqual(outsideLoanLine(earlier.months['2026-03']));
   expect([latest.months['2026-11'].loan, latest.loanRestatedFrom]).toEqual([16000, '2026-03']);
   await returnHome(page);
   await page.getByRole('button', { name: 'Year Plan', exact: true }).click();

@@ -20,7 +20,7 @@ import { isPlannedCostLink, plannedCostOptions } from './plannedCosts.js';
 import { approvePlanRevision, k_planRevisionStartKinds, planRevisionStart } from './planArchive.js';
 import { localCalendarDate, monthNumberOf, yearOfMonth } from './calendar.js';
 import { longMonthLabel, monthNumberName } from './monthLabels.js';
-import { loanRevisionOffer, revisionWithRestatedLoanLines } from './loanPlanRevision.js';
+import { loanRevisionOffer, loanRevisionRecheck, revisionWithRestatedLoanLines } from './loanPlanRevision.js';
 import { planDraftEstimates } from './planDraftEstimates.js';
 import PlanDraftEvidence, { PlanBillList } from './PlanDraftEvidence.jsx';
 import { DraftPlannedCosts, NewPlannedCostSuggestion } from './PlannedCostSuggestion.jsx';
@@ -268,6 +268,14 @@ function PassedMonthsNote({ passedFrom }) {
   return <T style={{ fontSize: 12, color: colors.sub, marginBottom: 8 }}>{`Passed months from ${longMonthLabel(passedFrom)} get the new loan payment only; everything else in them stays as frozen.`}</T>;
 }
 
+// What the draft changes: from the first revised month and, for a loan
+// revision, its year and the loan lines of passed months it restates (P22).
+function planSubtitle({ step, year, from, loanOffer }) {
+  const yearName = loanOffer ? `${year} · ` : '';
+  const restated = loanOffer?.passedFrom ? `, plus loan payments from ${longMonthLabel(loanOffer.passedFrom)}` : '';
+  return `Step ${step + 1} of 3 · ${yearName}Only ${monthNumberName(from)}–December will change${restated}.`;
+}
+
 // A revision offered after a loan payment change (LOAN-1b) drafts that year
 // from the offer's interview month; otherwise the selected month's year.
 function initialPlanStart(loanRevision, year, month) {
@@ -357,14 +365,19 @@ export function PlanForm({onClose,loanRevision=null,previousLoan=null}){
      return;
    }
    const currentOffer = loanRevision ? currentLoanRevisionOffer(today) : null;
-   if (loanRevision && !currentOffer) {
+   const recheck = loanRevision ? loanRevisionRecheck(loanOffer, currentOffer) : null;
+   if (recheck?.kind === 'gone') {
      setError(k_loanRevisionGoneMessage);
      return;
    }
-   const expectedFrom = currentOffer ? currentOffer.interviewFromMonth : start.fromMonth;
-   if (expectedFrom !== from || currentOffer?.passedFrom !== loanOffer?.passedFrom) {
-     setFrom(expectedFrom);
+   if (recheck?.kind === 'moved') {
+     setFrom(currentOffer.interviewFromMonth);
      setLoanOffer(currentOffer);
+     setError(k_planStartMovedMessage);
+     return;
+   }
+   if (!loanRevision && start.fromMonth !== from) {
+     setFrom(start.fromMonth);
      setError(k_planStartMovedMessage);
      return;
    }
@@ -398,7 +411,7 @@ export function PlanForm({onClose,loanRevision=null,previousLoan=null}){
    onClose();
  }
  const isDirty = useDirtyForm([income,cushion,window,eventName,eventAmount,eventMonth,carriedIncomeChanges,overrides,incomeChangeFrom,incomeChangeAmount,tolerance,drift,draftEvents,yearAmountDrafts,eventRepeatsEveryYear]);
- return <Dialog dismissRef={dismissRef} dirty={isDirty} title={step===0?'Make room for your year':step===1?'The things coming up':'Your plan, your call'} subtitle={`Step ${step+1} of 3 · Only ${new Date(year,from-1,1).toLocaleString('en',{month:'long'})}–December will change.`} onClose={onClose} width={550}>
+ return <Dialog dismissRef={dismissRef} dirty={isDirty} title={step===0?'Make room for your year':step===1?'The things coming up':'Your plan, your call'} subtitle={planSubtitle({step,year,from,loanOffer})} onClose={onClose} width={550}>
  <Row style={{gap:6,marginBottom:25}}>{[0,1,2].map(i=><View key={i} style={{height:4,flex:1,borderRadius:4,backgroundColor:i<=step?c.accent:c.line}}/>)}</Row>
  {step===0&&<><PlanDraftEvidence evidence={preview.evidence} suggestedCushion={preview.suggestedCushion}/><Field label="Expected monthly income · EUR" value={income} onChangeText={setIncome} keyboardType="decimal-pad"/><Field label="Monthly occasional-spending cushion · EUR" value={cushion} onChangeText={setCushion} keyboardType="decimal-pad"/><Select label="Variable spending history" value={window} onChange={setWindow} options={[{value:'3',label:'3 completed months'},{value:'6',label:'6 completed months · recommended'},{value:'12',label:'12 completed months'}]}/><Row style={{gap:12}}><Field label="Fixed tolerance · ± EUR" value={tolerance} onChangeText={setTolerance} style={{flex:1}}/><Field label="Variable drift trigger · %" value={drift} onChangeText={setDrift} style={{flex:1}}/></Row><View style={{backgroundColor:c.soft,padding:15,borderRadius:12}}><T style={{fontSize:12,color:c.sub}}>Fixed costs use each bill's latest observed amount until you cancel it. Variable costs use your rolling net average. Occasional spending uses its own cushion. Loan repayments get a separate line.</T></View></>}
  {step===1&&<><H size={19} style={{marginBottom:16}}>Changes to your regular income</H><Select label="Income changes from" value={incomeChangeFrom} onChange={setIncomeChangeFrom} options={[{value:'',label:'No change planned'},...Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))]}/>{incomeChangeFrom&&<Field label="New monthly income · EUR" value={incomeChangeAmount} onChangeText={setIncomeChangeAmount} placeholder="e.g. 2600"/>}<Divider/><H size={19} style={{marginBottom:16}}>The bigger things</H><Field label="A trip, a big purchase, a seasonal cost · optional" value={eventName} onChangeText={changeEventName} placeholder="e.g. Summer in the Azores"/><Toggle value={eventRepeatsEveryYear} onChange={setEventRepeatsEveryYear} label="Repeats every year" description={eventRepeatsEveryYear?`Counts from ${year} onwards. ${year-1} and earlier stay as they are.`:`Off: ${year} only.`}/><Row style={{gap:14}}><Field label={eventRepeatsEveryYear?'Amount each year · EUR':'One-off amount · EUR'} value={eventAmount} onChangeText={setEventAmount} style={{flex:1}}/><Select label="Month" value={eventMonth} onChange={setEventMonth} options={Array.from({length:13-from},(_,i)=>({value:String(i+from),label:new Date(year,i+from-1,1).toLocaleString('en',{month:'long'})}))} style={{flex:1}}/></Row>

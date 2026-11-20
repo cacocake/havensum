@@ -4,7 +4,7 @@ import { buildPlan } from '../src/planning.js';
 import { approvePlanRevision } from '../src/planArchive.js';
 import { expectedSavings } from '../src/expectedSavings.js';
 import { withLoanPaymentFrom } from '../src/loanPaymentHistory.js';
-import { firstChangedPaymentMonth, loanRevisionOffer, revisionWithRestatedLoanLines } from '../src/loanPlanRevision.js';
+import { firstChangedPaymentMonth, loanRevisionOffer, loanRevisionRecheck, revisionWithRestatedLoanLines } from '../src/loanPlanRevision.js';
 import { validateState } from '../src/stateSchema.js';
 import { createFinancialState } from './helpers/financialFixtures.js';
 
@@ -77,7 +77,9 @@ test('a revision restates only the changed loan in passed months, keeps earlier 
   const [frozenJune, revisedJune] = [earlier.months['2026-06'], latest.months['2026-06']];
   assert.equal(frozenJune.loan, 23500);
   assert.deepEqual([revisedJune.loan, revisedJune.expense, revisedJune.balance], [21000, frozenJune.expense - 2500, frozenJune.balance + 2500]);
-  assert.deepEqual({ ...revisedJune, loan: 0, expense: 0, balance: 0 }, { ...frozenJune, loan: 0, expense: 0, balance: 0 });
+  assert.deepEqual([frozenJune.loanPayments, revisedJune.loanPayments], [{ car: 18500, bike: 5000 }, { car: 16000, bike: 5000 }]);
+  const outsideLoanLine = plannedMonth => ({ ...plannedMonth, loan: 0, loanPayments: {}, expense: 0, balance: 0 });
+  assert.deepEqual(outsideLoanLine(revisedJune), outsideLoanLine(frozenJune));
   assert.deepEqual([latest.months['2026-11'].loan, latest.months['2026-11'].income], [25000, 210000]);
   assert.equal(latest.loanRestatedFrom, '2026-06');
 });
@@ -111,4 +113,63 @@ test('a revision without passed months is left as drafted, and months the plan n
   assert.equal(revisionWithRestatedLoanLines(plan, state, { year: 2026, loanId: 'car', interviewFromMonth: 12, passedFrom: null }, k_carLoan), plan);
   const restated = revisionWithRestatedLoanLines(plan, state, { year: 2026, loanId: 'car', interviewFromMonth: 12, passedFrom: '2026-10' }, k_carLoan);
   assert.deepEqual([Object.keys(restated.months), restated.loanRestatedFrom], [['2026-12'], '2026-10']);
+});
+
+test('plans record each loan\'s share of the loan line, and a loan the plan never held is only added (P25)', () => {
+  const planned = ledgerWithPlan();
+  assert.deepEqual(planned.plans[2026][0].months['2026-03'].loanPayments, { car: 18500 });
+  const bike = { ...k_carLoan, id: 'bike', name: 'Bike', payment: 5000 };
+  const loweredBike = withLoanPaymentFrom(bike, { since: '2026-02', amount: 0 });
+  const state = { ...planned, loans: [k_carLoan, loweredBike] };
+  const offer = loanRevisionOffer(state, bike, loweredBike, k_today);
+
+  const revision = revisionWithRestatedLoanLines(buildPlan(state, { year: 2026, fromMonth: 11, income: 200000, cushion: 10000, today: k_today }), state, offer, bike);
+
+  assert.deepEqual([revision.months['2026-03'].loan, revision.months['2026-03'].loanPayments], [18500, { car: 18500, bike: 0 }]);
+});
+
+test('for a plan without loan shares, a restatement never removes more than the frozen loan line held', () => {
+  const planned = ledgerWithPlan();
+  const withoutShares = { ...planned, plans: { 2026: [{ ...planned.plans[2026][0], months: Object.fromEntries(Object.entries(planned.plans[2026][0].months).map(([month, plannedMonth]) => {
+    const { loanPayments, ...rest } = plannedMonth;
+    return [month, { ...rest, loan: 0, expense: rest.expense - rest.loan }];
+  })) }] } };
+  const lowered = lowerFrom('2026-03');
+  const state = { ...withoutShares, loans: [lowered] };
+  const offer = loanRevisionOffer(state, k_carLoan, lowered, k_today);
+
+  const revision = revisionWithRestatedLoanLines(buildPlan(state, { year: 2026, fromMonth: 11, income: 200000, cushion: 10000, today: k_today }), state, offer, k_carLoan);
+
+  assert.equal(revision.months['2026-03'].loan, 16000);
+});
+
+test('the mark names the first month actually restated', () => {
+  const state = createFinancialState({ loans: [k_carLoan] });
+  const juneOnwards = buildPlan(state, { year: 2026, fromMonth: 6, income: 200000, cushion: 0, today: '2026-06-02' });
+  const planned = approvePlanRevision(state, juneOnwards, { id: 'plan-2026', fromMonth: 6, today: '2026-06-02' });
+  const lowered = lowerFrom('2026-03');
+  const edited = { ...planned, loans: [lowered] };
+
+  const revision = revisionWithRestatedLoanLines(buildPlan(edited, { year: 2026, fromMonth: 11, income: 200000, cushion: 0, today: k_today }), edited, loanRevisionOffer(edited, k_carLoan, lowered, k_today), k_carLoan);
+
+  assert.equal(revision.loanRestatedFrom, '2026-06');
+});
+
+test('stored loan shares must be integer cents per loan', () => {
+  const state = ledgerWithPlan();
+  const withShares = loanPayments => ({ ...state, plans: { 2026: [{ ...state.plans[2026][0], months: { ...state.plans[2026][0].months, '2026-03': { ...state.plans[2026][0].months['2026-03'], loanPayments } } }] } });
+
+  assert.doesNotThrow(() => validateState(withShares({ car: 0 })));
+  for (const invalidShares of [null, [], { car: 12.5 }, { car: '100' }]) {
+    assert.throws(() => validateState(withShares(invalidShares)), /loan shares/);
+  }
+});
+
+test('the interview rechecks its offer on save: unchanged, moved, or gone (also when it now points to another year)', () => {
+  const offer = { year: 2026, loanId: 'car', reviseFrom: '2026-11', interviewFromMonth: 11, passedFrom: null };
+
+  assert.deepEqual(loanRevisionRecheck(offer, offer), { kind: 'unchanged' });
+  assert.deepEqual(loanRevisionRecheck(offer, { ...offer, interviewFromMonth: 12, passedFrom: '2026-11' }), { kind: 'moved', offer: { ...offer, interviewFromMonth: 12, passedFrom: '2026-11' } });
+  assert.deepEqual(loanRevisionRecheck(offer, null), { kind: 'gone' });
+  assert.deepEqual(loanRevisionRecheck(offer, { ...offer, year: 2027, interviewFromMonth: 1 }), { kind: 'gone' });
 });

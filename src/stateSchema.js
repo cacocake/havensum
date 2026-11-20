@@ -80,6 +80,9 @@ function validatePlan(plan) {
     requireValid(k_monthPattern.test(month) && Number(month.slice(0, 4)) === plan.year, 'plan month key');
     requireValid(isRecord(plannedMonth), 'planned month');
     validateCentFields(plannedMonth, ['income', 'expense', 'balance', 'cushion', 'loan', 'event']);
+    if (plannedMonth.loanPayments !== undefined) {
+      requireValid(isRecord(plannedMonth.loanPayments) && Object.values(plannedMonth.loanPayments).every(Number.isSafeInteger), 'plan loan shares');
+    }
     requireValid(Array.isArray(plannedMonth.lines), 'plan lines');
     for (const line of plannedMonth.lines) {
       requireValid(isRecord(line), 'plan line');
