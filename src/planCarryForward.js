@@ -42,8 +42,21 @@ function isLoanActiveFrom(state, loanId, startMonth) {
   return Boolean(loan) && loan.end >= startMonth;
 }
 
-// A payment change already in effect becomes a change at the period start;
-// later changes carry once. Changes for removed or closed loans are reported.
+// Owner decision P05: a payment entered on the loan after the source plan was
+// approved is newer than the plan's change in effect, so the draft starts from
+// the loan's own payment. Without both instants the plan's change stands.
+function isLoanPaymentNewerThanPlan(state, loanId, plan) {
+  const loan = state.loans.find(candidate => candidate.id === loanId);
+  const paymentEditedTime = Date.parse(loan?.paymentEditedAt);
+  const planApprovedTime = Date.parse(plan.createdAt);
+  if (Number.isNaN(paymentEditedTime) || Number.isNaN(planApprovedTime)) {
+    return false;
+  }
+  return paymentEditedTime > planApprovedTime;
+}
+
+// A payment change already in effect becomes a change at the period start,
+// unless the loan's payment was edited since; later changes carry once. Changes for removed or closed loans are reported.
 function carriedLoanChanges(state, plan, startMonth) {
   const loanChanges = [];
   const staleLoanChanges = [];
@@ -55,7 +68,7 @@ function carriedLoanChanges(state, plan, startMonth) {
       continue;
     }
     const effectiveChange = latestChangeBefore(changes, startMonth);
-    if (effectiveChange) {
+    if (effectiveChange && !isLoanPaymentNewerThanPlan(state, loanId, plan)) {
       loanChanges.push({ loanId, since: startMonth, amount: effectiveChange.amount });
     }
     loanChanges.push(...changes.filter(change => change.since > startMonth));
