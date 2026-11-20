@@ -213,7 +213,7 @@ test('saving the loan form keeps a history change synced while it was open, unle
 
   const renamed = withLoanFormEdits(syncedWhileOpen, { loanFields });
   const withNewPayment = withLoanFormEdits(syncedWhileOpen, { loanFields, newPayment: { since: '2027-06', amount: 14000 } });
-  const historyEdited = withLoanFormEdits(syncedWhileOpen, { loanFields, paymentChanges: [] });
+  const historyEdited = withLoanFormEdits(syncedWhileOpen, { loanFields, paymentHistory: { payment: 18500, paymentChanges: [] } });
 
   assert.deepEqual([renamed.name, renamed.paymentChanges], ['Family car', [{ since: '2027-02', amount: 15000 }]]);
   assert.deepEqual(withNewPayment.paymentChanges, [{ since: '2027-02', amount: 15000 }, { since: '2027-06', amount: 14000 }]);
@@ -254,4 +254,14 @@ test('a temporary payment that wins no month after the new start is dropped', ()
   const covered = { ...k_homeLoan, start: '2027-03', paymentChanges: [{ since: '2027-01', until: '2027-05', amount: 50000 }, { since: '2027-02', until: '2027-06', amount: 70000 }] };
 
   assert.deepEqual(withNormalizedPayments(covered).paymentChanges, [{ since: '2027-03', until: '2027-06', amount: 70000 }]);
+});
+
+test('a form save onto a loan whose stored history starts before its start keeps the folded starting payment', () => {
+  const notNormalized = { ...k_homeLoan, payment: 10000, start: '2026-03', paymentChanges: [{ since: '2026-01', amount: 20000 }, { since: '2026-06', until: '2026-07', amount: 0 }] };
+  const listedWithoutTemporary = [];
+  const loanFields = { name: 'Home', remaining: 9000000, start: '2026-03', end: '2030-12', account: 'everyday' };
+
+  const saved = withLoanFormEdits(notNormalized, { loanFields, paymentHistory: { payment: 20000, paymentChanges: listedWithoutTemporary } });
+
+  assert.deepEqual(paymentsIn(saved, ['2026-03', '2026-06', '2027-01']), [20000, 20000, 20000]);
 });

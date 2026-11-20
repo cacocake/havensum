@@ -189,11 +189,13 @@ export function isValidPaymentChanges(loan) {
   return entries.size === loan.paymentChanges.length;
 }
 
-// Applies a loan form's save to the loan as it is now. The form's history
-// replaces the saved one only when the form changed it (`paymentChanges`), so
-// a change synced while the form was open survives otherwise.
-export function withLoanFormEdits(currentLoan, { loanFields, paymentChanges = null, newPayment = null }) {
-  const loan = { ...currentLoan, ...loanFields, paymentChanges: paymentChanges ?? currentLoan.paymentChanges };
+// Applies a loan form's save to the loan as it is now, folded at its start.
+// The form's history (`paymentHistory`: the starting payment and the changes
+// as listed) replaces the saved one only when the form changed it, so a change
+// synced while the form was open survives otherwise.
+export function withLoanFormEdits(currentLoan, { loanFields, paymentHistory = null, newPayment = null }) {
+  const savedLoan = withNormalizedPayments(currentLoan);
+  const loan = { ...savedLoan, ...loanFields, ...(paymentHistory ?? {}) };
   if (!newPayment) {
     return withNormalizedPayments(loan);
   }

@@ -16,7 +16,7 @@ const k_loanFormMessages = {
   invalidPayment: 'Enter the new monthly payment: zero or more.',
   invalidPaymentMonth: 'Choose the month the new payment applies from (YYYY-MM), up to the loan\'s last month.',
   paymentBeforeStart: 'A new payment starts in the loan\'s start month or later.',
-  invalidUntilMonth: 'Choose the last month of the temporary payment (YYYY-MM), from its first month and from the loan\'s start month on.',
+  invalidUntilMonth: 'Choose the last month of the temporary payment (YYYY-MM), from its first month on.',
   saved: 'Loan saved · revise the remaining Year Plan to include it',
   proceedsNote: 'Loan balance adjustment; excluded from income.',
   lastingHint: 'Every payment from this month on uses the new amount. Later changes are replaced; earlier months stay as they were.',
@@ -43,7 +43,7 @@ function newPaymentProblem({ paymentText, paymentFrom, isTemporary, paymentUntil
   if (paymentFrom < start) {
     return k_loanFormMessages.paymentBeforeStart;
   }
-  const isValidUntil = isMonthKey(paymentUntil) && paymentUntil >= paymentFrom && paymentUntil >= start;
+  const isValidUntil = isMonthKey(paymentUntil) && paymentUntil >= paymentFrom;
   if (isTemporary && !isValidUntil) {
     return k_loanFormMessages.invalidUntilMonth;
   }
@@ -72,15 +72,14 @@ export function LoanForm({ item, onClose }) {
   const [name, setName] = useState(item?.name || '');
   const [remaining, setRemaining] = useState(item ? amountText(item.remaining) : '');
   const [payment, setPayment] = useState('');
-  // The form edits the history as listed, folded at the loan's start.
-  const [initialChanges] = useState(() => item ? withNormalizedPayments(item).paymentChanges : []);
-  const [paymentChanges, setPaymentChanges] = useState(initialChanges);
-  const isHistoryEdited = paymentChanges !== initialChanges;
+  // A removal edits the history as listed: its starting payment and changes,
+  // folded at the start month shown.
+  const [editedHistory, setEditedHistory] = useState(null);
   const [paymentChange, setPaymentChange] = useState(null);
   const [account, setAccount] = useState(item?.account || state.accounts[0]?.id || '');
   const [start, setStart] = useState(() => item?.start || currentMonth);
   const shownStart = isMonthKey(start) ? start : item?.start;
-  const historyLoan = item ? { ...withNormalizedPayments(item), start: shownStart, paymentChanges } : null;
+  const historyLoan = item ? withNormalizedPayments({ ...withNormalizedPayments(item), ...(editedHistory ?? {}), start: shownStart }) : null;
   const [end, setEnd] = useState(() => item?.end || defaultLoanEnd(currentMonth));
   const [credit, setCredit] = useState(false);
   const [error, setError] = useState('');
@@ -90,7 +89,8 @@ export function LoanForm({ item, onClose }) {
   }
 
   function removePaymentChange(entry) {
-    setPaymentChanges(changes => withoutLoanPaymentChange({ paymentChanges: changes }, entry).paymentChanges);
+    const remaining = withoutLoanPaymentChange(historyLoan, entry);
+    setEditedHistory({ payment: remaining.payment, paymentChanges: remaining.paymentChanges });
   }
 
   function newPaymentOf(change) {
@@ -114,7 +114,7 @@ export function LoanForm({ item, onClose }) {
 
     const loanId = item?.id || createEntityId(k_entityIdPrefixes.loan);
     const loanFields = { name, remaining: remainingInCents, start, end, account };
-    const formEdits = { loanFields, paymentChanges: isHistoryEdited ? paymentChanges : null, newPayment: paymentChange ? newPaymentOf(paymentChange) : null };
+    const formEdits = { loanFields, paymentHistory: editedHistory, newPayment: paymentChange ? newPaymentOf(paymentChange) : null };
     setState(currentState => {
       const loans = item
         ? currentState.loans.map(loan => loan.id === loanId ? withLoanFormEdits(loan, formEdits) : loan)
@@ -133,7 +133,7 @@ export function LoanForm({ item, onClose }) {
     onClose();
   }
 
-  const isDirty = useDirtyForm([name, remaining, payment, paymentChange, paymentChanges, account, start, end, credit]);
+  const isDirty = useDirtyForm([name, remaining, payment, paymentChange, editedHistory, account, start, end, credit]);
   return <Dialog dirty={isDirty} title="A loan, accounted for" subtitle="Monthly repayments are expenses. Borrowed money is not earnings." onClose={onClose}>
     <Field label="Loan name" value={name} onChangeText={setName} placeholder="e.g. Car loan" />
     <Row style={{ gap: 12, flexWrap: 'wrap' }}>
