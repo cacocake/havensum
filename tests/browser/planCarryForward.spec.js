@@ -102,9 +102,9 @@ test('abandoning a draft leaves the ledger unchanged', async ({ page }) => {
 function ledgerWithLoanChanges() {
   const ledger = ledgerWithEarlierPlan();
   ledger.loans = [
-    { id: 'car', name: 'Car loan', account: 'everyday', start: '2026-01', end: '2029-12', payment: 18500, remaining: 0, original: 0 },
-    { id: 'phone', name: 'Phone plan', account: 'everyday', start: '2026-01', end: '2026-12', payment: 3000, remaining: 0, original: 0 },
-    { id: 'bike', name: 'Bike loan', account: 'everyday', start: '2027-06', end: '2028-05', payment: 4000, remaining: 0, original: 0 }
+    { id: 'car', name: 'Car loan', account: 'everyday', start: '2026-01', end: '2029-12', payment: 18500, paymentChanges: [{ since: '2026-10', amount: 15000 }], remaining: 0, original: 0 },
+    { id: 'phone', name: 'Phone plan', account: 'everyday', start: '2026-01', end: '2026-12', payment: 3000, paymentChanges: [], remaining: 0, original: 0 },
+    { id: 'bike', name: 'Bike loan', account: 'everyday', start: '2027-06', end: '2028-05', payment: 4000, paymentChanges: [], remaining: 0, original: 0 }
   ];
   const plan = ledger.plans['2026'][0];
   plan.loanChanges = [{ loanId: 'car', since: '2026-10', amount: 15000 }, { loanId: 'phone', since: '2026-06', amount: 2000 }];
@@ -113,7 +113,7 @@ function ledgerWithLoanChanges() {
   return ledger;
 }
 
-test('step 2 shows loan payments in effect at the start and lists carried changes in their months', async ({ page }) => {
+test('step 2 shows loan payments from each loan\'s history and lists carried changes in their months', async ({ page }) => {
   const dialog = await openNextYearInterview(page, ledgerWithLoanChanges());
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
 

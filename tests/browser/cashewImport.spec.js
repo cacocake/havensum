@@ -62,7 +62,7 @@ test('the two legs in one Cashew export are suggested as a pair and can be confi
 });
 
 test('a Cashew borrowing row imports as loan proceeds once a Havensum loan is chosen, showing its budget read-only', async ({ page }) => {
-  const loan = { id: 'car', name: 'Car loan', remaining: 500000, original: 800000, payment: 18500, start: '2026-01', end: '2029-12', account: 'everyday' };
+  const loan = { id: 'car', name: 'Car loan', remaining: 500000, original: 800000, payment: 18500, paymentChanges: [], start: '2026-01', end: '2029-12', account: 'everyday' };
   const dialog = await openCashewImport(page, [
     'Everyday,2000.0,EUR,Borrowed,,2026-11-10 12:00:00.000,true,TransactionSpecialType.debt,Dívidas,,,,,Orçamento,'
   ], k_header, createFinancialState({ loans: [loan] }));
@@ -86,7 +86,7 @@ test('a Cashew borrowing row imports as loan proceeds once a Havensum loan is ch
 });
 
 test('editing imported loan proceeds keeps their loan tag', async ({ page }) => {
-  const loan = { id: 'car', name: 'Car loan', remaining: 500000, original: 800000, payment: 18500, start: '2026-01', end: '2029-12', account: 'everyday' };
+  const loan = { id: 'car', name: 'Car loan', remaining: 500000, original: 800000, payment: 18500, paymentChanges: [], start: '2026-01', end: '2029-12', account: 'everyday' };
   const proceeds = { id: 'imported-proceeds', type: 'reimbursement', title: 'Borrowed', amount: 200000, account: 'everyday', date: '2026-11-10', linkedId: null, loanId: 'car', externalSource: 'cashew' };
   await page.addInitScript(seed => localStorage.setItem('melo-state-v1', JSON.stringify(seed)),
     createFinancialState({ loans: [loan], transactions: [proceeds] }));
@@ -100,7 +100,7 @@ test('editing imported loan proceeds keeps their loan tag', async ({ page }) => 
 });
 
 test('a Cashew row with an objective shows its extra and may be recorded against a chosen loan', async ({ page }) => {
-  const loan = { id: 'car', name: 'Car loan', remaining: 500000, original: 800000, payment: 18500, start: '2026-01', end: '2029-12', account: 'everyday' };
+  const loan = { id: 'car', name: 'Car loan', remaining: 500000, original: 800000, payment: 18500, paymentChanges: [], start: '2026-01', end: '2029-12', account: 'everyday' };
   const dialog = await openCashewImport(page, [
     'Everyday,-50.0,,EUR,Prestação,,2026-11-10 20:28:00.000,false,default,Comer Fora,,0XFF607D8B,cutlery,,,Empréstimo da família,repeat every 1 month'
   ], k_betaHeader, createFinancialState({ loans: [loan] }));

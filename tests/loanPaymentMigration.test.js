@@ -7,6 +7,7 @@ import { approvePlanRevision } from '../src/planArchive.js';
 import { carriedPlanAssumptions } from '../src/planCarryForward.js';
 import { migrateState, validateState } from '../src/stateSchema.js';
 import { readState } from '../src/storage.web.js';
+import { paymentChangeConflictLines, paymentHistoryText } from '../src/loanPaymentLabels.js';
 import { installBrowserStorage } from './helpers/browserStorage.js';
 import { createFinancialState } from './helpers/financialFixtures.js';
 
@@ -147,4 +148,12 @@ test('a current ledger needs a valid payment history on every loan; the legacy e
     assert.throws(() => validateState(ledgerWithLoan({ paymentChanges: invalidChanges })), /loan payment history/);
   }
   assert.throws(() => validateState(ledgerWithLoan({ paymentEditedAt: '2026-09-15' })), /loan payment edit time/);
+});
+
+test('a payment history conflict reads as dated amounts, oldest first, and an empty side says so', () => {
+  const car = { ...k_legacyCarLoan, paymentChanges: [{ since: '2027-03', amount: 15000 }, { since: '2026-09', amount: 123456789 }] };
+
+  assert.deepEqual(paymentChangeConflictLines(car.paymentChanges), ['€1,234,567.89 from September 2026', '€150.00 from March 2027']);
+  assert.deepEqual(paymentChangeConflictLines([]), ['No payment changes']);
+  assert.equal(paymentHistoryText(car), '€185.00 from January 2026 · €1,234,567.89 from September 2026 · €150.00 from March 2027');
 });

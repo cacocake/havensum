@@ -9,14 +9,16 @@ import {useInsets} from './insets';
 import {useHavensumFonts} from './fonts';
 import { prepareLoadedLedger } from './startupLedger.js';
 import {seed} from './seed.js';
-import { currentLocalMonth } from './calendar.js';
+import { currentLocalMonth, monthOf } from './calendar.js';
 import { useLocalDate } from './useLocalDate.js';
 import {readState,writeState,readSavedLedgerCopy} from './storage';
 import { downloadSavedLedgerCopy } from './files';
 import Dashboard from './Dashboard.jsx';
 import {Transactions,Accounts,Categories,Reimbursements,YearPlan,Loans,Settings} from './Screens.jsx';
 import {AccountDetail,TransactionDetail} from './Details.jsx';
-import {TransactionForm,CategoryForm,LoanForm,PlanForm} from './Forms.jsx';
+import {TransactionForm,CategoryForm,PlanForm} from './Forms.jsx';
+import { LoanForm } from './LoanForm.jsx';
+import { loanPaymentInMonth } from './loanPaymentHistory.js';
 import { AccountForm } from './AccountForm.jsx';
 import InterestCorrection from './InterestCorrection.jsx';
 import MissingCategoryReview from './MissingCategoryReview.jsx';
@@ -150,7 +152,7 @@ export default function App(){
  {!desktop&&<View style={{position:'absolute',bottom:insets.bottom,left:0,right:0,paddingTop:10,paddingBottom:12,backgroundColor:c.card,borderTopWidth:1,borderColor:c.line,borderTopLeftRadius:24,borderTopRightRadius:24,boxShadow:'0 -5px 25px #44334d09',flexDirection:'row',alignItems:'center',justifyContent:'space-around'}}>{[nav[0],nav[1],['Add','Plus'],nav[4],['More','Menu']].map(([n,i])=>n==='Add'?<Squish key={n} accessibilityLabel="Add transaction" onPress={()=>state.accounts.length?setModal({type:'transaction'}):setModal({type:'account'})} style={{width:54,height:54,borderRadius:20,backgroundColor:c.accent,alignItems:'center',justifyContent:'center',boxShadow:'0 4px 12px #D8896135'}}><Icon name="Plus" size={27} color={c.buttonInk}/></Squish>:<Squish key={n} accessibilityLabel={n==='Overview'?'Home':n} onPress={()=>n==='More'?setMobileMenu(true):navigate(n)} accessibilityState={{selected:selected(n)}} aria-pressed={selected(n)} style={{flex:1,maxWidth:80,minWidth:0,minHeight:55,alignItems:'center',justifyContent:'center',gap:4}}><View style={{paddingHorizontal:14,paddingVertical:5,borderRadius:14,backgroundColor:selected(n)?c.nav:'transparent'}}><Icon name={i} size={21} color={selected(n)?c.accent:c.sub}/></View><T numberOfLines={1} style={{fontSize:10,color:selected(n)?c.peachText:c.sub}}>{n==='Overview'?'Home':n==='Transactions'?'Activity':n==='Year Plan'?'Plan':n}</T></Squish>)}</View>}
 
  </View>
- {modal?.type==='transaction'&&<TransactionForm key={modal.item?.id||modal.initialType||'new'} item={modal.item} initialType={modal.initialType} draft={modal.loan?{title:modal.loan.name,amount:modal.loan.payment,account:modal.loan.account,category:'loan',loanId:modal.loan.id}:modal.draft} onClose={()=>setModal(null)}/>}
+ {modal?.type==='transaction'&&<TransactionForm key={modal.item?.id||modal.initialType||'new'} item={modal.item} initialType={modal.initialType} draft={modal.loan?{title:modal.loan.name,amount:loanPaymentInMonth(modal.loan,monthOf(today)),account:modal.loan.account,category:'loan',loanId:modal.loan.id}:modal.draft} onClose={()=>setModal(null)}/>}
  {modal?.type==='category'&&<CategoryForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='account'&&<AccountForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='loan'&&<LoanForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='plan'&&<PlanForm onClose={()=>setModal(null)}/>}
  {modal?.type==='transaction-detail'&&<TransactionDetail transactionId={modal.id} onClose={()=>setModal(null)}/>}
  {modal?.type==='interest-correction'&&<InterestCorrection accountId={modal.accountId} onClose={()=>setModal(null)}/>}

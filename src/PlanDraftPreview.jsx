@@ -85,9 +85,12 @@ function monthLongName(month) {
   return monthDate(month).toLocaleString('en', { month: 'long' });
 }
 
-// Loan payments in effect when the period starts, and carried later changes
-// in their months. Removing a carried change only affects this draft.
-export function CarriedChanges({ loans, startMonth, incomeChanges, loanChanges, onRemoveIncomeChange, onRemoveLoanChange }) {
+const k_loanHistoryNote = 'Loan payments come from each loan\'s payment history. To change one, edit the loan on the Loans screen.';
+
+// Loan payments in effect when the period starts and their later changes,
+// both from each loan's payment history (P12: read-only here, changed on the
+// loan). Carried income changes can be removed from this draft only.
+export function CarriedChanges({ loans, startMonth, incomeChanges, loanChanges, onRemoveIncomeChange }) {
   const colors = useContext(Theme);
   const activeLoans = loans.filter(loan => loan.end >= startMonth);
   const laterLoanChanges = loanChanges.filter(change => change.since > startMonth);
@@ -99,12 +102,13 @@ export function CarriedChanges({ loans, startMonth, incomeChanges, loanChanges, 
       const firstMonthName = firstMonth.slice(0, 4) === startMonth.slice(0, 4) ? monthLongName(firstMonth) : monthYearName(firstMonth);
       return <T key={loan.id} style={{ fontSize: 12 }}>{loan.name} · {euro(restated?.amount ?? loan.payment)}/month from {firstMonthName}</T>;
     })}
-    {[...incomeChanges.map(change => ({ change, kind: 'income' })), ...laterLoanChanges.map(change => ({ change, kind: 'loan' }))].map(({ change, kind }) => {
-      const label = kind === 'income' ? 'Income' : loanName(change.loanId);
+    {laterLoanChanges.map(change => <T key={`loan-${change.loanId}-${change.since}`} style={{ fontSize: 12, color: colors.sub }}>{loanName(change.loanId)} {euro(change.amount)}/month from {monthYearName(change.since)}</T>)}
+    {activeLoans.length > 0 && <T style={{ fontSize: 11, color: colors.muted }}>{k_loanHistoryNote}</T>}
+    {incomeChanges.map(change => {
       const when = monthYearName(change.since);
-      return <Row key={`${kind}-${change.loanId ?? ''}-${change.since}`} style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <T style={{ flex: 1, minWidth: 160, fontSize: 12, color: colors.sub }}>{label} {euro(change.amount)}/month from {when}</T>
-        <Button small kind="soft" accessibilityLabel={`Remove carried ${kind === 'income' ? 'income' : label} change from ${when}`} onPress={() => kind === 'income' ? onRemoveIncomeChange(change) : onRemoveLoanChange(change)}>Remove</Button>
+      return <Row key={`income-${change.since}`} style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <T style={{ flex: 1, minWidth: 160, fontSize: 12, color: colors.sub }}>Income {euro(change.amount)}/month from {when}</T>
+        <Button small kind="soft" accessibilityLabel={`Remove carried income change from ${when}`} onPress={() => onRemoveIncomeChange(change)}>Remove</Button>
       </Row>;
     })}
   </View>;

@@ -1,0 +1,153 @@
+import { test, expect } from '../helpers/browserTest.js';
+import { createFinancialState } from '../helpers/financialFixtures.js';
+import { openMoreSection, returnHome } from '../helpers/userFlows.js';
+import { buildPlan } from '../../src/planning.js';
+
+const k_ledgerKey = 'melo-state-v1';
+const k_versionBeforeHistory = 4;
+const k_clockStart = '2026-11-19T12:00:00';
+const k_carLoan = { id: 'car', name: 'Car loan', account: 'everyday', start: '2026-01', end: '2029-12', payment: 18500, remaining: 400000, original: 500000 };
+
+// A 2026 plan approved on 2 January that stored its own change: €150 from October.
+function ledgerWithApprovedPlan(loan) {
+  const ledger = createFinancialState({ loans: [loan] });
+  const plan = buildPlan(ledger, {
+    year: 2026, fromMonth: 1, income: 200000, cushion: 0, today: '2026-01-02',
+    loanChanges: [{ loanId: 'car', since: '2026-10', amount: 15000 }]
+  });
+  ledger.plans = { 2026: [{ ...plan, id: 'plan-2026', createdAt: '2026-01-02T09:00:00.000Z' }] };
+  return ledger;
+}
+
+async function openApp(page, ledger) {
+  await page.clock.install({ time: new Date(k_clockStart) });
+  await page.addInitScript(({ key, seededLedger }) => {
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, JSON.stringify(seededLedger));
+    }
+  }, { key: k_ledgerKey, seededLedger: ledger });
+  await page.goto('/');
+  await openMoreSection(page, 'Loans');
+}
+
+async function openLoanForm(page, loanName = 'Car loan') {
+  await page.getByRole('button', { name: `Edit ${loanName}`, exact: true }).click();
+  return page.getByRole('dialog');
+}
+
+async function saveLoanForm(dialog) {
+  await dialog.getByRole('button', { name: 'Save loan', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+}
+
+function savedLedger(page) {
+  return page.evaluate(key => JSON.parse(localStorage.getItem(key)), k_ledgerKey);
+}
+
+async function openNextYearLoanStep(page) {
+  await returnHome(page);
+  await page.getByRole('button', { name: 'Choose month', exact: true }).click();
+  await page.getByRole('button', { name: 'Next year', exact: true }).click();
+  await page.getByRole('button', { name: 'Jan', exact: true }).click();
+  await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Build a plan', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  return dialog;
+}
+
+test('a payment lowered from a future month is kept in the history and the card shows this month\'s payment', async ({ page }) => {
+  await openApp(page, ledgerWithApprovedPlan({ ...k_carLoan, paymentChanges: [] }));
+  const dialog = await openLoanForm(page);
+  await expect(dialog.getByLabel('Monthly payment · EUR', { exact: true })).toHaveValue('185');
+  await expect(dialog.getByLabel('New payment from · YYYY-MM', { exact: true })).toHaveCount(0);
+
+  await dialog.getByLabel('Monthly payment · EUR', { exact: true }).fill('160');
+  await expect(dialog.getByLabel('New payment from · YYYY-MM', { exact: true })).toHaveValue('2026-11');
+  await dialog.getByLabel('New payment from · YYYY-MM', { exact: true }).fill('2027-03');
+  await saveLoanForm(dialog);
+
+  const saved = await savedLedger(page);
+  expect([saved.loans[0].payment, saved.loans[0].paymentChanges]).toEqual([18500, [{ since: '2027-03', amount: 16000 }]]);
+  expect(saved.loans[0].paymentEditedAt).toBeUndefined();
+  await expect(page.getByText('Payment history · €185.00 from January 2026 · €160.00 from March 2027', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Record payment', exact: true }).click();
+  await expect(page.getByRole('dialog').getByLabel('Amount · EUR', { exact: true })).toHaveValue('185');
+});
+
+test('a past month entered late replaces a later scheduled change, and a mistaken entry can be removed', async ({ page }) => {
+  await openApp(page, ledgerWithApprovedPlan({ ...k_carLoan, paymentChanges: [{ since: '2026-06', amount: 17000 }, { since: '2027-03', amount: 16000 }] }));
+  let dialog = await openLoanForm(page);
+  await expect(dialog.getByLabel('Monthly payment · EUR', { exact: true })).toHaveValue('170');
+  await dialog.getByLabel('Monthly payment · EUR', { exact: true }).fill('195');
+  await dialog.getByLabel('New payment from · YYYY-MM', { exact: true }).fill('2026-09');
+  await saveLoanForm(dialog);
+  expect((await savedLedger(page)).loans[0].paymentChanges).toEqual([{ since: '2026-06', amount: 17000 }, { since: '2026-09', amount: 19500 }]);
+  await expect(page.getByText('€195.00', { exact: true })).toBeVisible();
+
+  dialog = await openLoanForm(page);
+  await dialog.getByRole('button', { name: 'Remove €170.00 from June 2026', exact: true }).click();
+  await expect(dialog.getByText('€195.00 from September 2026', { exact: true })).toBeVisible();
+  await saveLoanForm(dialog);
+  expect((await savedLedger(page)).loans[0].paymentChanges).toEqual([{ since: '2026-09', amount: 19500 }]);
+});
+
+test('a new payment needs a valid month up to the loan\'s last month, and nothing is saved until it has one', async ({ page }) => {
+  const ledger = ledgerWithApprovedPlan({ ...k_carLoan, paymentChanges: [] });
+  await openApp(page, ledger);
+  const dialog = await openLoanForm(page);
+  await dialog.getByLabel('Monthly payment · EUR', { exact: true }).fill('160');
+
+  for (const invalidMonth of ['2030-01', 'next month']) {
+    await dialog.getByLabel('New payment from · YYYY-MM', { exact: true }).fill(invalidMonth);
+    await dialog.getByRole('button', { name: 'Save loan', exact: true }).click();
+    await expect(dialog.getByText('Choose the month the new payment applies from (YYYY-MM), up to the loan\'s last month.', { exact: true })).toBeVisible();
+  }
+  expect((await savedLedger(page)).loans).toEqual(ledger.loans);
+});
+
+test('the next draft follows the loan\'s history read-only, and the earlier plan stays identical', async ({ page }) => {
+  const ledger = ledgerWithApprovedPlan({ ...k_carLoan, paymentChanges: [{ since: '2026-11', amount: 16000 }, { since: '2027-06', amount: 12000 }] });
+  await openApp(page, ledger);
+
+  const dialog = await openNextYearLoanStep(page);
+  await expect(dialog.getByText('Car loan · €160.00/month from January', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Car loan €120.00/month from June 2027', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Loan payments come from each loan\'s payment history. To change one, edit the loan on the Loans screen.', { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('Car loan · new monthly payment, optional', { exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: /Remove carried Car loan/ })).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Freeze my plan', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+
+  const saved = await savedLedger(page);
+  expect(['2027-01', '2027-05', '2027-06'].map(month => saved.plans['2027'][0].months[month].loan)).toEqual([16000, 16000, 12000]);
+  expect(saved.plans['2026']).toEqual(ledger.plans['2026']);
+});
+
+test('a version 4 ledger opens with each loan\'s history taken from its plan, keeping the original bytes', async ({ page }) => {
+  const legacyLedger = { ...ledgerWithApprovedPlan(k_carLoan), version: k_versionBeforeHistory };
+  await openApp(page, legacyLedger);
+
+  await expect(page.getByText('Payment history · €185.00 from January 2026 · €150.00 from October 2026', { exact: true })).toBeVisible();
+  await expect(page.getByText('€150.00', { exact: true })).toBeVisible();
+  const saved = await savedLedger(page);
+  expect([saved.version, saved.loans[0].paymentChanges]).toEqual([5, [{ since: '2026-10', amount: 15000 }]]);
+  expect(saved.plans['2026']).toEqual(legacyLedger.plans['2026']);
+  expect(JSON.parse(await page.evaluate(key => localStorage.getItem(`${key}:recovery:v4`), k_ledgerKey))).toEqual(legacyLedger);
+});
+
+test('a long loan name and a long history fit the loan form and card at a narrow width', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  const longName = 'A very long family car loan name from the countryside dealership';
+  const changes = [{ since: '2026-03', amount: 12345678 }, { since: '2026-09', amount: 98765432 }, { since: '2027-06', amount: 1 }];
+  await openApp(page, ledgerWithApprovedPlan({ ...k_carLoan, name: longName, paymentChanges: changes }));
+
+  await expect(page.getByText(/^Payment history · /)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  const dialog = await openLoanForm(page, longName);
+  await dialog.getByLabel('Monthly payment · EUR', { exact: true }).fill('1234567.89');
+  await expect(dialog.getByRole('button', { name: 'Remove €987,654.32 from September 2026', exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('New payment from · YYYY-MM', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});

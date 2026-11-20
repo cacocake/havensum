@@ -42,9 +42,6 @@ function withoutRepeatedAmounts(loan, changes) {
 // beyond, so a change it dropped is not brought back. Plans keep their own
 // changes untouched as frozen snapshots.
 export function loanWithPaymentHistory(state, loan) {
-  if (Array.isArray(loan.paymentChanges)) {
-    return loan;
-  }
   let changes = [];
   for (const year of plannedYears(state)) {
     const firstMonthOfYear = `${year}-01`;
