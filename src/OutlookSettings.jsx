@@ -1,11 +1,12 @@
 import React, { useContext, useState } from 'react';
 import { View } from 'react-native';
 import { useApp } from './context.js';
-import { Theme, T, H, Card, Button, Dialog, Field, Select, Toggle } from './ui.jsx';
+import { Theme, T, H, Row, Card, Button, Dialog, Field, Select, Toggle } from './ui.jsx';
 import { isMonthKey, previousMonths, currentLocalMonth, yearOfMonth } from './calendar.js';
 import { loanPaymentInMonth } from './loanPaymentHistory.js';
 import { latestPlan } from './planArchive.js';
-import { cents } from './money.js';
+import { cents, euro } from './money.js';
+import { longMonthLabel } from './monthLabels.js';
 import { validateOutlookState } from './outlookInputs.js';
 import { useDirtyForm } from './useDirtyForm.js';
 
@@ -29,6 +30,25 @@ export default function OutlookSettings({ month }) {
     <Button kind="outline" onPress={() => setOpen(true)}>Edit prediction assumptions</Button>
     {open && <OutlookSettingsDialog month={month} onClose={() => setOpen(false)} />}
   </Card>;
+}
+
+// Owner decision P20: a loan amount saved here wins over the loan's payment
+// history for predictions from its month (P12), so each one is labelled with
+// a way to clear it. Clearing takes effect when the dialog is saved.
+function LoanPredictionOverrides({ loans, savedChanges, loanDrafts, onClear }) {
+  const colors = useContext(Theme);
+  const overrides = (savedChanges ?? []).flatMap(change => {
+    const loan = loans.find(candidate => candidate.id === change.loanId);
+    const isCleared = loanDrafts[change.since]?.[change.loanId] === '';
+    return loan && !isCleared ? [{ ...change, loanName: loan.name }] : [];
+  });
+  return overrides.map(change => {
+    const when = longMonthLabel(change.since);
+    return <Row key={`${change.loanId}-${change.since}`} style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+      <T style={{ flex: 1, minWidth: 160, fontSize: 12, color: colors.sub }}>{change.loanName} · {euro(change.amount)} from {when} overrides this loan's payment history in predictions.</T>
+      <Button small kind="soft" accessibilityLabel={`Clear ${change.loanName} prediction from ${when}`} onPress={() => onClear(change)}>Clear</Button>
+    </Row>;
+  });
 }
 
 function OutlookSettingsDialog({ month, onClose }) {
@@ -91,6 +111,7 @@ function OutlookSettingsDialog({ month, onClose }) {
     <Field label="Changes from · YYYY-MM" value={since} onChangeText={setSince} />
     <Field label="Known monthly income · EUR" value={income} onChangeText={amount => setIncomeDrafts(drafts => ({ ...drafts, [since]: amount }))} keyboardType="decimal-pad" placeholder="Use historical average" />
     <T style={{ color: colors.sub, marginBottom: 16 }}>This is the new total monthly income from that month. Registered income sets a floor. A blank removes the income change at the chosen month.</T>
+    <LoanPredictionOverrides loans={state.loans} savedChanges={state.outlook?.loanChanges} loanDrafts={loanDrafts} onClear={change => setLoanDrafts(drafts => ({ ...drafts, [change.since]: { ...drafts[change.since], [change.loanId]: '' } }))} />
     {state.loans.map(loan => <Field key={loan.id} label={`${loan.name} · expected monthly payment · EUR`} value={loanAmount(loan.id)} onChangeText={amount => setLoanDrafts(drafts => ({ ...drafts, [since]: { ...drafts[since], [loan.id]: amount } }))} keyboardType="decimal-pad" placeholder={`${loanPaymentInMonth(loan, isMonthKey(since) ? since : currentMonth) / k_centsPerEuro}`} />)}
     {Boolean(approvedPlan?.incomeChanges?.length) && <Toggle label="Copy existing scheduled changes" value={adoptScheduledChanges} onChange={setAdoptScheduledChanges} description="Fill missing dated income changes from the plan. Loan payments follow each loan's payment history. Target amounts and overrides are never copied." />}
     {error && <T accessibilityRole="alert" style={{ color: colors.negative, marginBottom: 12 }}>{error}</T>}

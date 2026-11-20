@@ -10,7 +10,6 @@ import { loanPaymentInMonth } from './loanPaymentHistory.js';
 import { paymentHistoryText } from './loanPaymentLabels.js';
 
 const k_loanTileColor = '#C3A58D';
-const k_monthKeyLength = 7;
 
 // Loan repayments recorded within the loan's months: linked to the loan, or
 // legacy entries matching its name and account.
@@ -19,7 +18,7 @@ function recordedLoanPayments(state, loan) {
     .filter(transaction => {
       const isRepayment = transaction.type === k_transactionTypes.expense && transaction.category === k_systemCategoryIds.loan;
       const isForLoan = transaction.loanId === loan.id || (!transaction.loanId && transaction.title === loan.name);
-      const month = transaction.date.slice(0, k_monthKeyLength);
+      const month = monthOf(transaction.date);
       return isRepayment && isForLoan && transaction.account === loan.account && month >= loan.start && month <= loan.end;
     })
     .reduce((total, transaction) => total + transaction.amount, 0);

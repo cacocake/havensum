@@ -200,6 +200,23 @@ test('copying scheduled changes copies income only, so loan payments keep follow
   });
 });
 
+test('a loan amount in Prediction assumptions is labelled as overriding the loan\'s history and can be cleared (P20)', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-15T12:00:00') });
+  const car = { id: 'car', name: 'Car loan', account: 'everyday', start: '2026-01', end: '2029-12', payment: 18500, paymentChanges: [], remaining: 400000, original: 500000 };
+  const state = createFinancialState({ loans: [car], outlook: { loanChanges: [{ loanId: 'car', since: '2026-06', amount: 15000 }] } });
+  await page.addInitScript(initialState => localStorage.setItem('melo-state-v1', JSON.stringify(initialState)), state);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit prediction assumptions', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText('Car loan · €150.00 from June 2026 overrides this loan\'s payment history in predictions.', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Clear Car loan prediction from June 2026', exact: true }).click();
+  await expect(dialog.getByText(/overrides this loan's payment history/)).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Save prediction assumptions', exact: true }).click();
+
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).outlook.loanChanges)).toEqual([]);
+});
+
 test('expected costs stay bounded with long bills at narrow and desktop widths', async ({ page }, testInfo) => {
   await page.clock.install({ time: new Date('2026-11-15T12:00:00') });
   const state = createFinancialState({ transactions: [

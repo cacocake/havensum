@@ -15,9 +15,9 @@ export function EditablePaymentHistory({ loan, onRemove }) {
     <T style={{ fontSize: 12, color: colors.sub }}>{paymentEntryText(startingPayment)}</T>
     {changes.map(change => {
       const description = paymentEntryText(change);
-      return <Row key={change.since} style={{ gap: 8, alignItems: 'center' }}>
+      return <Row key={`${change.since}-${change.until ?? 'lasting'}`} style={{ gap: 8, alignItems: 'center' }}>
         <T style={{ flex: 1, minWidth: 0, fontSize: 12, color: colors.sub }}>{description}</T>
-        <IB name="Trash2" size={16} label={`Remove ${description}`} onPress={() => onRemove(change.since)} />
+        <IB name="Trash2" size={16} label={`Remove ${description}`} onPress={() => onRemove(change)} />
       </Row>;
     })}
   </View>;

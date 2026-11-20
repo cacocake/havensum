@@ -80,8 +80,9 @@ function loanChangesAcrossMonths(state, months, year) {
     });
   });
   const loanIds = new Set(loans.map(loan => loan.id));
+  const forecastMonths = new Set(months);
   const removedLoanChanges = changesInYear(state.outlook?.loanChanges, year)
-    .filter(change => !loanIds.has(change.loanId))
+    .filter(change => !loanIds.has(change.loanId) && forecastMonths.has(change.since))
     .map(({ loanId, since, amount }) => ({ loanId, name: k_removedLoanName, since, amount }));
   return [...steps, ...removedLoanChanges].sort((first, second) => first.since.localeCompare(second.since));
 }

@@ -185,6 +185,10 @@ test('the edit month comes from the exact UTC instant, so every device migrates 
   const originalTimeZone = process.env.TZ;
   process.env.TZ = 'Europe/Lisbon';
   context.after(() => {
+    if (originalTimeZone === undefined) {
+      delete process.env.TZ;
+      return;
+    }
     process.env.TZ = originalTimeZone;
   });
   const lateOnTheLastDay = legacyLedgerWithApprovedPlan({ ...k_legacyCarLoan, payment: 16000, paymentEditedAt: '2026-09-30T23:30:00.000Z' });
@@ -230,4 +234,18 @@ test('a later revision that removed only a next-year change does not bring it ba
   const withSecond = approvePlanRevision(withFirst, sameMonthsNoChanges, { id: 'plan-2026-2', fromMonth: 7, today: '2026-07-02' });
 
   assert.deepEqual(migrateState(withSecond).loans[0].paymentChanges, []);
+});
+
+test('a newer loan edit wins over the next year\'s plan that only carried an earlier plan\'s payment (P19)', () => {
+  const state = legacyLedger({ loans: [{ ...k_legacyCarLoan, payment: 120000 }] });
+  const plan2026 = buildPlan(state, { year: 2026, fromMonth: 1, income: 200000, cushion: 0, today: '2026-01-02', loanChanges: [{ loanId: 'car', since: '2026-06', amount: 110000 }] });
+  const with2026 = approvePlanRevision(state, { ...plan2026, createdAt: '2026-01-02T09:00:00.000Z' }, { id: 'plan-2026', fromMonth: 1, today: '2026-01-02' });
+  // Drafted in October: the 2027 plan restates the carried €1,100 in January and adds its own €900 from September.
+  const plan2027 = buildPlan(with2026, { year: 2027, fromMonth: 1, income: 200000, cushion: 0, today: '2026-10-02', loanChanges: [{ loanId: 'car', since: '2027-01', amount: 110000 }, { loanId: 'car', since: '2027-09', amount: 90000 }] });
+  const with2027 = approvePlanRevision(with2026, { ...plan2027, createdAt: '2026-10-02T09:00:00.000Z' }, { id: 'plan-2027', fromMonth: 1, today: '2026-10-02' });
+  const editedInNovember = { ...with2027, loans: [{ ...with2027.loans[0], payment: 100000, paymentEditedAt: '2026-11-15T10:00:00.000Z' }] };
+
+  const migratedLoan = migrateState(editedInNovember).loans[0];
+
+  assert.deepEqual([migratedLoan.payment, migratedLoan.paymentChanges], [100000, [{ since: '2027-09', amount: 90000 }]]);
 });

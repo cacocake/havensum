@@ -35,6 +35,11 @@ async function openLoanForm(page, loanName = 'Car loan') {
   return page.getByRole('dialog');
 }
 
+async function changeMonthlyPayment(dialog, amount) {
+  await dialog.getByRole('button', { name: 'Change the monthly payment', exact: true }).click();
+  await dialog.getByLabel('New monthly payment · EUR', { exact: true }).fill(amount);
+}
+
 async function saveLoanForm(dialog) {
   await dialog.getByRole('button', { name: 'Save loan', exact: true }).click();
   await expect(dialog).toHaveCount(0);
@@ -59,10 +64,10 @@ async function openNextYearLoanStep(page) {
 test('a payment lowered from a future month is kept in the history and the card shows this month\'s payment', async ({ page }) => {
   await openApp(page, ledgerWithApprovedPlan({ ...k_carLoan, paymentChanges: [] }));
   const dialog = await openLoanForm(page);
-  await expect(dialog.getByLabel('Monthly payment · EUR', { exact: true })).toHaveValue('185');
+  await expect(dialog.getByText('Monthly payment this month · €185.00', { exact: true })).toBeVisible();
   await expect(dialog.getByLabel('New payment from · YYYY-MM', { exact: true })).toHaveCount(0);
 
-  await dialog.getByLabel('Monthly payment · EUR', { exact: true }).fill('160');
+  await changeMonthlyPayment(dialog, '160');
   await expect(dialog.getByLabel('New payment from · YYYY-MM', { exact: true })).toHaveValue('2026-11');
   await dialog.getByLabel('New payment from · YYYY-MM', { exact: true }).fill('2027-03');
   await saveLoanForm(dialog);
@@ -78,8 +83,8 @@ test('a payment lowered from a future month is kept in the history and the card 
 test('a past month entered late replaces a later scheduled change, and a mistaken entry can be removed', async ({ page }) => {
   await openApp(page, ledgerWithApprovedPlan({ ...k_carLoan, paymentChanges: [{ since: '2026-06', amount: 17000 }, { since: '2027-03', amount: 16000 }] }));
   let dialog = await openLoanForm(page);
-  await expect(dialog.getByLabel('Monthly payment · EUR', { exact: true })).toHaveValue('170');
-  await dialog.getByLabel('Monthly payment · EUR', { exact: true }).fill('195');
+  await expect(dialog.getByText('Monthly payment this month · €170.00', { exact: true })).toBeVisible();
+  await changeMonthlyPayment(dialog, '195');
   await dialog.getByLabel('New payment from · YYYY-MM', { exact: true }).fill('2026-09');
   await saveLoanForm(dialog);
   expect((await savedLedger(page)).loans[0].paymentChanges).toEqual([{ since: '2026-06', amount: 17000 }, { since: '2026-09', amount: 19500 }]);
@@ -96,7 +101,7 @@ test('a new payment needs a valid month up to the loan\'s last month, and nothin
   const ledger = ledgerWithApprovedPlan({ ...k_carLoan, paymentChanges: [] });
   await openApp(page, ledger);
   const dialog = await openLoanForm(page);
-  await dialog.getByLabel('Monthly payment · EUR', { exact: true }).fill('160');
+  await changeMonthlyPayment(dialog, '160');
 
   for (const invalidMonth of ['2030-01', 'next month']) {
     await dialog.getByLabel('New payment from · YYYY-MM', { exact: true }).fill(invalidMonth);
@@ -146,7 +151,7 @@ test('a long loan name and a long history fit the loan form and card at a narrow
   await expect(page.getByText(/^Payment history · /)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   const dialog = await openLoanForm(page, longName);
-  await dialog.getByLabel('Monthly payment · EUR', { exact: true }).fill('1234567.89');
+  await changeMonthlyPayment(dialog, '1234567.89');
   await expect(dialog.getByRole('button', { name: 'Remove €987,654.32 from September 2026', exact: true })).toBeVisible();
   await expect(dialog.getByLabel('New payment from · YYYY-MM', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -155,14 +160,14 @@ test('a long loan name and a long history fit the loan form and card at a narrow
 test('a temporary payment until a chosen month returns to the earlier payment afterwards', async ({ page }) => {
   await openApp(page, ledgerWithApprovedPlan({ ...k_carLoan, paymentChanges: [{ since: '2027-09', amount: 17000 }] }));
   const dialog = await openLoanForm(page);
-  await dialog.getByLabel('Monthly payment · EUR', { exact: true }).fill('90');
+  await changeMonthlyPayment(dialog, '90');
   await dialog.getByLabel('New payment from · YYYY-MM', { exact: true }).fill('2027-01');
   await expect(dialog.getByLabel('Until · YYYY-MM', { exact: true })).toHaveCount(0);
   await dialog.getByRole('switch', { name: 'Until a chosen month', exact: true }).click();
   await expect(dialog.getByLabel('Until · YYYY-MM', { exact: true })).toHaveValue('2027-01');
   await dialog.getByLabel('Until · YYYY-MM', { exact: true }).fill('2026-12');
   await dialog.getByRole('button', { name: 'Save loan', exact: true }).click();
-  await expect(dialog.getByText('Choose the last month of the temporary payment (YYYY-MM), from its first month on.', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Choose the last month of the temporary payment (YYYY-MM), from its first month and from the loan\'s start month on.', { exact: true })).toBeVisible();
   await dialog.getByLabel('Until · YYYY-MM', { exact: true }).fill('2027-05');
   await saveLoanForm(dialog);
 
@@ -173,11 +178,11 @@ test('a temporary payment until a chosen month returns to the earlier payment af
 test('a payment pause of zero can be entered, but an emptied payment is refused', async ({ page }) => {
   await openApp(page, ledgerWithApprovedPlan({ ...k_carLoan, paymentChanges: [] }));
   const dialog = await openLoanForm(page);
-  await dialog.getByLabel('Monthly payment · EUR', { exact: true }).fill('');
+  await changeMonthlyPayment(dialog, '');
   await dialog.getByRole('button', { name: 'Save loan', exact: true }).click();
-  await expect(dialog.getByText('Use a payment of zero or more, with at most two decimal places.', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Enter the new monthly payment: zero or more.', { exact: true })).toBeVisible();
 
-  await dialog.getByLabel('Monthly payment · EUR', { exact: true }).fill('0');
+  await dialog.getByLabel('New monthly payment · EUR', { exact: true }).fill('0');
   await dialog.getByLabel('New payment from · YYYY-MM', { exact: true }).fill('2027-02');
   await dialog.getByRole('switch', { name: 'Until a chosen month', exact: true }).click();
   await dialog.getByLabel('Until · YYYY-MM', { exact: true }).fill('2027-02');
@@ -193,4 +198,20 @@ test('moving the start month later folds the changes it passes into the starting
 
   const savedLoan = (await savedLedger(page)).loans[0];
   expect([savedLoan.start, savedLoan.payment, savedLoan.paymentChanges]).toEqual(['2026-09', 15000, [{ since: '2027-02', amount: 14000 }]]);
+});
+
+test('a future payment equal to this month\'s amount can be scheduled, and cancelling the change keeps the payment', async ({ page }) => {
+  await openApp(page, ledgerWithApprovedPlan({ ...k_carLoan, paymentChanges: [{ since: '2027-01', amount: 16000 }] }));
+  let dialog = await openLoanForm(page);
+  await changeMonthlyPayment(dialog, '200');
+  await dialog.getByRole('button', { name: 'Keep the payment as it is', exact: true }).click();
+  await expect(dialog.getByLabel('New monthly payment · EUR', { exact: true })).toHaveCount(0);
+  await saveLoanForm(dialog);
+  expect((await savedLedger(page)).loans[0].paymentChanges).toEqual([{ since: '2027-01', amount: 16000 }]);
+
+  dialog = await openLoanForm(page);
+  await changeMonthlyPayment(dialog, '185');
+  await dialog.getByLabel('New payment from · YYYY-MM', { exact: true }).fill('2027-07');
+  await saveLoanForm(dialog);
+  expect((await savedLedger(page)).loans[0].paymentChanges).toEqual([{ since: '2027-01', amount: 16000 }, { since: '2027-07', amount: 18500 }]);
 });

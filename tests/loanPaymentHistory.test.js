@@ -5,7 +5,7 @@ import { approvePlanRevision } from '../src/planArchive.js';
 import { carriedPlanAssumptions } from '../src/planCarryForward.js';
 import { expectedSavings } from '../src/expectedSavings.js';
 import { createFinancialState } from './helpers/financialFixtures.js';
-import { loanChangesFromHistory, loanPaymentInMonth, loanPaymentHistory, withLoanPaymentFrom, withNormalizedPayments, withoutLoanPaymentChange } from '../src/loanPaymentHistory.js';
+import { isValidPaymentChanges, withLoanFormEdits, loanChangesFromHistory, loanPaymentInMonth, loanPaymentHistory, withLoanPaymentFrom, withNormalizedPayments, withoutLoanPaymentChange } from '../src/loanPaymentHistory.js';
 
 // A €1,200 loan from January 2026 to December 2030 (P09's example).
 const k_homeLoan = { id: 'home', name: 'Home', account: 'everyday', start: '2026-01', end: '2030-12', payment: 120000, paymentChanges: [], remaining: 9000000, original: 9000000 };
@@ -50,7 +50,7 @@ test('entering the amount already in effect still replaces later changes without
 test('a mistaken entry can be removed without touching the others', () => {
   const twoChanges = withLoanPaymentFrom(withLoanPaymentFrom(k_homeLoan, { since: '2026-09', amount: 105000 }), { since: '2027-06', amount: 90000 });
 
-  const corrected = withoutLoanPaymentChange(twoChanges, '2026-09');
+  const corrected = withoutLoanPaymentChange(twoChanges, { since: '2026-09' });
 
   assert.deepEqual(loanPaymentHistory(corrected), [{ since: '2026-01', amount: 120000 }, { since: '2027-06', amount: 90000 }]);
   assert.deepEqual(paymentsIn(corrected, ['2026-12', '2027-06']), [120000, 90000]);
@@ -174,4 +174,56 @@ test('a temporary payment that ended before the loan starts changes nothing', ()
   const lateLoan = { ...k_carLoan, start: '2027-01' };
 
   assert.deepEqual(loanPaymentHistory(withLoanPaymentFrom(lateLoan, { since: '2026-05', until: '2026-08', amount: 100 })), [{ since: '2027-01', amount: 18500 }]);
+});
+
+test('a one-month payment in the same month as a lasting change keeps the lasting change for the months after', () => {
+  const lasting = withLoanPaymentFrom(k_homeLoan, { since: '2026-09', amount: 105000 });
+
+  const extraInSeptember = withLoanPaymentFrom(lasting, { since: '2026-09', until: '2026-09', amount: 150000 });
+
+  assert.deepEqual(paymentsIn(extraInSeptember, ['2026-08', '2026-09', '2026-10']), [120000, 150000, 105000]);
+  assert.deepEqual(loanPaymentHistory(extraInSeptember), [{ since: '2026-01', amount: 120000 }, { since: '2026-09', amount: 105000 }, { since: '2026-09', until: '2026-09', amount: 150000 }]);
+  assert.deepEqual(loanPaymentHistory(withoutLoanPaymentChange(extraInSeptember, { since: '2026-09', until: '2026-09' })), loanPaymentHistory(lasting));
+});
+
+test('moving the start into overlapping temporary payments keeps each month\'s payment and a valid history', () => {
+  const overlapping = [{ since: '2026-02', until: '2026-12', amount: 90000 }, { since: '2026-04', until: '2026-04', amount: 150000 }];
+  const before = { ...k_homeLoan, paymentChanges: overlapping };
+  const months = ['2026-04', '2026-05', '2026-12', '2027-01'];
+
+  const movedStart = withNormalizedPayments({ ...before, start: '2026-04' });
+
+  assert.deepEqual(paymentsIn(movedStart, months), paymentsIn(before, months));
+  assert.equal(isValidPaymentChanges(movedStart), true);
+});
+
+test('a plan follows a loan whose saved changes start before its start month, as the history does', () => {
+  const notNormalized = { ...k_carLoan, start: '2026-06', payment: 120000, paymentChanges: [{ since: '2026-03', amount: 100000 }] };
+  const state = createFinancialState({ loans: [notNormalized] });
+
+  const draft = buildPlan(state, { year: 2027, fromMonth: 1, income: 200000, cushion: 0, today: '2026-11-20' });
+
+  assert.equal(loanPaymentInMonth(notNormalized, '2027-01'), 100000);
+  assert.equal(draft.months['2027-01'].loan, 100000);
+});
+
+test('saving the loan form keeps a history change synced while it was open, unless the form changed the history', () => {
+  const syncedWhileOpen = withLoanPaymentFrom(k_carLoan, { since: '2027-02', amount: 15000 });
+  const loanFields = { name: 'Family car', remaining: 0, start: '2026-01', end: '2029-12', account: 'everyday' };
+
+  const renamed = withLoanFormEdits(syncedWhileOpen, { loanFields });
+  const withNewPayment = withLoanFormEdits(syncedWhileOpen, { loanFields, newPayment: { since: '2027-06', amount: 14000 } });
+  const historyEdited = withLoanFormEdits(syncedWhileOpen, { loanFields, paymentChanges: [] });
+
+  assert.deepEqual([renamed.name, renamed.paymentChanges], ['Family car', [{ since: '2027-02', amount: 15000 }]]);
+  assert.deepEqual(withNewPayment.paymentChanges, [{ since: '2027-02', amount: 15000 }, { since: '2027-06', amount: 14000 }]);
+  assert.deepEqual(historyEdited.paymentChanges, []);
+});
+
+test('a future payment equal to this month\'s amount can still be scheduled', () => {
+  const lowerFromJanuary = withLoanPaymentFrom(k_homeLoan, { since: '2027-01', amount: 105000 });
+
+  const backFromJuly = withLoanPaymentFrom(lowerFromJanuary, { since: '2027-07', amount: 120000 });
+
+  assert.deepEqual(paymentsIn(backFromJuly, ['2026-11', '2027-01', '2027-07']), [120000, 105000, 120000]);
 });

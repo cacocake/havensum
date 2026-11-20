@@ -1,8 +1,7 @@
 import { planRevisions, plannedYears } from './planArchive.js';
 import { isTimestamp } from './paybackState.js';
+import { monthOf } from './calendar.js';
 import { loanPaymentInMonth, withNormalizedPayments } from './loanPaymentHistory.js';
-
-const k_monthKeyLength = 7;
 
 // Owner decision P05 (superseded by P09): a payment entered on the loan after
 // a plan was approved is newer than that plan's changes up to the edit's month.
@@ -14,15 +13,20 @@ function isLoanPaymentNewerThanPlan(loan, plan) {
   return Date.parse(loan.paymentEditedAt) > Date.parse(plan.createdAt);
 }
 
-// The edit's month in UTC, so every device migrates the same file alike.
+// The edit's month as written in its UTC instant, so every device migrates
+// the same file alike.
 function editedMonthOf(loan) {
-  return loan.paymentEditedAt.slice(0, k_monthKeyLength);
+  return monthOf(loan.paymentEditedAt);
+}
+
+function scheduledChangesForLoan(loan, plan) {
+  return (plan.loanChanges ?? [])
+    .filter(change => change.loanId === loan.id)
+    .map(({ since, amount }) => ({ since, amount }));
 }
 
 function planChangesForLoan(loan, plan) {
-  const changes = (plan.loanChanges ?? [])
-    .filter(change => change.loanId === loan.id)
-    .map(({ since, amount }) => ({ since, amount }));
+  const changes = scheduledChangesForLoan(loan, plan);
   if (!isLoanPaymentNewerThanPlan(loan, plan)) {
     return changes;
   }
@@ -67,12 +71,20 @@ function withoutRepeatedAmounts(loan, changes) {
 // revisions planned. Plans keep their own changes untouched as frozen snapshots.
 export function loanWithPaymentHistory(state, loan) {
   let changes = [];
+  // What the plans scheduled, before any newer loan edit was applied.
+  let scheduledChanges = [];
   for (const year of plannedYears(state)) {
     const revisions = planRevisions(state, year);
     revisions.forEach((revision, index) => {
       const decidedFrom = firstDecidedMonth(loan, revisions, index);
-      const earlierChanges = changes.filter(change => change.since < decidedFrom);
-      changes = [...earlierChanges, ...planChangesForLoan(loan, revision)];
+      const earlierScheduled = scheduledChanges.filter(change => change.since < decidedFrom);
+      // Owner decision P19: a payment restated at the revision's first month
+      // that the earlier plans already scheduled was carried, not decided, so
+      // it cannot override a newer loan edit that replaced those plans.
+      const carriedAmount = loanPaymentInMonth({ ...loan, paymentChanges: earlierScheduled }, decidedFrom);
+      const isCarried = change => change.since === decidedFrom && change.amount === carriedAmount;
+      changes = [...changes.filter(change => change.since < decidedFrom), ...planChangesForLoan(loan, revision).filter(change => !isCarried(change))];
+      scheduledChanges = [...earlierScheduled, ...scheduledChangesForLoan(loan, revision)];
     });
   }
   return withNormalizedPayments({ ...loan, paymentChanges: withoutRepeatedAmounts(loan, changes) });
