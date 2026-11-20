@@ -58,7 +58,8 @@ test('a loan payment edited before the plan was approved does not override the p
 
 test('a source plan without an approval time keeps the carried change', () => {
   const approved = ledgerWithApprovedPlan();
-  const { createdAt: _approvalTime, ...untimedPlan } = approved.plans[2026][0];
+  const untimedPlan = { ...approved.plans[2026][0] };
+  delete untimedPlan.createdAt;
   const state = withLoanPayment({ ...approved, plans: { 2026: [untimedPlan] } }, 16000, k_editedAfterApproval);
 
   const carried = carriedPlanAssumptions(state, { year: 2027, fromMonth: 1 });
