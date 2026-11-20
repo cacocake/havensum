@@ -371,8 +371,8 @@ export function PlanForm({onClose,loanRevision=null,previousLoan=null}){
      return;
    }
    if (recheck?.kind === 'moved') {
-     setFrom(currentOffer.interviewFromMonth);
-     setLoanOffer(currentOffer);
+     setFrom(recheck.offer.interviewFromMonth);
+     setLoanOffer(recheck.offer);
      setError(k_planStartMovedMessage);
      return;
    }

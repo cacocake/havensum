@@ -46,6 +46,17 @@ function validateCentFields(record, fields) {
   }
 }
 
+// LOAN-1b (P25): each active loan's non-negative share of a planned month's
+// loan line, adding up to that line.
+function isValidLoanShares(plannedMonth) {
+  if (!isRecord(plannedMonth.loanPayments)) {
+    return false;
+  }
+  const shares = Object.values(plannedMonth.loanPayments);
+  const isEveryShareValid = shares.every(share => Number.isSafeInteger(share) && share >= 0);
+  return isEveryShareValid && shares.reduce((total, share) => total + share, 0) === plannedMonth.loan;
+}
+
 function validatePlan(plan) {
   if (plan === null) {
     return;
@@ -81,7 +92,7 @@ function validatePlan(plan) {
     requireValid(isRecord(plannedMonth), 'planned month');
     validateCentFields(plannedMonth, ['income', 'expense', 'balance', 'cushion', 'loan', 'event']);
     if (plannedMonth.loanPayments !== undefined) {
-      requireValid(isRecord(plannedMonth.loanPayments) && Object.values(plannedMonth.loanPayments).every(Number.isSafeInteger), 'plan loan shares');
+      requireValid(isValidLoanShares(plannedMonth), 'plan loan shares');
     }
     requireValid(Array.isArray(plannedMonth.lines), 'plan lines');
     for (const line of plannedMonth.lines) {

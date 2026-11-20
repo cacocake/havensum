@@ -159,7 +159,7 @@ test('stored loan shares must be integer cents per loan', () => {
   const state = ledgerWithPlan();
   const withShares = loanPayments => ({ ...state, plans: { 2026: [{ ...state.plans[2026][0], months: { ...state.plans[2026][0].months, '2026-03': { ...state.plans[2026][0].months['2026-03'], loanPayments } } }] } });
 
-  assert.doesNotThrow(() => validateState(withShares({ car: 0 })));
+  assert.doesNotThrow(() => validateState(withShares({ car: 18500 })));
   for (const invalidShares of [null, [], { car: 12.5 }, { car: '100' }]) {
     assert.throws(() => validateState(withShares(invalidShares)), /loan shares/);
   }
@@ -172,4 +172,51 @@ test('the interview rechecks its offer on save: unchanged, moved, or gone (also 
   assert.deepEqual(loanRevisionRecheck(offer, { ...offer, interviewFromMonth: 12, passedFrom: '2026-11' }), { kind: 'moved', offer: { ...offer, interviewFromMonth: 12, passedFrom: '2026-11' } });
   assert.deepEqual(loanRevisionRecheck(offer, null), { kind: 'gone' });
   assert.deepEqual(loanRevisionRecheck(offer, { ...offer, year: 2027, interviewFromMonth: 1 }), { kind: 'gone' });
+});
+
+// A plan frozen before loan shares were recorded: car €185 and bike €50 every month.
+function ledgerWithPlanWithoutShares() {
+  const bike = { ...k_carLoan, id: 'bike', name: 'Bike', payment: 5000 };
+  const planned = ledgerWithPlan(k_carLoan, [bike]);
+  const months = Object.fromEntries(Object.entries(planned.plans[2026][0].months).map(([month, plannedMonth]) => {
+    const { loanPayments, ...frozenMonth } = plannedMonth;
+    return [month, frozenMonth];
+  }));
+  return { state: { ...planned, plans: { 2026: [{ ...planned.plans[2026][0], months }] } }, bike };
+}
+
+test('for a plan without loan shares, the changed loan\'s earlier payment is replaced, and no shares are invented', () => {
+  const { state: unshared, bike } = ledgerWithPlanWithoutShares();
+  const lowered = lowerFrom('2026-03');
+  const state = { ...unshared, loans: [lowered, bike] };
+  const offer = loanRevisionOffer(state, k_carLoan, lowered, k_today);
+
+  const revision = revisionWithRestatedLoanLines(buildPlan(state, { year: 2026, fromMonth: 11, income: 200000, cushion: 10000, today: k_today }), state, offer, k_carLoan);
+
+  assert.equal(unshared.plans[2026][0].months['2026-03'].loan, 23500);
+  assert.equal(revision.months['2026-03'].loan, 21000);
+  assert.equal(Object.hasOwn(revision.months['2026-03'], 'loanPayments'), false);
+});
+
+test('for a plan without loan shares, a loan worth more than the frozen line removes at most that line', () => {
+  const { state: unshared, bike } = ledgerWithPlanWithoutShares();
+  const bigLoan = { ...k_carLoan, id: 'house', name: 'House', payment: 90000 };
+  const loweredHouse = withLoanPaymentFrom(bigLoan, { since: '2026-03', amount: 1000 });
+  const state = { ...unshared, loans: [k_carLoan, bike, loweredHouse] };
+  const offer = loanRevisionOffer(state, bigLoan, loweredHouse, k_today);
+
+  const revision = revisionWithRestatedLoanLines(buildPlan(state, { year: 2026, fromMonth: 11, income: 200000, cushion: 10000, today: k_today }), state, offer, bigLoan);
+
+  assert.equal(revision.months['2026-03'].loan, 1000);
+});
+
+test('stored loan shares must add up to the month\'s loan line and be zero or more', () => {
+  const state = ledgerWithPlan();
+  const march = state.plans[2026][0].months['2026-03'];
+  const withMarch = changes => ({ ...state, plans: { 2026: [{ ...state.plans[2026][0], months: { ...state.plans[2026][0].months, '2026-03': { ...march, ...changes } } }] } });
+
+  assert.doesNotThrow(() => validateState(withMarch({ loanPayments: { car: 18500 } })));
+  for (const invalidChanges of [{ loanPayments: { car: 18000 } }, { loanPayments: { car: 20000, bike: -1500 } }]) {
+    assert.throws(() => validateState(withMarch(invalidChanges)), /loan shares/);
+  }
 });
