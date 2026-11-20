@@ -5,7 +5,9 @@ import { approvePlanRevision } from '../src/planArchive.js';
 import { expectedSavings } from '../src/expectedSavings.js';
 import { saveTransaction } from '../src/transactionActions.js';
 import { validateState } from '../src/stateSchema.js';
-import { withAdvancePayment } from '../src/loanAdvancePayments.js';
+import { InvalidAdvancePaymentError, withAdvancePayment } from '../src/loanAdvancePayments.js';
+import { applyTransactionImport, previewTransactionImport } from '../src/importReview.js';
+import { isEnteredAmount } from '../src/money.js';
 import { createFinancialState, createTransaction } from './helpers/financialFixtures.js';
 
 const k_today = '2026-11-20';
@@ -58,4 +60,41 @@ test('a one-off extra payment is only a recorded payment: the history and plan s
   assert.equal(JSON.stringify(recorded.plans), JSON.stringify(state.plans));
   assert.equal(expectedSavings(recorded, '2026-11', k_today).loan, 23500);
   assert.equal(expectedSavings(recorded, '2026-12', k_today).loan, 18500);
+});
+
+test('an advance with an invalid date or an unknown account is refused and changes nothing', () => {
+  const state = ledgerWithPlan();
+
+  for (const invalid of [{ date: '' }, { date: '2026-02-30' }, { account: 'missing' }]) {
+    assert.throws(() => withAdvancePayment(state, { loanId: 'car', id: 'advance-1', amount: 1000, date: '2026-11-18', account: 'everyday', ...invalid }), InvalidAdvancePaymentError);
+  }
+});
+
+test('the advance mark is valid only on an expense linked to a loan', () => {
+  const advanced = withAdvancePayment(ledgerWithPlan(), { loanId: 'car', id: 'advance-1', amount: 1000, date: '2026-11-18', account: 'everyday' });
+  const withEntry = changes => ({ ...advanced, transactions: [{ ...advanced.transactions[0], ...changes }] });
+
+  assert.throws(() => validateState(withEntry({ type: 'income', category: 'salary' })), /advance/);
+  assert.throws(() => validateState(withEntry({ loanId: undefined, category: 'groceries' })), /advance/);
+});
+
+test('re-importing an advance row that is no longer a loan expense drops the mark, as the file cannot carry it', () => {
+  const advanced = withAdvancePayment(ledgerWithPlan(), { loanId: 'car', id: 'advance-1', amount: 1000, date: '2026-11-18', account: 'everyday' });
+  const { loanAdvance, loanId, ...exportedRow } = advanced.transactions[0];
+  const recategorised = { ...exportedRow, category: 'groceries' };
+
+  const review = previewTransactionImport(advanced, [recategorised]);
+  const imported = applyTransactionImport(advanced, review, { 0: 'replace' });
+
+  assert.equal(loanAdvance, true);
+  assert.deepEqual([imported.transactions[0].category, imported.transactions[0].loanAdvance, imported.transactions[0].loanId], ['groceries', undefined, undefined]);
+});
+
+test('an entered amount needs digits with at most two decimals, as in the transaction form', () => {
+  for (const valid of ['12', '12.5', '12,50']) {
+    assert.equal(isEnteredAmount(valid), true);
+  }
+  for (const invalid of ['', '12.345', '1e3', '1.000,50', '-5']) {
+    assert.equal(isEnteredAmount(invalid), false);
+  }
 });

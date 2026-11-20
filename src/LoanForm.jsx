@@ -108,7 +108,9 @@ export function LoanForm({ item, onClose, startWithPaymentChange = false }) {
 
   function save() {
     const remainingInCents = cents(remaining);
-    const validAmounts = isPositiveCentAmount(remainingInCents) && (Boolean(item) || isPositiveCentAmount(cents(payment)));
+    // Owner decision P26: an existing loan may be paid off (€0 remaining); a new one needs a balance.
+    const validRemaining = item ? Number.isSafeInteger(remainingInCents) && remainingInCents >= 0 : isPositiveCentAmount(remainingInCents);
+    const validAmounts = validRemaining && (Boolean(item) || isPositiveCentAmount(cents(payment)));
     const validMonths = isMonthKey(start) && isMonthKey(end) && end >= start;
     if (!name.trim() || !validAmounts || !validMonths) {
       setError(k_loanFormMessages.invalid);

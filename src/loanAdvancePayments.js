@@ -1,5 +1,6 @@
 import { isPositiveCentAmount } from './money.js';
 import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
+import { validateTransaction } from './transactionValidation.js';
 
 const k_advanceTitleSuffix = ' · advance payment';
 
@@ -18,9 +19,21 @@ export function withAdvancePayment(state, { loanId, id, amount, date, account })
     throw new InvalidAdvancePaymentError('Enter a positive advance payment.');
   }
   const advance = {
-    id, type: k_transactionTypes.expense, title: `${loan.name}${k_advanceTitleSuffix}`,
-    amount, date, account, category: k_systemCategoryIds.loan, loanId, loanAdvance: true
+    id,
+    type: k_transactionTypes.expense,
+    title: `${loan.name}${k_advanceTitleSuffix}`,
+    amount,
+    date,
+    account,
+    category: k_systemCategoryIds.loan,
+    loanId,
+    loanAdvance: true
   };
+  try {
+    validateTransaction(state, advance);
+  } catch (failure) {
+    throw new InvalidAdvancePaymentError(failure.message);
+  }
   const remaining = Math.max(0, loan.remaining - amount);
   return {
     ...state,

@@ -32,6 +32,10 @@ function updatedTransaction(existing, incoming) {
     delete transaction[field];
   }
   const updated = { ...transaction, ...incoming, id: existing.id };
+  // Files cannot carry the advance mark (LOAN-1c); it stays only on a loan expense.
+  if (updated.loanAdvance !== undefined && !(updated.type === k_transactionTypes.expense && updated.loanId != null)) {
+    delete updated.loanAdvance;
+  }
   if (updated.type === k_transactionTypes.expense && !Object.hasOwn(incoming, 'plannedCost') && existing.plannedCost !== undefined) {
     updated.plannedCost = existing.plannedCost;
   }

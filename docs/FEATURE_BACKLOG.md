@@ -794,7 +794,8 @@ The implementation note below records how these were built; it stores only per-y
 ## Session handoff — LOAN-1c · Advance and one-off extra payments (20 November 2026, Claude cloud session)
 
 - **Branch:** `codex/loan-advance-payments` from `develop` (`37d599d`, LOAN-1a and LOAN-1b pushed). New `src/loanAdvancePayments.js` and `src/AdvancePaymentForm.jsx`; a **Record advance payment** button on the loan card (src/LoansScreen.jsx); the loan form can open ready for a new payment; transactions may hold `loanAdvance: true` (validated; dropped when edited into something else).
-- **Owner decisions:** P09, P14 (loan card action), P15 (a balance-only change offers no plan revision; the advance's own balance change asks about the payment instead).
+- **Owner decisions:** P09, P14 (loan card action), P15 (a balance-only change offers no plan revision; the advance's own balance change asks about the payment instead), P26 (an existing loan may have €0 remaining).
+- **Review:** a separate read-only review found an advance saved without transaction validation (an empty date could stop all saving), a paid-off loan the form could not save, a re-imported advance row rejected, and amount parsing unlike the transaction form; all fixed test-first (P26 asked of the owner). The amount check is now shared (`isEnteredAmount` in src/money.js).
 - **Tests:** tests/loanAdvancePayments.test.js (advance save, floor at zero, invalid amounts and loans, mark validation, one-off extra payment leaving history and plans unchanged); tests/browser/loanAdvancePayments.spec.js (advance and No, advance then a new payment and the LOAN-1b prompt, empty advance refused, one-off extra payment with no prompt, narrow layout, editing an advance).
 - **Known limitations:** deleting or editing an advance later does not restore the remaining balance; CSV and the workbook do not export the advance mark.
 

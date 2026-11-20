@@ -74,7 +74,7 @@ test('an empty advance is refused and nothing is saved', async ({ page }) => {
   await openLoans(page, ledger);
   const dialog = await recordAdvance(page, '');
 
-  await expect(dialog.getByText('Enter a positive advance payment.', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Use a positive amount with at most two decimal places.', { exact: true })).toBeVisible();
   const saved = await savedLedger(page);
   expect([saved.loans, saved.transactions]).toEqual([ledger.loans, []]);
 });
@@ -121,4 +121,33 @@ test('editing an advance keeps its mark, and turning it into something else drop
   await dialog.getByRole('button', { name: 'Save changes', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   expect((await savedLedger(page)).transactions[0].loanAdvance).toBeUndefined();
+});
+
+test('an advance that pays the loan off leaves a €0 balance that the loan form can still save with a new payment (P26)', async ({ page }) => {
+  await openLoans(page, ledgerWithPlan());
+  const dialog = await recordAdvance(page, '4000');
+  await expect(dialog.getByText('Car loan · remaining balance now €0.00', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Yes, enter the new payment', exact: true }).click();
+  await dialog.getByLabel('New monthly payment · EUR', { exact: true }).fill('0');
+  await dialog.getByLabel('New payment from · YYYY-MM', { exact: true }).fill('2026-12');
+  await dialog.getByRole('button', { name: 'Save loan', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Keep my plan', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+
+  const savedLoan = (await savedLedger(page)).loans[0];
+  expect([savedLoan.remaining, savedLoan.paymentChanges]).toEqual([0, [{ since: '2026-12', amount: 0 }]]);
+});
+
+test('an advance amount needs at most two decimals, and an empty date is refused', async ({ page }) => {
+  const ledger = ledgerWithPlan();
+  await openLoans(page, ledger);
+  const dialog = await recordAdvance(page, '12.345');
+  await expect(dialog.getByText('Use a positive amount with at most two decimal places.', { exact: true })).toBeVisible();
+
+  await dialog.getByLabel('Advance payment · EUR', { exact: true }).fill('12.34');
+  await dialog.getByLabel('Date', { exact: true }).fill('');
+  await dialog.getByRole('button', { name: 'Record advance payment', exact: true }).click();
+  await expect(dialog.getByText('Choose a valid date.', { exact: true })).toBeVisible();
+  const saved = await savedLedger(page);
+  expect([saved.loans, saved.transactions]).toEqual([ledger.loans, []]);
 });

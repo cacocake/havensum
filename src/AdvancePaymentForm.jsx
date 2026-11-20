@@ -2,7 +2,7 @@ import React, { useContext, useState } from 'react';
 import { useApp } from './context.js';
 import { Theme, T, Button, Field, Select, DateField, Dialog } from './ui.jsx';
 import { useDirtyForm } from './useDirtyForm.js';
-import { cents, euro } from './money.js';
+import { cents, euro, isEnteredAmount } from './money.js';
 import { k_entityIdPrefixes } from './domainConstants.js';
 import { createEntityId } from './identifiers';
 import { monthOf } from './calendar.js';
@@ -11,6 +11,7 @@ import { withAdvancePayment, InvalidAdvancePaymentError } from './loanAdvancePay
 
 const k_advanceMessages = {
   saved: 'Advance payment recorded',
+  invalidAmount: 'Use a positive amount with at most two decimal places.',
   balanceNote: 'Recorded as a payment on the loan and taken off the recorded remaining balance. Principal and interest are not guessed.',
   paymentQuestion: 'Did your bank change the monthly payment after this advance? The app never calculates the new amount.'
 };
@@ -29,11 +30,24 @@ export function AdvancePaymentForm({ loan, onClose }) {
   const isDirty = useDirtyForm([amount, date, account]) && !savedLoan;
 
   function save() {
-    const advance = { loanId: loan.id, id: createEntityId(k_entityIdPrefixes.transaction), amount: cents(amount), date, account };
+    if (savedLoan) {
+      return;
+    }
+    if (!isEnteredAmount(amount)) {
+      setError(k_advanceMessages.invalidAmount);
+      return;
+    }
+    const advance = {
+      loanId: loan.id,
+      id: createEntityId(k_entityIdPrefixes.transaction),
+      amount: cents(amount),
+      date,
+      account
+    };
     try {
-      const advanced = withAdvancePayment(state, advance);
-      setState(currentState => withAdvancePayment(currentState, advance));
-      setSavedLoan(advanced.loans.find(candidate => candidate.id === loan.id));
+      const advancedState = withAdvancePayment(state, advance);
+      setState(advancedState);
+      setSavedLoan(advancedState.loans.find(candidate => candidate.id === loan.id));
       notify(k_advanceMessages.saved);
     } catch (failure) {
       if (!(failure instanceof InvalidAdvancePaymentError)) {
