@@ -240,7 +240,7 @@ test('a lasting payment from before the loan\'s start is refused, so a mistyped 
 test('moving the start later explains that earlier payments fold into the starting payment on save', async ({ page }) => {
   await openApp(page, ledgerWithApprovedPlan({ ...k_carLoan, paymentChanges: [{ since: '2026-06', amount: 17000 }, { since: '2026-12', amount: 16000 }] }));
   const dialog = await openLoanForm(page);
-  const hint = dialog.getByText('Saving with the later start month folds the payments before it into the starting payment; every month from the start keeps its payment.', { exact: true });
+  const hint = dialog.getByText('Saving with the later start month folds the payments before it into the starting payment; folding alone changes no month from the new start on.', { exact: true });
   await expect(hint).toHaveCount(0);
   await dialog.getByLabel('Start month · YYYY-MM', { exact: true }).fill('2026-08');
   await expect(hint).toBeVisible();

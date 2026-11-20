@@ -19,7 +19,7 @@ const k_loanFormMessages = {
   invalidUntilMonth: 'Choose the last month of the temporary payment (YYYY-MM), from its first month on.',
   saved: 'Loan saved · revise the remaining Year Plan to include it',
   proceedsNote: 'Loan balance adjustment; excluded from income.',
-  startMovedHint: 'Saving with the later start month folds the payments before it into the starting payment; every month from the start keeps its payment.',
+  startMovedHint: 'Saving with the later start month folds the payments before it into the starting payment; folding alone changes no month from the new start on.',
   lastingHint: 'Every payment from this month on uses the new amount. Later changes are replaced; earlier months stay as they were.',
   temporaryHint: 'Only these months use the new amount. Afterwards the payment returns to what applies without it; other changes stay.'
 };
@@ -76,7 +76,7 @@ export function LoanForm({ item, onClose }) {
   // The form lists and edits the history as saved, folded at the saved start.
   const [savedHistoryLoan] = useState(() => item ? withNormalizedPayments(item) : null);
   const [paymentChanges, setPaymentChanges] = useState(savedHistoryLoan?.paymentChanges ?? []);
-  const isHistoryEdited = paymentChanges !== (savedHistoryLoan?.paymentChanges ?? []);
+  const isHistoryEdited = Boolean(savedHistoryLoan) && paymentChanges !== savedHistoryLoan.paymentChanges;
   const historyLoan = savedHistoryLoan ? { ...savedHistoryLoan, paymentChanges } : null;
   const [paymentChange, setPaymentChange] = useState(null);
   const [account, setAccount] = useState(item?.account || state.accounts[0]?.id || '');
