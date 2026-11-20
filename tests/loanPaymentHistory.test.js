@@ -169,3 +169,9 @@ test('moving a loan\'s start later folds the changes it passes into the starting
   assert.deepEqual(loanPaymentHistory(movedStart), [{ since: '2026-11', amount: 15000 }, { since: '2026-11', until: '2026-12', amount: 2000 }, { since: '2027-02', amount: 14000 }]);
   assert.deepEqual(paymentsIn(movedStart, ['2026-11', '2027-01', '2027-02']), [2000, 15000, 14000]);
 });
+
+test('a temporary payment that ended before the loan starts changes nothing', () => {
+  const lateLoan = { ...k_carLoan, start: '2027-01' };
+
+  assert.deepEqual(loanPaymentHistory(withLoanPaymentFrom(lateLoan, { since: '2026-05', until: '2026-08', amount: 100 })), [{ since: '2027-01', amount: 18500 }]);
+});

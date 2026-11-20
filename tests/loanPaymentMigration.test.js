@@ -210,3 +210,24 @@ test('temporary and one-month payments read with their until month', () => {
 
   assert.equal(paymentHistoryText(car), '€185.00 from January 2026 · €90.00 from January 2027 until May 2027 · €300.00 in August 2027 only');
 });
+
+test('a version 4 backup merged against a version 5 device brings the same history, so nothing conflicts', () => {
+  const legacyBackup = legacyLedgerWithApprovedPlan();
+  const base = migrateState(legacyBackup);
+  const renamedHere = { ...base, loans: [{ ...base.loans[0], name: 'Family car' }] };
+
+  const merge = mergeThreeWay(base, renamedHere, migrateState(structuredClone(legacyBackup)));
+
+  assert.deepEqual(merge.conflicts, []);
+  assert.deepEqual(merge.result.loans[0].paymentChanges, [{ since: '2026-06', amount: 15000 }, { since: '2027-06', amount: 0 }]);
+});
+
+test('a later revision that removed only a next-year change does not bring it back', () => {
+  const state = legacyLedger();
+  const firstOptions = { year: 2026, fromMonth: 1, income: 200000, cushion: 0, today: '2026-01-02', loanChanges: [{ loanId: 'car', since: '2027-06', amount: 0 }] };
+  const withFirst = approvePlanRevision(state, buildPlan(state, firstOptions), { id: 'plan-2026-1', fromMonth: 1, today: '2026-01-02' });
+  const sameMonthsNoChanges = buildPlan(withFirst, { ...firstOptions, fromMonth: 7, today: '2026-07-02', loanChanges: [] });
+  const withSecond = approvePlanRevision(withFirst, sameMonthsNoChanges, { id: 'plan-2026-2', fromMonth: 7, today: '2026-07-02' });
+
+  assert.deepEqual(migrateState(withSecond).loans[0].paymentChanges, []);
+});

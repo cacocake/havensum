@@ -88,7 +88,7 @@ function monthLongName(month) {
 const k_loanHistoryNote = 'Loan payments come from each loan\'s payment history. To change one, edit the loan on the Loans screen.';
 
 // Loan payments in effect when the period starts and their later changes,
-// both from each loan's payment history (P12: read-only here, changed on the
+// both from each loan's payment history (P13: read-only here, changed on the
 // loan). Carried income changes can be removed from this draft only.
 export function CarriedChanges({ loans, startMonth, incomeChanges, loanChanges, onRemoveIncomeChange }) {
   const colors = useContext(Theme);

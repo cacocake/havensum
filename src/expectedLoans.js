@@ -5,7 +5,7 @@ export function isLoanActive(loan, month) {
   return loan.start <= month && loan.end >= month;
 }
 
-// The predicted payment for `month` (owner decision P11): the latest
+// The predicted payment for `month` (owner decision P12): the latest
 // Prediction-assumptions amount from its month, otherwise the loan's history.
 export function loanPaymentForMonth(state, loan, month) {
   const changes = (state.outlook?.loanChanges || []).filter(change => change.loanId === loan.id && change.since <= month)

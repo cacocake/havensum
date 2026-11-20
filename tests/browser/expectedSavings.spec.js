@@ -180,7 +180,7 @@ test('adopting legacy dated changes retains existing independent assumptions', a
   ]));
 });
 
-test('copying scheduled changes copies income only, so loan payments keep following each loan\'s history (P11)', async ({ page }) => {
+test('copying scheduled changes copies income only, so loan payments keep following each loan\'s history (P12)', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-15T12:00:00') });
   const car = { id: 'car', name: 'Car loan', account: 'everyday', start: '2026-01', end: '2029-12', payment: 18500, paymentChanges: [{ since: '2027-03', amount: 16000 }], remaining: 400000, original: 500000 };
   const state = createFinancialState({ loans: [car] });

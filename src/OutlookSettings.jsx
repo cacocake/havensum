@@ -57,7 +57,7 @@ function OutlookSettingsDialog({ month, onClose }) {
     try {
       const outlook = { ...state.outlook, completeMonths, window: Number(historyWindow) };
       const incomeChanges = mergeDatedChanges(state.outlook?.incomeChanges, adoptScheduledChanges ? approvedPlan?.incomeChanges : []);
-      // Loan payments already follow each loan's history (P11), so only income is copied.
+      // Loan payments already follow each loan's history (P12), so only income is copied.
       const loanChanges = state.outlook?.loanChanges ?? [];
       outlook.incomeChanges = incomeChanges.filter(change => !Object.hasOwn(incomeDrafts, change.since));
       for (const [changeMonth, amount] of Object.entries(incomeDrafts)) {

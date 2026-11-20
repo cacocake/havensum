@@ -67,7 +67,7 @@ function activeLoansAcrossMonths(state, months) {
 }
 
 // Each month a loan's predicted payment steps to a new amount after the first
-// forecast month, from its history or Prediction assumptions (P11), and the
+// forecast month, from its history or Prediction assumptions (P12), and the
 // predictions entered for loans that were removed.
 function loanChangesAcrossMonths(state, months, year) {
   const loans = state.loans ?? [];

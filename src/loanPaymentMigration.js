@@ -37,16 +37,16 @@ function firstDifferingMonth(plan, earlierPlan) {
 // The first month a revision decides. A year's first revision decides its
 // whole year. A later one copied every month before its start from the
 // revision before it and stored loan changes only from its start, so it
-// decides from the earlier of its first changed month and its first change.
+// decides from the earliest of its first changed month, its first change and,
+// for the years after it, the next January.
 function firstDecidedMonth(loan, revisions, index) {
   const revision = revisions[index];
   if (index === 0) {
     return `${revision.year}-01`;
   }
-  const candidates = [firstDifferingMonth(revision, revisions[index - 1]), ...planChangesForLoan(loan, revision).map(change => change.since)]
-    .filter(Boolean)
-    .sort();
-  return candidates[0] ?? null;
+  const nextJanuary = `${revision.year + 1}-01`;
+  const candidates = [firstDifferingMonth(revision, revisions[index - 1]), ...planChangesForLoan(loan, revision).map(change => change.since), nextJanuary];
+  return candidates.filter(Boolean).sort()[0];
 }
 
 // Drops entries that repeat the amount already in effect.
@@ -71,9 +71,6 @@ export function loanWithPaymentHistory(state, loan) {
     const revisions = planRevisions(state, year);
     revisions.forEach((revision, index) => {
       const decidedFrom = firstDecidedMonth(loan, revisions, index);
-      if (decidedFrom === null) {
-        return;
-      }
       const earlierChanges = changes.filter(change => change.since < decidedFrom);
       changes = [...earlierChanges, ...planChangesForLoan(loan, revision)];
     });
