@@ -102,7 +102,7 @@ test('a legacy backup restores its plan and savings rate in migrated form', asyn
   await expect(dialog).toHaveCount(0);
 
   const restored = JSON.parse(await stored(page, k_ledgerKey));
-  expect([restored.version, restored.accounts[0].interestSchedule, restored.plans['2026'][0].revision]).toEqual([4, [{ since: '2026-03', rate: 2 }], 2]);
+  expect([restored.version, restored.accounts[0].interestSchedule, restored.plans['2026'][0].revision]).toEqual([5, [{ since: '2026-03', rate: 2 }], 2]);
 });
 
 test('missing categories are reviewed before restoring and a cancelled preview changes nothing', async ({ page }) => {
