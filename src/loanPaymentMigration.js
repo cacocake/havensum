@@ -19,10 +19,16 @@ function editedMonthOf(loan) {
   return monthOf(loan.paymentEditedAt);
 }
 
+// The old interview could store two changes for one loan and month; plans
+// used the last one, so only that one is kept.
 function scheduledChangesForLoan(loan, plan) {
-  return (plan.loanChanges ?? [])
-    .filter(change => change.loanId === loan.id)
-    .map(({ since, amount }) => ({ since, amount }));
+  const changesByMonth = new Map();
+  for (const change of plan.loanChanges ?? []) {
+    if (change.loanId === loan.id) {
+      changesByMonth.set(change.since, { since: change.since, amount: change.amount });
+    }
+  }
+  return [...changesByMonth.values()];
 }
 
 function planChangesForLoan(loan, plan) {

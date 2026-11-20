@@ -217,6 +217,21 @@ test('a loan amount in Prediction assumptions is labelled as overriding the loan
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).outlook.loanChanges)).toEqual([]);
 });
 
+test('a prediction saved for a removed loan is listed and can be cleared', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-15T12:00:00') });
+  const state = createFinancialState({ outlook: { loanChanges: [{ loanId: 'old-car', since: '2027-02', amount: 15000 }] } });
+  await page.addInitScript(initialState => localStorage.setItem('melo-state-v1', JSON.stringify(initialState)), state);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit prediction assumptions', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText('A removed loan · €150.00 from February 2027 no longer affects predictions.', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Clear A removed loan prediction from February 2027', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Save prediction assumptions', exact: true }).click();
+
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).outlook.loanChanges)).toEqual([]);
+});
+
 test('expected costs stay bounded with long bills at narrow and desktop widths', async ({ page }, testInfo) => {
   await page.clock.install({ time: new Date('2026-11-15T12:00:00') });
   const state = createFinancialState({ transactions: [

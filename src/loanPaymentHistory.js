@@ -47,38 +47,47 @@ export function loanPaymentInMonth(loan, month) {
   return changes.filter(change => !isTemporary(change)).at(-1)?.amount ?? loan.payment;
 }
 
-// Rewrites overlapping temporary changes as back-to-back ones with the same
-// payment in every month: each month keeps the change that wins it.
-function flattenedTemporaryChanges(changes) {
-  const temporaryChanges = changes.filter(isTemporary);
-  const lastMonth = temporaryChanges.map(change => change.until).sort().at(-1);
-  const segments = [];
-  for (let month = temporaryChanges[0].since; month <= lastMonth; month = nextMonth(month)) {
-    const winner = temporaryChangeCovering(temporaryChanges, month);
-    const currentSegment = segments.at(-1);
-    if (winner && currentSegment?.winner === winner && currentSegment.until === monthBefore(month)) {
-      currentSegment.until = month;
-    } else if (winner) {
-      segments.push({ winner, since: month, until: month, amount: winner.amount });
+// Rewrites a temporary change from `fromMonth` on as the entries that keep
+// every month it wins: an entry starts at a month it wins and runs while the
+// changes winning in between still start later than the entry, so they keep
+// winning over it. Months it never wins drop out.
+function winningEntries(change, temporaryChanges, fromMonth) {
+  const winsMonth = month => temporaryChangeCovering(temporaryChanges, month) === change;
+  const entries = [];
+  let entry = null;
+  for (let month = fromMonth > change.since ? fromMonth : change.since; month <= change.until; month = nextMonth(month)) {
+    if (entry && !winsMonth(month) && temporaryChangeCovering(temporaryChanges, month).since <= entry.since) {
+      entry = null;
+    }
+    if (!entry && winsMonth(month)) {
+      entry = { since: month, until: month, amount: change.amount };
+      entries.push(entry);
+    }
+    if (entry && winsMonth(month)) {
+      entry.until = month;
     }
   }
-  return [...changes.filter(change => !isTemporary(change)), ...segments.map(storedChange)];
+  return entries;
 }
 
 // Folds what lies at or before the loan's start into its starting payment:
 // lasting changes become the starting payment, temporary changes that ended
-// are dropped, and the one still running starts with the loan.
+// are dropped, and those still running restart at the start, each keeping the
+// months it wins.
 export function withNormalizedPayments(loan) {
-  let changes = storedChanges(loan);
-  const runningAtStart = changes.filter(change => isTemporary(change) && change.since < loan.start && change.until >= loan.start);
-  if (runningAtStart.length > 1 || (runningAtStart.length === 1 && temporaryChangeCovering(changes, loan.start) !== runningAtStart[0])) {
-    changes = flattenedTemporaryChanges(changes).sort(byStartMonth);
-  }
+  const changes = storedChanges(loan);
+  const temporaryChanges = changes.filter(isTemporary);
   const lastingAtStart = changes.filter(change => !isTemporary(change) && change.since <= loan.start).at(-1);
-  const keptChanges = changes
-    .filter(change => change.since > loan.start || (isTemporary(change) && change.until >= loan.start))
-    .map(change => change.since > loan.start ? change : { ...change, since: loan.start });
-  return { ...loan, payment: lastingAtStart?.amount ?? loan.payment, paymentChanges: keptChanges.map(storedChange) };
+  const keptChanges = changes.flatMap(change => {
+    if (change.since > loan.start) {
+      return [change];
+    }
+    if (!isTemporary(change) || change.until < loan.start) {
+      return [];
+    }
+    return winningEntries(change, temporaryChanges, loan.start);
+  });
+  return { ...loan, payment: lastingAtStart?.amount ?? loan.payment, paymentChanges: keptChanges.map(storedChange).sort(byStartMonth) };
 }
 
 // The whole history, oldest first: the starting payment, then each change.
@@ -104,16 +113,24 @@ function withLastingPaymentFrom(loan, { since, amount }) {
   return { ...loan, paymentChanges: [...earlierChanges, { since, amount }] };
 }
 
-// A temporary payment leaves the other changes untouched, except a temporary
-// one that starts in the same month, which it replaces.
+// Owner decision P21: the newest temporary payment wins every month of its
+// window. Older temporary changes keep only their months outside it; lasting
+// changes stay untouched and apply again afterwards.
 function withTemporaryPayment(loan, { since, until, amount }) {
   const startMonth = since < loan.start ? loan.start : since;
   if (until < startMonth) {
     return withNormalizedPayments(loan);
   }
-  const newChange = { since: startMonth, until, amount };
-  const otherChanges = storedChanges(loan).filter(change => !isSameEntry(change, newChange));
-  return { ...loan, paymentChanges: [...otherChanges, newChange].sort(byStartMonth) };
+  const changes = storedChanges(loan);
+  const temporaryChanges = changes.filter(isTemporary);
+  const overlaps = change => isTemporary(change) && change.since <= until && change.until >= startMonth;
+  const outsideWindow = changes.filter(change => !overlaps(change));
+  const trimmed = changes.filter(overlaps).flatMap(change => {
+    const beforeWindow = change.since < startMonth ? [{ since: change.since, until: monthBefore(startMonth), amount: change.amount }] : [];
+    const afterWindow = change.until > until ? winningEntries(change, temporaryChanges, nextMonth(until)) : [];
+    return [...beforeWindow, ...afterWindow];
+  });
+  return { ...loan, paymentChanges: [...outsideWindow, ...trimmed, { since: startMonth, until, amount }].map(storedChange).sort(byStartMonth) };
 }
 
 export function withLoanPaymentFrom(loan, { since, until, amount }) {

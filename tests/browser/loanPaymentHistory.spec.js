@@ -215,3 +215,34 @@ test('a future payment equal to this month\'s amount can be scheduled, and cance
   await saveLoanForm(dialog);
   expect((await savedLedger(page)).loans[0].paymentChanges).toEqual([{ since: '2027-01', amount: 16000 }, { since: '2027-07', amount: 18500 }]);
 });
+
+test('an entry saved before the loan\'s start month is shown from the start and can be removed', async ({ page }) => {
+  await openApp(page, ledgerWithApprovedPlan({ ...k_carLoan, start: '2027-03', paymentChanges: [{ since: '2027-02', until: '2027-06', amount: 50000 }] }));
+  const dialog = await openLoanForm(page);
+  await dialog.getByRole('button', { name: 'Remove €500.00 from March 2027 until June 2027', exact: true }).click();
+  await saveLoanForm(dialog);
+
+  expect((await savedLedger(page)).loans[0].paymentChanges).toEqual([]);
+});
+
+test('a lasting payment from before the loan\'s start is refused, so a mistyped year cannot erase the history', async ({ page }) => {
+  const ledger = ledgerWithApprovedPlan({ ...k_carLoan, paymentChanges: [{ since: '2026-06', amount: 17000 }] });
+  await openApp(page, ledger);
+  const dialog = await openLoanForm(page);
+  await changeMonthlyPayment(dialog, '160');
+  await dialog.getByLabel('New payment from · YYYY-MM', { exact: true }).fill('2025-11');
+  await dialog.getByRole('button', { name: 'Save loan', exact: true }).click();
+
+  await expect(dialog.getByText('A new payment starts in the loan\'s start month or later.', { exact: true })).toBeVisible();
+  expect((await savedLedger(page)).loans).toEqual(ledger.loans);
+});
+
+test('the payment shown follows the start month being edited, before saving', async ({ page }) => {
+  await openApp(page, ledgerWithApprovedPlan({ ...k_carLoan, paymentChanges: [{ since: '2026-06', amount: 17000 }, { since: '2026-12', amount: 16000 }] }));
+  const dialog = await openLoanForm(page);
+  await expect(dialog.getByText('€170.00 from June 2026', { exact: true })).toBeVisible();
+  await dialog.getByLabel('Start month · YYYY-MM', { exact: true }).fill('2026-08');
+
+  await expect(dialog.getByText('€170.00 from August 2026', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('€170.00 from June 2026', { exact: true })).toHaveCount(0);
+});

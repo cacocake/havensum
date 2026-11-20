@@ -12,6 +12,7 @@ import { useDirtyForm } from './useDirtyForm.js';
 
 const k_centsPerEuro = 100;
 const k_historyControlMonths = 12;
+const k_removedLoanName = 'A removed loan';
 const dateName = month => new Date(`${month}-01T12:00:00`).toLocaleString('en', { month: 'long', year: 'numeric' });
 
 function mergeDatedChanges(existingChanges = [], legacyChanges = []) {
@@ -40,12 +41,13 @@ function LoanPredictionOverrides({ loans, savedChanges, loanDrafts, onClear }) {
   const overrides = (savedChanges ?? []).flatMap(change => {
     const loan = loans.find(candidate => candidate.id === change.loanId);
     const isCleared = loanDrafts[change.since]?.[change.loanId] === '';
-    return loan && !isCleared ? [{ ...change, loanName: loan.name }] : [];
+    return isCleared ? [] : [{ ...change, loanName: loan?.name ?? k_removedLoanName, isRemovedLoan: !loan }];
   });
   return overrides.map(change => {
     const when = longMonthLabel(change.since);
+    const effect = change.isRemovedLoan ? 'no longer affects predictions.' : 'overrides this loan\'s payment history in predictions.';
     return <Row key={`${change.loanId}-${change.since}`} style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
-      <T style={{ flex: 1, minWidth: 160, fontSize: 12, color: colors.sub }}>{change.loanName} · {euro(change.amount)} from {when} overrides this loan's payment history in predictions.</T>
+      <T style={{ flex: 1, minWidth: 160, fontSize: 12, color: colors.sub }}>{change.loanName} · {euro(change.amount)} from {when} {effect}</T>
       <Button small kind="soft" accessibilityLabel={`Clear ${change.loanName} prediction from ${when}`} onPress={() => onClear(change)}>Clear</Button>
     </Row>;
   });

@@ -8,13 +8,14 @@ import { cents, euro, isPositiveCentAmount, k_centsPerEuro } from './money.js';
 import { k_transactionTypes, k_entityIdPrefixes } from './domainConstants.js';
 import { createEntityId } from './identifiers';
 import { isMonthKey, monthNumberOf, monthKeyOf, monthOf, yearOfMonth } from './calendar.js';
-import { loanPaymentInMonth, withLoanFormEdits, withoutLoanPaymentChange } from './loanPaymentHistory.js';
+import { loanPaymentInMonth, withLoanFormEdits, withNormalizedPayments, withoutLoanPaymentChange } from './loanPaymentHistory.js';
 
 const k_defaultLoanYears = 3;
 const k_loanFormMessages = {
   invalid: 'Enter a name, positive amounts and a valid month range (YYYY-MM).',
   invalidPayment: 'Enter the new monthly payment: zero or more.',
   invalidPaymentMonth: 'Choose the month the new payment applies from (YYYY-MM), up to the loan\'s last month.',
+  paymentBeforeStart: 'A new payment starts in the loan\'s start month or later.',
   invalidUntilMonth: 'Choose the last month of the temporary payment (YYYY-MM), from its first month and from the loan\'s start month on.',
   saved: 'Loan saved · revise the remaining Year Plan to include it',
   proceedsNote: 'Loan balance adjustment; excluded from income.',
@@ -38,6 +39,9 @@ function newPaymentProblem({ paymentText, paymentFrom, isTemporary, paymentUntil
   }
   if (!isMonthKey(paymentFrom) || paymentFrom > end) {
     return k_loanFormMessages.invalidPaymentMonth;
+  }
+  if (paymentFrom < start) {
+    return k_loanFormMessages.paymentBeforeStart;
   }
   const isValidUntil = isMonthKey(paymentUntil) && paymentUntil >= paymentFrom && paymentUntil >= start;
   if (isTemporary && !isValidUntil) {
@@ -68,12 +72,15 @@ export function LoanForm({ item, onClose }) {
   const [name, setName] = useState(item?.name || '');
   const [remaining, setRemaining] = useState(item ? amountText(item.remaining) : '');
   const [payment, setPayment] = useState('');
-  const [paymentChanges, setPaymentChanges] = useState(item?.paymentChanges ?? []);
-  const isHistoryEdited = paymentChanges !== (item?.paymentChanges ?? []);
-  const historyLoan = item ? { ...item, paymentChanges } : null;
+  // The form edits the history as listed, folded at the loan's start.
+  const [initialChanges] = useState(() => item ? withNormalizedPayments(item).paymentChanges : []);
+  const [paymentChanges, setPaymentChanges] = useState(initialChanges);
+  const isHistoryEdited = paymentChanges !== initialChanges;
   const [paymentChange, setPaymentChange] = useState(null);
   const [account, setAccount] = useState(item?.account || state.accounts[0]?.id || '');
   const [start, setStart] = useState(() => item?.start || currentMonth);
+  const shownStart = isMonthKey(start) ? start : item?.start;
+  const historyLoan = item ? { ...withNormalizedPayments(item), start: shownStart, paymentChanges } : null;
   const [end, setEnd] = useState(() => item?.end || defaultLoanEnd(currentMonth));
   const [credit, setCredit] = useState(false);
   const [error, setError] = useState('');

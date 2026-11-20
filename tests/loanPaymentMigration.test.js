@@ -249,3 +249,12 @@ test('a newer loan edit wins over the next year\'s plan that only carried an ear
 
   assert.deepEqual([migratedLoan.payment, migratedLoan.paymentChanges], [100000, [{ since: '2027-09', amount: 90000 }]]);
 });
+
+test('a plan holding two changes for the same loan and month migrates with the last one, as plans used it', () => {
+  const legacy = legacyLedger();
+  const plan = buildPlan(legacy, { year: 2026, fromMonth: 1, income: 200000, cushion: 0, today: '2026-01-02', loanChanges: [{ loanId: 'car', since: '2026-09', amount: 15000 }, { loanId: 'car', since: '2026-09', amount: 16000 }, { loanId: 'car', since: '2026-04', amount: 15000 }, { loanId: 'car', since: '2026-04', amount: 18500 }] });
+  const withPlan = approvePlanRevision(legacy, plan, { id: 'plan-2026', fromMonth: 1, today: '2026-01-02' });
+
+  assert.equal(plan.months['2026-09'].loan, 16000);
+  assert.deepEqual(migrateState(withPlan).loans[0].paymentChanges, [{ since: '2026-09', amount: 16000 }]);
+});

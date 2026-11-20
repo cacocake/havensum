@@ -227,3 +227,25 @@ test('a future payment equal to this month\'s amount can still be scheduled', ()
 
   assert.deepEqual(paymentsIn(backFromJuly, ['2026-11', '2027-01', '2027-07']), [120000, 105000, 120000]);
 });
+
+test('the newest temporary payment wins its whole window, and an older one keeps its months outside it (P21)', () => {
+  const mayToJuly = withLoanPaymentFrom(k_homeLoan, { since: '2027-05', until: '2027-07', amount: 10000 });
+
+  const pauseFebruaryToMay = withLoanPaymentFrom(mayToJuly, { since: '2027-02', until: '2027-05', amount: 0 });
+  const longOverShort = withLoanPaymentFrom(mayToJuly, { since: '2027-06', until: '2027-06', amount: 50000 });
+
+  assert.deepEqual(paymentsIn(pauseFebruaryToMay, ['2027-01', '2027-02', '2027-05', '2027-06', '2027-07', '2027-08']), [120000, 0, 0, 10000, 10000, 120000]);
+  assert.deepEqual(loanPaymentHistory(pauseFebruaryToMay), [{ since: '2026-01', amount: 120000 }, { since: '2027-02', until: '2027-05', amount: 0 }, { since: '2027-06', until: '2027-07', amount: 10000 }]);
+  assert.deepEqual(paymentsIn(longOverShort, ['2027-05', '2027-06', '2027-07']), [10000, 50000, 10000]);
+  assert.equal(isValidPaymentChanges(longOverShort), true);
+});
+
+test('moving the start rewrites only the temporary payments running at the new start', () => {
+  const temporaries = [{ since: '2027-01', until: '2027-12', amount: 50000 }, { since: '2027-02', until: '2027-03', amount: 70000 }, { since: '2027-06', until: '2027-07', amount: 0 }];
+  const before = { ...k_homeLoan, paymentChanges: temporaries };
+
+  const movedStart = withNormalizedPayments({ ...before, start: '2027-03' });
+
+  assert.deepEqual(paymentsIn(movedStart, ['2027-03', '2027-04', '2027-06', '2027-08', '2028-01']), [70000, 50000, 0, 50000, 120000]);
+  assert.deepEqual(movedStart.paymentChanges, [{ since: '2027-03', until: '2027-03', amount: 70000 }, { since: '2027-04', until: '2027-12', amount: 50000 }, { since: '2027-06', until: '2027-07', amount: 0 }]);
+});
