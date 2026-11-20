@@ -257,6 +257,17 @@ function draftPlannedCost({ name, month, amount, year, repeatsEveryYear }) {
   return { id: k_draftEventId, name, month, amount, ...timing };
 }
 
+const k_loanRevisionGoneMessage = 'This loan change no longer affects a plan you can revise, so nothing was saved. Close the interview to keep your plan.';
+
+// P22: only the changed loan's line of passed months is restated.
+function PassedMonthsNote({ passedFrom }) {
+  const colors = useContext(Theme);
+  if (!passedFrom) {
+    return null;
+  }
+  return <T style={{ fontSize: 12, color: colors.sub, marginBottom: 8 }}>{`Passed months from ${longMonthLabel(passedFrom)} get the new loan payment only; everything else in them stays as frozen.`}</T>;
+}
+
 // A revision offered after a loan payment change (LOAN-1b) drafts that year
 // from the offer's interview month; otherwise the selected month's year.
 function initialPlanStart(loanRevision, year, month) {
@@ -266,12 +277,21 @@ function initialPlanStart(loanRevision, year, month) {
   return planRevisionStart(year, month, localCalendarDate()).fromMonth ?? 1;
 }
 
-export function PlanForm({onClose,loanRevision=null}){
+export function PlanForm({onClose,loanRevision=null,previousLoan=null}){
  const dismissRef=useRef(null);
  const {state,setState,month,notify}=useApp(),c=useContext(Theme);
  const year=loanRevision?loanRevision.year:yearOfMonth(month);
  // Fixed when the draft opens; save rechecks the calendar before approval.
  const [from,setFrom]=useState(()=>initialPlanStart(loanRevision,year,month));
+ // The loan-revision offer as last checked against the calendar and the ledger.
+ const [loanOffer,setLoanOffer]=useState(loanRevision);
+ function currentLoanRevisionOffer(today) {
+   const changedLoan = state.loans.find(loan => loan.id === loanRevision.loanId);
+   if (!changedLoan || !previousLoan) {
+     return null;
+   }
+   return loanRevisionOffer(state, previousLoan, changedLoan, today);
+ }
  // Assumptions carried from the latest earlier plan, read once when the draft opens.
  const [carried]=useState(()=>carriedPlanAssumptions(state,{year,fromMonth:from}));
  const [step,setStep]=useState(0),[income,setIncome]=useState(String((carried.income??k_defaultPlanIncome)/k_centsPerEuro)),[cushion,setCushion]=useState(()=>String(initialPlanCushion(state,carried,{year,fromMonth:from})/k_centsPerEuro)),[window,setWindow]=useState(String(carried.window??k_defaultHistoryWindow)),[eventName,setEventName]=useState(''),[eventAmount,setEventAmount]=useState(''),[eventMonth,setEventMonth]=useState('12'),[overrides,setOverrides]=useState(()=>Object.fromEntries(carried.overrides.filter(override=>override.keep).map(override=>[override.lineId,String(override.amount/k_centsPerEuro)]))),[error,setError]=useState('');
@@ -336,17 +356,22 @@ export function PlanForm({onClose,loanRevision=null}){
      setError(`${year} ${k_planYearReadOnlyMessage}`);
      return;
    }
-   const loanOffer = loanRevision ? loanRevisionOffer(state, loanRevision.reviseFrom, today) : null;
-   const expectedFrom = loanRevision ? loanOffer?.interviewFromMonth : start.fromMonth;
-   if (expectedFrom !== from || (loanRevision && loanOffer.passedFrom !== loanRevision.passedFrom)) {
-     setFrom(expectedFrom ?? from);
+   const currentOffer = loanRevision ? currentLoanRevisionOffer(today) : null;
+   if (loanRevision && !currentOffer) {
+     setError(k_loanRevisionGoneMessage);
+     return;
+   }
+   const expectedFrom = currentOffer ? currentOffer.interviewFromMonth : start.fromMonth;
+   if (expectedFrom !== from || currentOffer?.passedFrom !== loanOffer?.passedFrom) {
+     setFrom(expectedFrom);
+     setLoanOffer(currentOffer);
      setError(k_planStartMovedMessage);
      return;
    }
    const frozenRevision = { ...preview, tolerance: cents(tolerance), drift: Number(drift) / k_percentageScale };
    // P22: passed months from the loan change get only their loan line restated.
-   const approvedRevision = loanOffer ? revisionWithRestatedLoanLines(frozenRevision, state, loanOffer) : frozenRevision;
-   const firstRevisedMonth = loanOffer?.passedFrom ? monthNumberOf(loanOffer.passedFrom) : from;
+   const approvedRevision = currentOffer ? revisionWithRestatedLoanLines(frozenRevision, state, currentOffer, previousLoan) : frozenRevision;
+   const firstRevisedMonth = currentOffer?.passedFrom ? monthNumberOf(currentOffer.passedFrom) : from;
    const events = plannedEvents.map(event => event.id === k_draftEventId
      ? { ...event, id: createEntityId(k_entityIdPrefixes.event) }
      : event);
@@ -380,7 +405,7 @@ export function PlanForm({onClose,loanRevision=null}){
  {eventName.trim()&&<NewPlannedCostSuggestion state={state} evaluationDate={evaluationDate} candidate={suggestionCandidate} likeValue={eventLike} onLikeChange={setEventLike} onUseAmount={setEventAmount}/>}
  {candidateEvent&&<Button small kind="soft" icon="Plus" onPress={addPlannedEvent}>Add another event</Button>}
  <DraftPlannedCosts state={state} evaluationDate={evaluationDate} events={[...plannedEvents.filter(event=>event.id!==k_draftEventId)]} year={year} fromMonth={from} onAccept={acceptYearAmount} onRevert={keepUsualAmount}/><Divider/><H size={18} style={{marginBottom:10}}>Loans and changes already accounted for</H><CarriedChanges loans={state.loans} startMonth={`${year}-${String(from).padStart(2,'0')}`} incomeChanges={carriedIncomeChanges} loanChanges={carriedLoanChanges} onRemoveIncomeChange={change=>setCarriedIncomeChanges(changes=>changes.filter(candidate=>candidate!==change))}/></>}
- {step===2&&<><H size={18} style={{marginBottom:15}}>Fine-tune the monthly amounts</H><PlanDraftEvidence evidence={preview.evidence} suggestedCushion={preview.suggestedCushion}/>{preview.months[`${year}-${String(from).padStart(2,'0')}`]?.lines.filter(l=>!['salary','interest','loan'].includes(l.category)).map(l=><Row key={l.id||l.category} style={{gap:14,marginBottom:6}}><View style={{flex:1}}><T style={{fontSize:12}}>{l.name}</T><T style={{fontSize:10,color:c.muted}}>{l.kind} · calculated {euro(l.amount)}</T>{l.kind===k_spendingBehaviors.fixed&&<PlanBillList bills={draftBills.filter(bill=>bill.category===l.category)} month={`${year}-${String(from).padStart(2,'0')}`}/>}<EarlierOverride override={carried.overrides.find(override=>override.lineId===(l.id||l.category)&&!override.stale)} value={overrides[l.id||l.category]} onKeep={amount=>setOverrides(o=>({...o,[l.id||l.category]:String(amount/k_centsPerEuro)}))} onDrop={()=>setOverrides(o=>({...o,[l.id||l.category]:''}))}/></View><Field value={overrides[l.id||l.category]??''} onChangeText={v=>setOverrides(o=>({...o,[l.id||l.category]:v}))} placeholder={(l.amount/k_centsPerEuro).toFixed(2)} label={`Override ${l.name}`} style={{width:150,marginBottom:6}}/></Row>)}<CarriedAssumptionNotes carried={carried} loans={state.loans} lineIds={(preview.months[`${year}-${String(from).padStart(2,'0')}`]?.lines||[]).map(line=>line.id||line.category)}/><PlanDraftPreview plan={preview} state={{...state,events:plannedEvents}} year={year} fromMonth={from}/><Divider/><Row style={{justifyContent:'space-between',marginBottom:15}}><T style={{fontSize:12}}>First revised month's balance</T><H size={24}>{euro(preview.months[`${year}-${String(from).padStart(2,'0')}`]?.balance||0)}</H></Row>{loanRevision?.passedFrom&&<T style={{fontSize:12,color:c.sub,marginBottom:8}}>{`Passed months from ${longMonthLabel(loanRevision.passedFrom)} get the new loan payments only; everything else in them stays as frozen.`}</T>}<T style={{fontSize:12,color:c.sub}}>Overrides take priority and are marked in the plan. {loanRevision?.passedFrom?'Other':'Past'} months stay untouched. New transactions never silently rewrite this snapshot.</T></>}
+ {step===2&&<><H size={18} style={{marginBottom:15}}>Fine-tune the monthly amounts</H><PlanDraftEvidence evidence={preview.evidence} suggestedCushion={preview.suggestedCushion}/>{preview.months[`${year}-${String(from).padStart(2,'0')}`]?.lines.filter(l=>!['salary','interest','loan'].includes(l.category)).map(l=><Row key={l.id||l.category} style={{gap:14,marginBottom:6}}><View style={{flex:1}}><T style={{fontSize:12}}>{l.name}</T><T style={{fontSize:10,color:c.muted}}>{l.kind} · calculated {euro(l.amount)}</T>{l.kind===k_spendingBehaviors.fixed&&<PlanBillList bills={draftBills.filter(bill=>bill.category===l.category)} month={`${year}-${String(from).padStart(2,'0')}`}/>}<EarlierOverride override={carried.overrides.find(override=>override.lineId===(l.id||l.category)&&!override.stale)} value={overrides[l.id||l.category]} onKeep={amount=>setOverrides(o=>({...o,[l.id||l.category]:String(amount/k_centsPerEuro)}))} onDrop={()=>setOverrides(o=>({...o,[l.id||l.category]:''}))}/></View><Field value={overrides[l.id||l.category]??''} onChangeText={v=>setOverrides(o=>({...o,[l.id||l.category]:v}))} placeholder={(l.amount/k_centsPerEuro).toFixed(2)} label={`Override ${l.name}`} style={{width:150,marginBottom:6}}/></Row>)}<CarriedAssumptionNotes carried={carried} loans={state.loans} lineIds={(preview.months[`${year}-${String(from).padStart(2,'0')}`]?.lines||[]).map(line=>line.id||line.category)}/><PlanDraftPreview plan={preview} state={{...state,events:plannedEvents}} year={year} fromMonth={from}/><Divider/><Row style={{justifyContent:'space-between',marginBottom:15}}><T style={{fontSize:12}}>First revised month's balance</T><H size={24}>{euro(preview.months[`${year}-${String(from).padStart(2,'0')}`]?.balance||0)}</H></Row><PassedMonthsNote passedFrom={loanOffer?.passedFrom}/><T style={{fontSize:12,color:c.sub}}>Overrides take priority and are marked in the plan. {loanOffer?.passedFrom?'Other':'Past'} months stay untouched. New transactions never silently rewrite this snapshot.</T></>}
  {error&&<T style={{color:c.negative,marginTop:15}}>{error}</T>}<Row style={{justifyContent:'space-between',marginTop:25}}><Button kind="soft" onPress={()=>step?setStep(step-1):dismissRef.current?.()}>{step?'Back':'Cancel'}</Button><Button icon={step===2?'LockKeyhole':'ArrowRight'} onPress={()=>step<2?setStep(step+1):save()}>{step===2?'Freeze my plan':'Continue'}</Button></Row>
  </Dialog>;
 }

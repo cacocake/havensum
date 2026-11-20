@@ -3,7 +3,7 @@ import { useApp } from './context.js';
 import { View } from 'react-native';
 import { Theme, T, Row, Button, Field, Select, Toggle, Dialog } from './ui.jsx';
 import { EditablePaymentHistory } from './LoanPaymentHistory.jsx';
-import { firstChangedPaymentMonth, loanRevisionOffer } from './loanPlanRevision.js';
+import { loanRevisionOffer } from './loanPlanRevision.js';
 import { useDirtyForm } from './useDirtyForm.js';
 import { cents, euro, isPositiveCentAmount, k_centsPerEuro } from './money.js';
 import { k_transactionTypes, k_entityIdPrefixes } from './domainConstants.js';
@@ -135,7 +135,7 @@ export function LoanForm({ item, onClose }) {
     });
     if (revisionOffer) {
       notify(k_loanFormMessages.savedPaymentChange);
-      setModal({ type: 'loanPlanPrompt', offer: revisionOffer, loanName: name });
+      setModal({ type: 'loanPlanPrompt', ...revisionOffer, loanName: name });
       return;
     }
     notify(k_loanFormMessages.saved);
@@ -147,12 +147,9 @@ export function LoanForm({ item, onClose }) {
   function planRevisionOfferAfter(formEdits) {
     const savedLoan = state.loans.find(loan => loan.id === item.id) ?? item;
     const editedLoan = withLoanFormEdits(savedLoan, formEdits);
-    const changedMonth = firstChangedPaymentMonth(savedLoan, editedLoan);
-    if (!changedMonth) {
-      return null;
-    }
     const editedState = { ...state, loans: state.loans.map(loan => loan.id === item.id ? editedLoan : loan) };
-    return loanRevisionOffer(editedState, changedMonth, today);
+    const offer = loanRevisionOffer(editedState, savedLoan, editedLoan, today);
+    return offer ? { offer, previousLoan: savedLoan } : null;
   }
 
   const isDirty = useDirtyForm([name, remaining, payment, paymentChange, paymentChanges, account, start, end, credit]);

@@ -62,7 +62,7 @@ test('Revise from a passed month freezes a revision that restates only the passe
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(dialog.getByText('Car loan · €160.00/month from November', { exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
-  await expect(dialog.getByText('Passed months from March 2026 get the new loan payments only; everything else in them stays as frozen.', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Passed months from March 2026 get the new loan payment only; everything else in them stays as frozen.', { exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'Freeze my plan', exact: true }).click();
   await expect(dialog).toHaveCount(0);
 
@@ -104,4 +104,29 @@ test('the revision prompt fits a narrow screen with a long loan name', async ({ 
 
   await expect(dialog.getByRole('button', { name: 'Revise from November 2026', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('when the month rolls over while revising, the passed month is restated after one refresh, and the save then succeeds', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-30T12:00:00') });
+  const ledger = ledgerWithPlan();
+  await page.addInitScript(({ key, seededLedger }) => {
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, JSON.stringify(seededLedger));
+    }
+  }, { key: k_ledgerKey, seededLedger: ledger });
+  await page.goto('/');
+  await openMoreSection(page, 'Loans');
+  const dialog = await changeCarPayment(page, '160', '2026-11');
+  await dialog.getByRole('button', { name: 'Revise from November 2026', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.clock.setSystemTime(new Date('2026-12-01T09:00:00'));
+
+  await dialog.getByRole('button', { name: 'Freeze my plan', exact: true }).click();
+  await expect(dialog.getByText('Passed months from November 2026 get the new loan payment only; everything else in them stays as frozen.', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Freeze my plan', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+
+  const latest = (await savedLedger(page)).plans['2026'].at(-1);
+  expect([latest.loanRestatedFrom, latest.months['2026-11'].loan, latest.months['2026-12'].loan]).toEqual(['2026-11', 16000, 16000]);
 });
