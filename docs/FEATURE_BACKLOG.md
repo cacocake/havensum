@@ -49,7 +49,7 @@ Use integer EUR cents. Cash follows its transaction date, including for early pa
 
 ### PLAN-3 follow-up · "Repeats every year" for new planned costs, from the plan's year onwards
 
-**Depends on:** PLAN-3, FORECAST-2 follow-ups (F16 year amounts and moves). **Status:** Done, reviewed and merged into `develop` from `codex/recurring-planned-cost-from-year` (implementation `aaab9a3`, `fb65dad`; review fixes `a1a1582`, `1df059b`); see the PLAN-3 follow-up handoff at the end. Follow-up b (P05, draft loan payment from a newer loan edit) is also done and merged.
+**Depends on:** PLAN-3, FORECAST-2 follow-ups (F16 year amounts and moves). **Status:** Done, reviewed and merged into `develop` from `codex/recurring-planned-cost-from-year` (implementation `aaab9a3`, `fb65dad`; review fixes `a1a1582`, `1df059b`); see the PLAN-3 follow-up handoff at the end. Follow-up b (P05, draft loan payment from a newer loan edit) is also done and merged. Follow-up c (P07, note a loan change replaced by a newer loan payment) is also done and merged.
 
 **Owner answers (19 November 2026, in chat; P04–P06 in DECISIONS.md):**
 1. **Repeat start (P04):** a new planned cost marked as repeating every year in the Year Plan interview counts from the year of the plan being drafted onwards. Earlier years, their forecasts/Expected savings and frozen plans are untouched. Stored as an optional `fromYear` on the recurring planned cost; recurring planned costs without it keep applying to every year.
@@ -64,7 +64,7 @@ Cover: a repeating cost added to next year's draft does not appear in this year 
 
 #### PLAN-3 follow-up c · Note a loan change replaced by a newer loan payment (P07)
 
-**Status:** Queued, not started. **Depends on:** PLAN-3 follow-up b (merged). **Owner decision (20 November 2026, P07):** when a newer payment entered on the loan replaces the source plan's loan change at the draft start (P05), the interview shows it as not applied, like changes for ended loans. Example wording: "Not applied: Car loan change to €150.00 from 2026-10, the loan's payment was edited since." Return the replaced changes from `carriedPlanAssumptions` beside `staleLoanChanges`, without applying them. Cover: the note in the interview; no note for legacy loans or for edits before approval; later changes still carry; the saved plan unchanged by the note; narrow layouts with long loan names; a target-only edit leaving Expected savings unchanged.
+**Status:** Done, reviewed and merged into `develop` from `codex/replaced-loan-change-note` (implementation `77f5196`); see the PLAN-3 follow-up c handoff at the end. **Depends on:** PLAN-3 follow-up b (merged). **Owner decision (20 November 2026, P07):** when a newer payment entered on the loan replaces the source plan's loan change at the draft start (P05), the interview shows it as not applied, like changes for ended loans. Example wording: "Not applied: Car loan change to €150.00 from 2026-10, the loan's payment was edited since." Return the replaced changes from `carriedPlanAssumptions` beside `staleLoanChanges`, without applying them. Cover: the note in the interview; no note for legacy loans or for edits before approval; later changes still carry; the saved plan unchanged by the note; narrow layouts with long loan names; a target-only edit leaving Expected savings unchanged.
 
 ### PLAN-4 · Offer the interview and verify rollover
 
