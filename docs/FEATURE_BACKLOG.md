@@ -49,7 +49,7 @@ Use integer EUR cents. Cash follows its transaction date, including for early pa
 
 ### PLAN-3 follow-up · "Repeats every year" for new planned costs, from the plan's year onwards
 
-**Depends on:** PLAN-3, FORECAST-2 follow-ups (F16 year amounts and moves). **Status:** Done, reviewed and merged into `develop` from `codex/recurring-planned-cost-from-year` (implementation `aaab9a3`, `fb65dad`; review fixes `a1a1582`, `1df059b`); see the PLAN-3 follow-up handoff at the end.
+**Depends on:** PLAN-3, FORECAST-2 follow-ups (F16 year amounts and moves). **Status:** Done, reviewed and merged into `develop` from `codex/recurring-planned-cost-from-year` (implementation `aaab9a3`, `fb65dad`; review fixes `a1a1582`, `1df059b`); see the PLAN-3 follow-up handoff at the end. Follow-up b (P05, draft loan payment from a newer loan edit) is also done and merged.
 
 **Owner answers (19 November 2026, in chat; P04–P06 in DECISIONS.md):**
 1. **Repeat start (P04):** a new planned cost marked as repeating every year in the Year Plan interview counts from the year of the plan being drafted onwards. Earlier years, their forecasts/Expected savings and frozen plans are untouched. Stored as an optional `fromYear` on the recurring planned cost; recurring planned costs without it keep applying to every year.
@@ -60,7 +60,7 @@ Cover: a repeating cost added to next year's draft does not appear in this year 
 
 #### PLAN-3 follow-up b · Draft loan payment from a newer loan edit (P05)
 
-**Status:** Queued, not started. **Depends on:** PLAN-3 follow-up. Record when a loan's monthly payment is edited (new optional field, validated, kept by restore, merged three-way), and when a carried loan change in effect at the draft start predates a later edit of the loan's payment, start the draft from the loan's payment instead. Cover legacy loans without the field (keep today's carried change), a later plan change after the edit, merge conflicts, and the step-2 placeholder.
+**Status:** Done, reviewed and merged into `develop` from `codex/loan-payment-edit-date` (implementation `3a5b76d`, docs `aa7e069`, review fix `8cf22f1`); see the PLAN-3 follow-up b handoff at the end. **Depends on:** PLAN-3 follow-up. Record when a loan's monthly payment is edited (new optional field, validated, kept by restore, merged three-way), and when a carried loan change in effect at the draft start predates a later edit of the loan's payment, start the draft from the loan's payment instead. Cover legacy loans without the field (keep today's carried change), a later plan change after the edit, merge conflicts, and the step-2 placeholder.
 
 ### PLAN-4 · Offer the interview and verify rollover
 
@@ -680,4 +680,39 @@ The implementation note below records how these were built; it stores only per-y
 - **Deferred nits:** readable merge-conflict wording for `fromYear` (shown raw, like `monthFromYear`); splitting the dense step-2 JSX in `PlanForm` into its own component; a native render test for the `Toggle` hint.
 - **Owner question (non-blocking; current behaviour is the safe default):** in a same-year revision (for example in November), the month list only offers the months still being revised. A repeating cost whose month has already passed (say every March) therefore cannot be added from that interview. Should such a cost (a) start next year automatically, (b) stay as it is: add it from next year's interview, or (c) other?
 - **Not done:** PLAN-3 follow-up b (P05) is queued, not started.
+
+## Session handoff — PLAN-3 follow-up b · Draft loan payment from a newer loan edit (20 November 2026, Claude cloud session)
+
+- **Decisions made within the ticket (not owner questions):**
+  - Only a save of the loan form that changes the monthly payment counts as a payment edit. A rename, other loan details, a new loan, imports, demo data and Outlook settings' expected payments do not stamp it.
+  - The edit time is an exact UTC instant (`new Date().toISOString()`), like the plan's `createdAt` and payback task times. L02 governs calendar dates ("today"), not instants. An instant also orders an edit and an approval made on the same day.
+- **Storage:** optional `paymentEditedAt` on loans (schema v4, no migration). It is validated as an exact UTC instant (`src/loanPaymentEdits.js`, `src/stateSchema.js`), kept by full restore, and merged three-way as one field. A payment edit on both devices gives `payment` and `paymentEditedAt` conflicts for the owner. Documented in docs/STATE_MIGRATIONS.md, with clock-skew and older-version limits.
+- **Behaviour (`src/planCarryForward.js`):**
+  - When the loan's `paymentEditedAt` is later than the source plan's `createdAt`, the carried change in effect at the draft start is not restated. The draft, step-2 placeholder ("160 · unchanged") and carried list then show the loan's own payment.
+  - Changes after the draft start still carry in their months.
+  - Legacy loans keep the carried change, and so do plans whose `createdAt` is missing or not an exact UTC instant.
+  - The loan form stamps the field through `editedLoan`.
+- **Tests:**
+  - tests/loanPaymentEdit.test.js (12 unit tests) covers:
+    - an edit after approval winning, with a later change still carrying;
+    - legacy loans;
+    - an edit before approval;
+    - plans without an approval time, or with a loose one;
+    - a newer revision after the edit;
+    - a same-year revision keeping earlier months and snapshots;
+    - validation, what counts as a payment edit, restore and merge;
+    - a target-only edit leaving Expected savings unchanged.
+  - tests/browser/loanPaymentEdit.spec.js runs on all three viewports. It edits the payment in the loan form, then checks step 2's list and placeholder, the frozen 2027 plan and the unchanged 2026 snapshot. A rename keeps the carried change. The first browser test was seen failing without the fix.
+- **Checks:**
+  - On `3a5b76d`: `npm run test:coverage` 630/630; `npm run test:browser` 489/489.
+  - On `8cf22f1`: `npm run test:coverage` 631/631 (97.30% lines, 95.05% branches). The affected browser specs (loanPaymentEdit, planCarryForward) passed 21/21. `npm run build`, and `npm run check:android` (Hermes compilation only; no device test).
+- **Review:** a separate read-only Claude review found nothing blocking.
+  - Should-fix 1 is fixed test-first in `8cf22f1`: a non-ISO plan `createdAt` could parse differently on Hermes and V8, so only exact UTC instants are compared now.
+  - Nits fixed in the same commit: a duplicate loan lookup, an unreachable guard and the documented limits.
+  - A re-review of `8cf22f1` found nothing blocking. Its test-naming nit (a `_` prefix on an unused local) is fixed in the board commit. Not changed: seconds-only timestamps (without milliseconds) count as having no time, which is the safe, documented fallback; the app always writes milliseconds.
+- **Deferred nits:**
+  - Readable merge-conflict wording for `paymentEditedAt`, which is shown raw like `fromYear`.
+  - Importing the storage key in browser specs, which other specs also hard-code.
+- **Owner question (non-blocking; current behaviour follows P05 as specified):** when a newer loan edit replaces the plan's change, that change disappears from the interview without a note, unlike changes for ended loans ("Not applied: …"). Should step 3 say so? Options: (a) add a note such as "Not applied: Car loan change to €150.00 from 2026-10, the loan's payment was edited since" (recommended), (b) leave it silent as now.
+- **Open edge, not asked:** a plan change scheduled between the edit and the draft start (for example a December drop approved in March, with the payment edited in September) also yields to the edit, because the rule compares approval times as specified.
 

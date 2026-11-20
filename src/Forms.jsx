@@ -20,6 +20,7 @@ import { isPlannedCostLink, plannedCostOptions } from './plannedCosts.js';
 import { approvePlanRevision, k_planRevisionStartKinds, planRevisionStart } from './planArchive.js';
 import { currentLocalMonth, localCalendarDate, monthNumberOf, monthKeyOf, yearOfMonth } from './calendar.js';
 import { planDraftEstimates } from './planDraftEstimates.js';
+import { editedLoan } from './loanPaymentEdits.js';
 import PlanDraftEvidence, { PlanBillList } from './PlanDraftEvidence.jsx';
 import { DraftPlannedCosts, NewPlannedCostSuggestion } from './PlannedCostSuggestion.jsx';
 
@@ -247,9 +248,10 @@ export function LoanForm({item,onClose}){
 
    const loanId = item?.id || createEntityId(k_entityIdPrefixes.loan);
    const loanFields = { name, remaining: remainingInCents, payment: paymentInCents, start, end, account };
+   const savedAt = new Date().toISOString();
    setState(currentState => {
      const loans = item
-       ? currentState.loans.map(loan => loan.id === loanId ? { ...loan, ...loanFields } : loan)
+       ? currentState.loans.map(loan => loan.id === loanId ? editedLoan(loan, loanFields, savedAt) : loan)
        : [...currentState.loans, { id: loanId, original: remainingInCents, ...loanFields }];
      const transactions = [...currentState.transactions];
      if (credit) {
