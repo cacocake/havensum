@@ -58,12 +58,11 @@ test('a loan payment edited before the plan was approved does not override the p
 
 test('a source plan without an approval time keeps the carried change', () => {
   const approved = ledgerWithApprovedPlan();
-  const { createdAt, ...untimedPlan } = approved.plans[2026][0];
+  const { createdAt: _approvalTime, ...untimedPlan } = approved.plans[2026][0];
   const state = withLoanPayment({ ...approved, plans: { 2026: [untimedPlan] } }, 16000, k_editedAfterApproval);
 
   const carried = carriedPlanAssumptions(state, { year: 2027, fromMonth: 1 });
 
-  assert.equal(createdAt, k_planApprovedAt);
   assert.equal(carried.loanChanges[0].amount, 15000);
 });
 
@@ -149,4 +148,16 @@ test('after a loan payment edit, a target-only edit to the next draft leaves Exp
   assert.equal(suggestedPlan.plans[2027][0].months['2027-03'].loan, 16000);
   assert.deepEqual(march(editedTargetPlan), march(suggestedPlan));
   assert.deepEqual(march(editedTargetPlan), march(state));
+});
+
+test('a source plan whose approval time is not an exact UTC instant keeps the carried change on every platform', () => {
+  const approved = ledgerWithApprovedPlan();
+  for (const looseApprovalTime of ['2026-03-01 10:00', '1 March 2026', '2026-03-01']) {
+    const plans = { 2026: [{ ...approved.plans[2026][0], createdAt: looseApprovalTime }] };
+    const state = withLoanPayment({ ...approved, plans }, 16000, k_editedAfterApproval);
+
+    const carried = carriedPlanAssumptions(state, { year: 2027, fromMonth: 1 });
+
+    assert.equal(carried.loanChanges[0].amount, 15000, looseApprovalTime);
+  }
 });

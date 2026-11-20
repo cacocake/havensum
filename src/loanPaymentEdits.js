@@ -10,7 +10,7 @@ export function isValidPaymentEditedAt(loan) {
 // changes; renaming a loan or changing its other details is not a payment edit.
 export function editedLoan(loan, loanFields, savedAt) {
   const editedFields = { ...loan, ...loanFields };
-  if (loanFields.payment === undefined || loanFields.payment === loan.payment) {
+  if (loanFields.payment === loan.payment) {
     return editedFields;
   }
   return { ...editedFields, paymentEditedAt: savedAt };
