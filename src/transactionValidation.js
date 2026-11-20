@@ -8,6 +8,7 @@ const k_supportedTransactionTypes = new Set(Object.values(k_transactionTypes));
 const k_isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 const k_errors = {
   type: 'Choose a valid transaction type.',
+  loanAdvance: 'An advance payment must be a loan expense marked as an advance.',
   title: 'Add a title.',
   amount: 'Enter an amount greater than zero with at most two decimals.',
   category: 'Choose a valid category.',
@@ -55,6 +56,13 @@ export function validateTransaction(state, transaction) {
   }
   if (!state.accounts.some(account => account.id === transaction.account)) {
     throw Error(k_errors.account);
+  }
+  // LOAN-1c (P14): an advance is a loan expense, marked `loanAdvance: true`.
+  if (transaction.loanAdvance !== undefined) {
+    const isLoanExpense = transaction.type === k_transactionTypes.expense && transaction.loanId != null;
+    if (transaction.loanAdvance !== true || !isLoanExpense) {
+      throw Error(k_errors.loanAdvance);
+    }
   }
   if (transaction.plannedCost !== undefined) {
     const category = categorySettings(state.categories, transaction.category);

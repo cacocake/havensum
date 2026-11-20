@@ -68,7 +68,7 @@ Cover: a repeating cost added to next year's draft does not appear in this year 
 
 ### LOAN-1 · Loan payment history and an owner-chosen plan revision (P09)
 
-**Status:** Split by the owner into three slices (P11, 20 November 2026). **LOAN-1a** (payment history with until months) is implemented on `codex/loan-payment-history`; see its handoff at the end. **LOAN-1b** and **LOAN-1c** follow in the same session at the owner's request (P18). **Depends on:** PLAN-3 follow-up b (merged).
+**Status:** Split by the owner into three slices (P11, 20 November 2026). **Done:** LOAN-1a, LOAN-1b and LOAN-1c are reviewed and merged into `develop` (owner request P18: all three in one session); see the three handoffs at the end. **Depends on:** PLAN-3 follow-up b (merged).
 
 **Owner answers (20 November 2026, recorded as P11–P16 in DECISIONS.md):**
 
@@ -83,7 +83,7 @@ Cover: a repeating cost added to next year's draft does not appear in this year 
 
 **LOAN-1b · Keep my plan / Revise from <month>.** Done, reviewed and merged into `develop` from `codex/loan-plan-revision` (see its handoff). After a monthly-payment change on the loan (not a balance-only change, P15), when the year it changes in (this year at the earliest) has a plan, a prompt offers **Keep my plan** (nothing changes; every snapshot byte-identical) or **Revise from <month>**, which opens the interview for that year with the payment history prefilled. A change in a passed month of this year starts the interview this month and restates only the changed loan's part of the loan line and its totals in the passed months from the change month (P22, P23), marking the revision (`loanRestatedFrom`) and Year Plan; earlier revisions are kept; past years stay read-only. AGENTS.md names the exception (P16).
 
-**LOAN-1c · One-off extra and advance payments (queued).** A one-off extra payment is only a recorded payment (overspend in its month; history and plan unchanged). **Record advance payment** on the loan card (P14) records the payment marked as an advance and lowers the remaining balance, then asks for a new monthly payment and its month via the LOAN-1a history (never calculated), then LOAN-1b's prompt.
+**LOAN-1c · One-off extra and advance payments.** Done, reviewed and merged into `develop` from `codex/loan-advance-payments` (see its handoff). **Record advance payment** on the loan card (P14) records a loan expense marked `loanAdvance`, lowers the recorded remaining balance in the same save (never below zero), then asks **Did the monthly payment change?**: **No, it stays €X** closes; **Yes, enter the new payment** opens the loan form ready for the new amount and month (never calculated), whose save can offer LOAN-1b's prompt. A one-off extra payment stays an ordinary **Record payment** entry: the history and plans are unchanged, no prompt, and its month shows the larger amount.
 
 **Owner decision (20 November 2026, P09 in DECISIONS.md):**
 
@@ -790,4 +790,14 @@ The implementation note below records how these were built; it stores only per-y
 - **Checks:** `npm run test:coverage` 689/689 (97.49% lines, 95.30% branches); `npm run test:browser` 552/552; `npm run build` passes; `npm run check:android` exports (Hermes compilation only).
 - **Known nits (review, not fixed):** a negative loan payment (only possible in a hand-edited backup; the schema predates this ticket) would make a new plan fail the loan-share check with a technical message; the loan-history browser helper answers the plan prompt whenever it appears.
 - **Tests:** tests/loanPlanRevision.test.js (offers incl. past-year-only and first planned year, restatement with and without loan shares, P25, the mark's first month, validation of the mark and shares, the save recheck, target-only Expected savings regression); tests/browser/loanPlanRevision.spec.js (Keep my plan byte-identical, revise from a passed month, no prompt for a balance-only edit or a year without a plan, narrow layout, Year Plan mark). The Year Plan mark's browser check was added after its code.
+
+## Session handoff — LOAN-1c · Advance and one-off extra payments (20 November 2026, Claude cloud session)
+
+- **Branch:** `codex/loan-advance-payments` from `develop` (`37d599d`, LOAN-1a and LOAN-1b pushed). New `src/loanAdvancePayments.js` and `src/AdvancePaymentForm.jsx`; a **Record advance payment** button on the loan card (src/LoansScreen.jsx); the loan form can open ready for a new payment; transactions may hold `loanAdvance: true` (validated; dropped when edited into something else).
+- **Owner decisions:** P09, P14 (loan card action), P15 (a balance-only change offers no plan revision; the advance's own balance change asks about the payment instead), P26 (an existing loan may have €0 remaining).
+- **Review:** a separate read-only review found an advance saved without transaction validation (an empty date could stop all saving), a paid-off loan the form could not save, a re-imported advance row rejected, and amount parsing unlike the transaction form; all fixed test-first (P26 asked of the owner). The amount check is now shared (`isEnteredAmount` in src/money.js).
+- **Tests:** tests/loanAdvancePayments.test.js (advance save, floor at zero, invalid amounts and loans, mark validation, one-off extra payment leaving history and plans unchanged); tests/browser/loanAdvancePayments.spec.js (advance and No, advance then a new payment and the LOAN-1b prompt, empty advance refused, one-off extra payment with no prompt, narrow layout, editing an advance).
+- **Re-review:** no blocker; a cleared remaining balance saving as €0 was fixed test-first (the balance must be typed, P26).
+- **Checks:** `npm run test:coverage` 697/697 (97.51% lines, 95.30% branches); `npm run test:browser` 576/576 (full run before the last balance fix; the loan, plan-revision and transaction specs 159/159 after it); `npm run build` passes; `npm run check:android` exports (Hermes compilation only).
+- **Known limitations:** deleting or editing an advance later does not restore the remaining balance; CSV and the workbook do not export the advance mark; a re-imported advance moved to another loan keeps its mark while neither balance is adjusted.
 

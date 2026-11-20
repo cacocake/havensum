@@ -20,6 +20,7 @@ import {AccountDetail,TransactionDetail} from './Details.jsx';
 import {TransactionForm,CategoryForm,PlanForm} from './Forms.jsx';
 import { LoanForm } from './LoanForm.jsx';
 import { LoanPlanPrompt } from './LoanPlanPrompt.jsx';
+import { AdvancePaymentForm } from './AdvancePaymentForm.jsx';
 import { loanPaymentInMonth } from './loanPaymentHistory.js';
 import { AccountForm } from './AccountForm.jsx';
 import InterestCorrection from './InterestCorrection.jsx';
@@ -155,7 +156,7 @@ export default function App(){
 
  </View>
  {modal?.type==='transaction'&&<TransactionForm key={modal.item?.id||modal.initialType||'new'} item={modal.item} initialType={modal.initialType} draft={modal.loan?{title:modal.loan.name,amount:loanPaymentInMonth(modal.loan,monthOf(today)),account:modal.loan.account,category:'loan',loanId:modal.loan.id}:modal.draft} onClose={()=>setModal(null)}/>}
- {modal?.type==='category'&&<CategoryForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='account'&&<AccountForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='loan'&&<LoanForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='plan'&&<PlanForm loanRevision={modal.loanRevision} previousLoan={modal.previousLoan} onClose={()=>setModal(null)}/>}{modal?.type==='loanPlanPrompt'&&<LoanPlanPrompt offer={modal.offer} previousLoan={modal.previousLoan} loanName={modal.loanName} onClose={()=>setModal(null)}/>}
+ {modal?.type==='category'&&<CategoryForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='account'&&<AccountForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='loan'&&<LoanForm item={modal.item} startWithPaymentChange={modal.startWithPaymentChange} onClose={()=>setModal(null)}/>}{modal?.type==='loanAdvance'&&<AdvancePaymentForm loan={modal.loan} onClose={()=>setModal(null)}/>}{modal?.type==='plan'&&<PlanForm loanRevision={modal.loanRevision} previousLoan={modal.previousLoan} onClose={()=>setModal(null)}/>}{modal?.type==='loanPlanPrompt'&&<LoanPlanPrompt offer={modal.offer} previousLoan={modal.previousLoan} loanName={modal.loanName} onClose={()=>setModal(null)}/>}
  {modal?.type==='transaction-detail'&&<TransactionDetail transactionId={modal.id} onClose={()=>setModal(null)}/>}
  {modal?.type==='interest-correction'&&<InterestCorrection accountId={modal.accountId} onClose={()=>setModal(null)}/>}
  {categoryReviewOpen && (

@@ -40,3 +40,10 @@ export function cents(amountInEuros) {
 export function isPositiveCentAmount(amountInCents) {
   return Number.isSafeInteger(amountInCents) && amountInCents > 0;
 }
+
+// Amounts typed into forms: digits with at most two decimals, a point or comma.
+const k_enteredAmountPattern = /^\d+([.,]\d{1,2})?$/;
+
+export function isEnteredAmount(text) {
+  return k_enteredAmountPattern.test(String(text));
+}

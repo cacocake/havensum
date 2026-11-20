@@ -13,7 +13,7 @@ import { k_defaultFixedTolerance, k_defaultPlanCushion, k_defaultPlanIncome, k_d
 import { carriedPlanAssumptions } from './planCarryForward.js';
 import PlanDraftPreview, { CarriedAssumptionNotes, CarriedChanges, EarlierOverride } from './PlanDraftPreview.jsx';
 import {palette} from './seed.js';
-import { isPositiveCentAmount, k_centsPerEuro } from './money.js';
+import { isEnteredAmount, isPositiveCentAmount, k_centsPerEuro } from './money.js';
 import { k_transactionTypes, k_systemCategoryIds, k_entityIdPrefixes, k_spendingBehaviors, k_defaultHistoryWindow } from './domainConstants.js';
 import { createEntityId } from './identifiers';
 import { isPlannedCostLink, plannedCostOptions } from './plannedCosts.js';
@@ -30,7 +30,6 @@ const k_draftEventId = 'event-draft';
 const k_invalidPlanAmountsMessage = 'Use valid non-negative amounts.';
 const k_planStartMovedMessage = 'The calendar has moved on, so this revision now starts later. The preview is refreshed. Review it and approve again.';
 const k_planYearReadOnlyMessage = 'is now a past year, so its plans are read-only. Nothing was saved.';
-const k_transactionAmountPattern = /^\d+([.,]\d{1,2})?$/;
 const k_transactionFormMessages = {
   invalidAmount: 'Use a positive amount with at most two decimal places.',
   updated: 'Transaction updated',
@@ -74,7 +73,7 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
  }
  function save(confirmClose = false) {
    try {
-     if (!k_transactionAmountPattern.test(amount)) {
+     if (!isEnteredAmount(amount)) {
        throw Error(k_transactionFormMessages.invalidAmount);
      }
      const isTransfer = type === k_transactionTypes.transfer;
@@ -89,6 +88,9 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
        loanId: savedLoanId(),
        kind: kind || undefined
      };
+     // An advance stays marked only while it is still an expense on a loan (P14).
+     const isStillLoanExpense = type === k_transactionTypes.expense && transaction.loanId != null;
+     transaction.loanAdvance = isStillLoanExpense ? item?.loanAdvance : undefined;
      if (isTransfer) {
        transaction.toAccount = toAccount;
        if (item?.toAccount === toAccount) {
@@ -104,7 +106,7 @@ export function TransactionForm({item,initialType='expense',draft,onClose}){
        setConfirmingClose(true);
        return;
      }
-     if (trackingExpense && expectedAmount && !k_transactionAmountPattern.test(expectedAmount)) {
+     if (trackingExpense && expectedAmount && !isEnteredAmount(expectedAmount)) {
        throw Error('Use a positive expected amount with at most two decimal places.');
      }
      const result = saveTransaction(state, transaction, {

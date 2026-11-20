@@ -5,7 +5,7 @@ import { Theme, T, Row, Button, Field, Select, Toggle, Dialog } from './ui.jsx';
 import { EditablePaymentHistory } from './LoanPaymentHistory.jsx';
 import { loanRevisionOffer } from './loanPlanRevision.js';
 import { useDirtyForm } from './useDirtyForm.js';
-import { cents, euro, isPositiveCentAmount, k_centsPerEuro } from './money.js';
+import { cents, euro, isEnteredAmount, isPositiveCentAmount, k_centsPerEuro } from './money.js';
 import { k_transactionTypes, k_entityIdPrefixes } from './domainConstants.js';
 import { createEntityId } from './identifiers';
 import { isMonthKey, monthNumberOf, monthKeyOf, monthOf, yearOfMonth } from './calendar.js';
@@ -13,7 +13,7 @@ import { loanPaymentInMonth, withLoanFormEdits, withNormalizedPayments, withoutL
 
 const k_defaultLoanYears = 3;
 const k_loanFormMessages = {
-  invalid: 'Enter a name, positive amounts and a valid month range (YYYY-MM).',
+  invalid: 'Enter a name, a remaining balance (zero or more for an existing loan), a positive payment and a valid month range (YYYY-MM).',
   invalidPayment: 'Enter the new monthly payment: zero or more.',
   invalidPaymentMonth: 'Choose the month the new payment applies from (YYYY-MM), up to the loan\'s last month.',
   paymentBeforeStart: 'A new payment starts in the loan\'s start month or later.',
@@ -53,6 +53,10 @@ function newPaymentProblem({ paymentText, paymentFrom, isTemporary, paymentUntil
   return '';
 }
 
+function newPaymentChange(currentMonth) {
+  return { amount: '', from: currentMonth, isTemporary: false, until: currentMonth };
+}
+
 // The new monthly payment, the month it applies from and, optionally, the
 // last month of a temporary payment (owner decisions P09 and P10).
 function PaymentChangeFields({ change, onChange, onCancel }) {
@@ -68,7 +72,7 @@ function PaymentChangeFields({ change, onChange, onCancel }) {
   </View>;
 }
 
-export function LoanForm({ item, onClose }) {
+export function LoanForm({ item, onClose, startWithPaymentChange = false }) {
   const { setState, setModal, state, notify, today } = useApp();
   const colors = useContext(Theme);
   const currentMonth = monthOf(today);
@@ -80,7 +84,8 @@ export function LoanForm({ item, onClose }) {
   const [paymentChanges, setPaymentChanges] = useState(savedHistoryLoan?.paymentChanges ?? []);
   const isHistoryEdited = Boolean(savedHistoryLoan) && paymentChanges !== savedHistoryLoan.paymentChanges;
   const historyLoan = savedHistoryLoan ? { ...savedHistoryLoan, paymentChanges } : null;
-  const [paymentChange, setPaymentChange] = useState(null);
+  // After an advance payment (P14) the form opens ready for the new payment.
+  const [paymentChange, setPaymentChange] = useState(() => startWithPaymentChange ? newPaymentChange(currentMonth) : null);
   const [account, setAccount] = useState(item?.account || state.accounts[0]?.id || '');
   const [start, setStart] = useState(() => item?.start || currentMonth);
   const [end, setEnd] = useState(() => item?.end || defaultLoanEnd(currentMonth));
@@ -89,7 +94,7 @@ export function LoanForm({ item, onClose }) {
   const [error, setError] = useState('');
 
   function startPaymentChange() {
-    setPaymentChange({ amount: '', from: currentMonth, isTemporary: false, until: currentMonth });
+    setPaymentChange(newPaymentChange(currentMonth));
   }
 
   function removePaymentChange(entry) {
@@ -103,7 +108,10 @@ export function LoanForm({ item, onClose }) {
 
   function save() {
     const remainingInCents = cents(remaining);
-    const validAmounts = isPositiveCentAmount(remainingInCents) && (Boolean(item) || isPositiveCentAmount(cents(payment)));
+    // Owner decision P26: an existing loan may be paid off (a typed €0); a new one needs a balance.
+    const isTypedBalance = isEnteredAmount(remaining);
+    const validRemaining = isTypedBalance && (item ? remainingInCents >= 0 : isPositiveCentAmount(remainingInCents));
+    const validAmounts = validRemaining && (Boolean(item) || isPositiveCentAmount(cents(payment)));
     const validMonths = isMonthKey(start) && isMonthKey(end) && end >= start;
     if (!name.trim() || !validAmounts || !validMonths) {
       setError(k_loanFormMessages.invalid);
