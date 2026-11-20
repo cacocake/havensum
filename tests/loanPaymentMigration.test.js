@@ -141,10 +141,10 @@ test('a current ledger needs a valid payment history on every loan; the legacy e
   const { paymentChanges, ...loanWithoutHistory } = ledgerWithLoan({}).loans[0];
 
   assert.deepEqual(paymentChanges, []);
-  assert.doesNotThrow(() => validateState(ledgerWithLoan({ paymentChanges: [{ since: '2026-06', amount: 0 }, { since: '2027-01', amount: 15000 }] })));
+  assert.doesNotThrow(() => validateState(ledgerWithLoan({ paymentChanges: [{ since: '2026-06', amount: 0 }, { since: '2027-01', amount: 15000 }, { since: '2027-03', until: '2027-03', amount: 9000 }] })));
   assert.doesNotThrow(() => validateState(ledgerWithLoan({ paymentEditedAt: k_editedAfterApproval })));
   assert.throws(() => validateState(createFinancialState({ loans: [loanWithoutHistory] })), /loan payment history/);
-  for (const invalidChanges of [null, {}, [{ since: '2026-13', amount: 100 }], [{ since: '2026-06', amount: 12.5 }], [{ since: '2026-06', amount: -1 }], [{ since: '2026-06', amount: 100 }, { since: '2026-06', amount: 200 }]]) {
+  for (const invalidChanges of [null, {}, [{ since: '2026-13', amount: 100 }], [{ since: '2026-06', amount: 12.5 }], [{ since: '2026-06', amount: -1 }], [{ since: '2026-06', amount: 100 }, { since: '2026-06', amount: 200 }], [{ since: '2026-06', until: '2026-05', amount: 100 }], [{ since: '2026-06', until: 'forever', amount: 100 }]]) {
     assert.throws(() => validateState(ledgerWithLoan({ paymentChanges: invalidChanges })), /loan payment history/);
   }
   assert.throws(() => validateState(ledgerWithLoan({ paymentEditedAt: '2026-09-15' })), /loan payment edit time/);
@@ -156,4 +156,57 @@ test('a payment history conflict reads as dated amounts, oldest first, and an em
   assert.deepEqual(paymentChangeConflictLines(car.paymentChanges), ['€1,234,567.89 from September 2026', '€150.00 from March 2027']);
   assert.deepEqual(paymentChangeConflictLines([]), ['No payment changes']);
   assert.equal(paymentHistoryText(car), '€185.00 from January 2026 · €1,234,567.89 from September 2026 · €150.00 from March 2027');
+});
+
+// Revision 1 (January) lowers the car payment to €150 from March and €120 from
+// October; revision 2 starts in July and stores only what applies from July.
+function legacyLedgerWithTwoRevisions(revisionTwoChanges) {
+  const state = legacyLedger();
+  const firstOptions = { year: 2026, fromMonth: 1, income: 200000, cushion: 0, today: '2026-01-02', loanChanges: [{ loanId: 'car', since: '2026-03', amount: 15000 }, { loanId: 'car', since: '2026-10', amount: 12000 }] };
+  const withFirst = approvePlanRevision(state, buildPlan(state, firstOptions), { id: 'plan-2026-1', fromMonth: 1, today: '2026-01-02' });
+  const second = buildPlan(withFirst, { year: 2026, fromMonth: 7, income: 210000, cushion: 0, today: '2026-07-02', loanChanges: revisionTwoChanges });
+  return approvePlanRevision(withFirst, second, { id: 'plan-2026-2', fromMonth: 7, today: '2026-07-02' });
+}
+
+test('an earlier revision of the same year keeps its changes for the months before the later revision starts', () => {
+  const legacy = legacyLedgerWithTwoRevisions([{ loanId: 'car', since: '2026-07', amount: 15000 }, { loanId: 'car', since: '2026-10', amount: 12000 }]);
+
+  assert.deepEqual(migrateState(legacy).loans[0].paymentChanges, [{ since: '2026-03', amount: 15000 }, { since: '2026-10', amount: 12000 }]);
+});
+
+test('a change a later revision of the same year dropped is not brought back', () => {
+  const legacy = legacyLedgerWithTwoRevisions([{ loanId: 'car', since: '2026-07', amount: 15000 }]);
+
+  assert.deepEqual(migrateState(legacy).loans[0].paymentChanges, [{ since: '2026-03', amount: 15000 }]);
+});
+
+test('the edit month comes from the exact UTC instant, so every device migrates the same file alike', context => {
+  // In Lisbon this instant is already 1 October locally.
+  const originalTimeZone = process.env.TZ;
+  process.env.TZ = 'Europe/Lisbon';
+  context.after(() => {
+    process.env.TZ = originalTimeZone;
+  });
+  const lateOnTheLastDay = legacyLedgerWithApprovedPlan({ ...k_legacyCarLoan, payment: 16000, paymentEditedAt: '2026-09-30T23:30:00.000Z' });
+  const planWithOctoberChange = { ...lateOnTheLastDay.plans[2026][0], loanChanges: [{ loanId: 'car', since: '2026-09', amount: 15000 }, { loanId: 'car', since: '2026-10', amount: 14000 }] };
+
+  const migrated = migrateState({ ...lateOnTheLastDay, plans: { 2026: [planWithOctoberChange] } });
+
+  assert.deepEqual(migrated.loans[0].paymentChanges, [{ since: '2026-10', amount: 14000 }]);
+});
+
+test('a plan change dated at the loan\'s start becomes its starting payment', () => {
+  const legacy = legacyLedger();
+  const plan = buildPlan(legacy, { year: 2026, fromMonth: 1, income: 200000, cushion: 0, today: '2026-01-02', loanChanges: [{ loanId: 'car', since: '2026-01', amount: 17000 }] });
+  const withPlan = approvePlanRevision(legacy, plan, { id: 'plan-2026', fromMonth: 1, today: '2026-01-02' });
+
+  const migratedLoan = migrateState(withPlan).loans[0];
+
+  assert.deepEqual([migratedLoan.payment, migratedLoan.paymentChanges], [17000, []]);
+});
+
+test('temporary and one-month payments read with their until month', () => {
+  const car = { ...k_legacyCarLoan, paymentChanges: [{ since: '2027-01', until: '2027-05', amount: 9000 }, { since: '2027-08', until: '2027-08', amount: 30000 }] };
+
+  assert.equal(paymentHistoryText(car), '€185.00 from January 2026 · €90.00 from January 2027 until May 2027 · €300.00 in August 2027 only');
 });

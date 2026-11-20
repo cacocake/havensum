@@ -6,17 +6,19 @@ import { useDirtyForm } from './useDirtyForm.js';
 import { cents, isPositiveCentAmount, k_centsPerEuro } from './money.js';
 import { k_transactionTypes, k_entityIdPrefixes } from './domainConstants.js';
 import { createEntityId } from './identifiers';
-import { monthNumberOf, monthKeyOf, monthOf, yearOfMonth } from './calendar.js';
-import { loanPaymentInMonth, withLoanPaymentFrom } from './loanPaymentHistory.js';
+import { isMonthKey, monthNumberOf, monthKeyOf, monthOf, yearOfMonth } from './calendar.js';
+import { loanPaymentInMonth, withLoanPaymentFrom, withNormalizedPayments } from './loanPaymentHistory.js';
 
-const k_loanMonthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const k_defaultLoanYears = 3;
 const k_loanFormMessages = {
   invalid: 'Enter a name, positive amounts and a valid month range (YYYY-MM).',
+  invalidPayment: 'Use a payment of zero or more, with at most two decimal places.',
   invalidPaymentMonth: 'Choose the month the new payment applies from (YYYY-MM), up to the loan\'s last month.',
+  invalidUntilMonth: 'Choose the last month of the temporary payment (YYYY-MM), from its first month on.',
   saved: 'Loan saved · revise the remaining Year Plan to include it',
   proceedsNote: 'Loan balance adjustment; excluded from income.',
-  paymentFromHint: 'Every payment from this month on uses the new amount. Later changes are replaced; earlier months stay as they were.'
+  lastingHint: 'Every payment from this month on uses the new amount. Later changes are replaced; earlier months stay as they were.',
+  temporaryHint: 'Only these months use the new amount. Afterwards the payment returns to what applies without it; other changes stay.'
 };
 
 // A new loan defaults to ending in the same local month, three years on.
@@ -28,6 +30,20 @@ function amountText(amountInCents) {
   return String(amountInCents / k_centsPerEuro);
 }
 
+function newPaymentProblem({ paymentText, paymentFrom, isTemporary, paymentUntil, end }) {
+  const paymentInCents = cents(paymentText);
+  if (!paymentText.trim() || !Number.isSafeInteger(paymentInCents) || paymentInCents < 0) {
+    return k_loanFormMessages.invalidPayment;
+  }
+  if (!isMonthKey(paymentFrom) || paymentFrom > end) {
+    return k_loanFormMessages.invalidPaymentMonth;
+  }
+  if (isTemporary && !(isMonthKey(paymentUntil) && paymentUntil >= paymentFrom)) {
+    return k_loanFormMessages.invalidUntilMonth;
+  }
+  return '';
+}
+
 export function LoanForm({ item, onClose }) {
   const { setState, state, notify, today } = useApp();
   const colors = useContext(Theme);
@@ -35,12 +51,15 @@ export function LoanForm({ item, onClose }) {
   const [name, setName] = useState(item?.name || '');
   const [remaining, setRemaining] = useState(item ? amountText(item.remaining) : '');
   const [paymentChanges, setPaymentChanges] = useState(item?.paymentChanges ?? []);
+  const isHistoryEdited = paymentChanges !== (item?.paymentChanges ?? []);
   const historyLoan = item ? { ...item, paymentChanges } : null;
   const paymentThisMonth = historyLoan ? loanPaymentInMonth(historyLoan, currentMonth) : null;
   // Untouched, the payment follows the history; typing makes it a new payment.
   const [typedPayment, setTypedPayment] = useState(null);
   const payment = typedPayment ?? (historyLoan ? amountText(paymentThisMonth) : '');
   const [paymentFrom, setPaymentFrom] = useState(currentMonth);
+  const [isTemporary, setIsTemporary] = useState(false);
+  const [paymentUntil, setPaymentUntil] = useState(currentMonth);
   const [account, setAccount] = useState(item?.account || state.accounts[0]?.id || '');
   const [start, setStart] = useState(() => item?.start || currentMonth);
   const [end, setEnd] = useState(() => item?.end || defaultLoanEnd(currentMonth));
@@ -52,25 +71,33 @@ export function LoanForm({ item, onClose }) {
     setPaymentChanges(changes => changes.filter(change => change.since !== since));
   }
 
-  function editedLoan(loanFields, paymentInCents) {
-    const loan = { ...item, ...loanFields, paymentChanges };
+  function choosePaymentDuration(temporary) {
+    setIsTemporary(temporary);
+    setPaymentUntil(paymentFrom);
+  }
+
+  // Applies the form to the loan as saved now, so a change synced while the
+  // form was open survives unless this form changed the same history.
+  function editedLoan(currentLoan, loanFields) {
+    const loan = { ...currentLoan, ...loanFields, paymentChanges: isHistoryEdited ? paymentChanges : currentLoan.paymentChanges };
     if (!isNewPayment) {
-      return loan;
+      return withNormalizedPayments(loan);
     }
-    return withLoanPaymentFrom(loan, { since: paymentFrom, amount: paymentInCents });
+    const newPayment = { since: paymentFrom, amount: cents(payment), ...(isTemporary ? { until: paymentUntil } : {}) };
+    return withNormalizedPayments(withLoanPaymentFrom(loan, newPayment));
   }
 
   function save() {
     const remainingInCents = cents(remaining);
-    const paymentInCents = cents(payment);
-    const validAmounts = isPositiveCentAmount(remainingInCents) && isPositiveCentAmount(paymentInCents);
-    const validMonths = k_loanMonthPattern.test(start) && k_loanMonthPattern.test(end) && end >= start;
+    const validAmounts = isPositiveCentAmount(remainingInCents) && (Boolean(item) || isPositiveCentAmount(cents(payment)));
+    const validMonths = isMonthKey(start) && isMonthKey(end) && end >= start;
     if (!name.trim() || !validAmounts || !validMonths) {
       setError(k_loanFormMessages.invalid);
       return;
     }
-    if (isNewPayment && !(k_loanMonthPattern.test(paymentFrom) && paymentFrom <= end)) {
-      setError(k_loanFormMessages.invalidPaymentMonth);
+    const newPaymentError = isNewPayment ? newPaymentProblem({ paymentText: payment, paymentFrom, isTemporary, paymentUntil, end }) : '';
+    if (newPaymentError) {
+      setError(newPaymentError);
       return;
     }
 
@@ -78,8 +105,8 @@ export function LoanForm({ item, onClose }) {
     const loanFields = { name, remaining: remainingInCents, start, end, account };
     setState(currentState => {
       const loans = item
-        ? currentState.loans.map(loan => loan.id === loanId ? editedLoan(loanFields, paymentInCents) : loan)
-        : [...currentState.loans, { id: loanId, original: remainingInCents, ...loanFields, payment: paymentInCents, paymentChanges: [] }];
+        ? currentState.loans.map(loan => loan.id === loanId ? editedLoan(loan, loanFields) : loan)
+        : [...currentState.loans, { id: loanId, original: remainingInCents, ...loanFields, payment: cents(payment), paymentChanges: [] }];
       const transactions = [...currentState.transactions];
       if (credit) {
         transactions.push({
@@ -94,7 +121,7 @@ export function LoanForm({ item, onClose }) {
     onClose();
   }
 
-  const isDirty = useDirtyForm([name, remaining, typedPayment, paymentFrom, paymentChanges, account, start, end, credit]);
+  const isDirty = useDirtyForm([name, remaining, typedPayment, paymentFrom, isTemporary, paymentUntil, paymentChanges, account, start, end, credit]);
   return <Dialog dirty={isDirty} title="A loan, accounted for" subtitle="Monthly repayments are expenses. Borrowed money is not earnings." onClose={onClose}>
     <Field label="Loan name" value={name} onChangeText={setName} placeholder="e.g. Car loan" />
     <Row style={{ gap: 12, flexWrap: 'wrap' }}>
@@ -103,7 +130,9 @@ export function LoanForm({ item, onClose }) {
     </Row>
     {isNewPayment && <>
       <Field label="New payment from · YYYY-MM" value={paymentFrom} onChangeText={setPaymentFrom} />
-      <T style={{ fontSize: 11, color: colors.sub, marginTop: -9, marginBottom: 17 }}>{k_loanFormMessages.paymentFromHint}</T>
+      <Toggle value={isTemporary} onChange={choosePaymentDuration} label="Until a chosen month" description="Off: the new payment lasts until it changes again." />
+      {isTemporary && <Field label="Until · YYYY-MM" value={paymentUntil} onChangeText={setPaymentUntil} />}
+      <T style={{ fontSize: 11, color: colors.sub, marginTop: -9, marginBottom: 17 }}>{isTemporary ? k_loanFormMessages.temporaryHint : k_loanFormMessages.lastingHint}</T>
     </>}
     {historyLoan && <EditablePaymentHistory loan={historyLoan} onRemove={removePaymentChange} />}
     <Select label="Payment account" value={account} onChange={setAccount} options={state.accounts.map(candidate => ({ value: candidate.id, label: candidate.name }))} />

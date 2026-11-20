@@ -4,9 +4,16 @@ import { loanPaymentHistory } from './loanPaymentHistory.js';
 
 export const k_loanPaymentChangesField = 'paymentChanges';
 
-// "€1,050.00 from September 2026"
+// "€1,050.00 from September 2026", "€900.00 from January 2027 until May 2027"
+// or, for a single month, "€1,500.00 in March 2027 only".
 export function paymentEntryText(entry) {
-  return `${euro(entry.amount)} from ${longMonthLabel(entry.since)}`;
+  if (entry.until === undefined) {
+    return `${euro(entry.amount)} from ${longMonthLabel(entry.since)}`;
+  }
+  if (entry.until === entry.since) {
+    return `${euro(entry.amount)} in ${longMonthLabel(entry.since)} only`;
+  }
+  return `${euro(entry.amount)} from ${longMonthLabel(entry.since)} until ${longMonthLabel(entry.until)}`;
 }
 
 // "€1,200.00 from January 2026 · €1,050.00 from September 2026"

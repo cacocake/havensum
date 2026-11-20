@@ -57,7 +57,8 @@ function OutlookSettingsDialog({ month, onClose }) {
     try {
       const outlook = { ...state.outlook, completeMonths, window: Number(historyWindow) };
       const incomeChanges = mergeDatedChanges(state.outlook?.incomeChanges, adoptScheduledChanges ? approvedPlan?.incomeChanges : []);
-      const loanChanges = mergeDatedChanges(state.outlook?.loanChanges, adoptScheduledChanges ? approvedPlan?.loanChanges : []);
+      // Loan payments already follow each loan's history (P11), so only income is copied.
+      const loanChanges = state.outlook?.loanChanges ?? [];
       outlook.incomeChanges = incomeChanges.filter(change => !Object.hasOwn(incomeDrafts, change.since));
       for (const [changeMonth, amount] of Object.entries(incomeDrafts)) {
         if (amount.trim()) {
@@ -91,7 +92,7 @@ function OutlookSettingsDialog({ month, onClose }) {
     <Field label="Known monthly income · EUR" value={income} onChangeText={amount => setIncomeDrafts(drafts => ({ ...drafts, [since]: amount }))} keyboardType="decimal-pad" placeholder="Use historical average" />
     <T style={{ color: colors.sub, marginBottom: 16 }}>This is the new total monthly income from that month. Registered income sets a floor. A blank removes the income change at the chosen month.</T>
     {state.loans.map(loan => <Field key={loan.id} label={`${loan.name} · expected monthly payment · EUR`} value={loanAmount(loan.id)} onChangeText={amount => setLoanDrafts(drafts => ({ ...drafts, [since]: { ...drafts[since], [loan.id]: amount } }))} keyboardType="decimal-pad" placeholder={`${loanPaymentInMonth(loan, isMonthKey(since) ? since : currentMonth) / k_centsPerEuro}`} />)}
-    {Boolean(approvedPlan?.incomeChanges?.length || approvedPlan?.loanChanges?.length) && <Toggle label="Copy existing scheduled changes" value={adoptScheduledChanges} onChange={setAdoptScheduledChanges} description="Fill missing dated income and loan changes from the plan. Existing prediction inputs take priority. Target amounts and overrides are never copied." />}
+    {Boolean(approvedPlan?.incomeChanges?.length) && <Toggle label="Copy existing scheduled changes" value={adoptScheduledChanges} onChange={setAdoptScheduledChanges} description="Fill missing dated income changes from the plan. Loan payments follow each loan's payment history. Target amounts and overrides are never copied." />}
     {error && <T accessibilityRole="alert" style={{ color: colors.negative, marginBottom: 12 }}>{error}</T>}
     <Button onPress={save}>Save prediction assumptions</Button>
   </Dialog>;

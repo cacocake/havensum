@@ -180,6 +180,26 @@ test('adopting legacy dated changes retains existing independent assumptions', a
   ]));
 });
 
+test('copying scheduled changes copies income only, so loan payments keep following each loan\'s history (P11)', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-15T12:00:00') });
+  const car = { id: 'car', name: 'Car loan', account: 'everyday', start: '2026-01', end: '2029-12', payment: 18500, paymentChanges: [{ since: '2027-03', amount: 16000 }], remaining: 400000, original: 500000 };
+  const state = createFinancialState({ loans: [car] });
+  state.plans = planArchiveOf(buildPlan(state, { year: 2026, fromMonth: 1, income: 100000, window: 6,
+    incomeChanges: [{ since: '2026-10', amount: 200000 }], loanChanges: [{ loanId: 'car', since: '2026-10', amount: 15000 }] }));
+  await page.addInitScript(initialState => localStorage.setItem('melo-state-v1', JSON.stringify(initialState)), state);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Year Plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit prediction assumptions', exact: true }).click();
+  const copy = page.getByRole('switch', { name: 'Copy existing scheduled changes', exact: true });
+  await expect(page.getByText('Fill missing dated income changes from the plan. Loan payments follow each loan\'s payment history. Target amounts and overrides are never copied.', { exact: true })).toBeVisible();
+  await copy.click();
+  await page.getByRole('button', { name: 'Save prediction assumptions', exact: true }).click();
+
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('melo-state-v1')).outlook)).toMatchObject({
+    incomeChanges: [{ since: '2026-10', amount: 200000 }], loanChanges: []
+  });
+});
+
 test('expected costs stay bounded with long bills at narrow and desktop widths', async ({ page }, testInfo) => {
   await page.clock.install({ time: new Date('2026-11-15T12:00:00') });
   const state = createFinancialState({ transactions: [

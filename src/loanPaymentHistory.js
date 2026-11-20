@@ -1,30 +1,70 @@
-// Owner decision P09: a loan keeps a payment history. `payment` is the amount
-// from the loan's start month; `paymentChanges` lists later amounts, each
-// `{ since: 'YYYY-MM', amount }` in integer cents, with unique months.
+import { isMonthKey, nextMonth, previousMonths } from './calendar.js';
 
-function storedChanges(loan) {
-  return [...(loan.paymentChanges ?? [])].sort((first, second) => first.since.localeCompare(second.since));
+// Owner decisions P09/P10: a loan keeps a payment history. `payment` is the
+// amount from the loan's start month; `paymentChanges` lists later amounts,
+// each `{ since: 'YYYY-MM', amount }` in integer cents with unique start
+// months. A change with `until: 'YYYY-MM'` is temporary: after its until month
+// the payment returns to what applies without it. Without `until` it lasts.
+
+function byStartMonth(first, second) {
+  return first.since.localeCompare(second.since);
 }
 
-// The monthly payment the loan's history sets for `month`.
+function storedChanges(loan) {
+  return [...(loan.paymentChanges ?? [])].sort(byStartMonth);
+}
+
+function isTemporary(change) {
+  return change.until !== undefined;
+}
+
+function monthBefore(month) {
+  return previousMonths(month, 1)[0];
+}
+
+function storedChange({ since, until, amount }) {
+  return until === undefined ? { since, amount } : { since, until, amount };
+}
+
+// The monthly payment the loan's history sets for `month`: a temporary change
+// covering it (the latest one to start), otherwise the latest lasting change.
 export function loanPaymentInMonth(loan, month) {
-  const changeInEffect = storedChanges(loan).filter(change => change.since <= month).at(-1);
-  return changeInEffect?.amount ?? loan.payment;
+  const changes = storedChanges(loan).filter(change => change.since <= month);
+  const coveringTemporaryChange = changes.filter(change => isTemporary(change) && change.until >= month).at(-1);
+  if (coveringTemporaryChange) {
+    return coveringTemporaryChange.amount;
+  }
+  return changes.filter(change => !isTemporary(change)).at(-1)?.amount ?? loan.payment;
+}
+
+// Folds what lies at or before the loan's start into its starting payment:
+// lasting changes become the starting payment, temporary changes that ended
+// are dropped, and one still running starts with the loan.
+export function withNormalizedPayments(loan) {
+  const changes = storedChanges(loan);
+  const lastingAtStart = changes.filter(change => !isTemporary(change) && change.since <= loan.start).at(-1);
+  const keptChanges = changes
+    .filter(change => change.since > loan.start || (isTemporary(change) && change.until >= loan.start))
+    .map(change => change.since > loan.start ? change : { ...change, since: loan.start });
+  return { ...loan, payment: lastingAtStart?.amount ?? loan.payment, paymentChanges: keptChanges.map(storedChange) };
 }
 
 // The whole history, oldest first: the starting payment, then each change.
 export function loanPaymentHistory(loan) {
-  return [{ since: loan.start, amount: loan.payment }, ...storedChanges(loan).map(({ since, amount }) => ({ since, amount }))];
+  const normalizedLoan = withNormalizedPayments(loan);
+  return [{ since: normalizedLoan.start, amount: normalizedLoan.payment }, ...normalizedLoan.paymentChanges.map(storedChange)];
 }
 
-// Every payment from `since` on uses the new amount, so later entries no
-// longer apply; earlier months are untouched. An amount already in effect
-// adds no entry.
-export function withLoanPaymentFrom(loan, { since, amount }) {
+// A lasting payment from `since` replaces every later change and ends a
+// temporary one still running; earlier months are untouched. An amount
+// already in effect adds no entry.
+function withLastingPaymentFrom(loan, { since, amount }) {
   if (since <= loan.start) {
     return { ...loan, payment: amount, paymentChanges: [] };
   }
-  const earlierChanges = storedChanges(loan).filter(change => change.since < since);
+  const earlierChanges = storedChanges(loan)
+    .filter(change => change.since < since)
+    .map(change => isTemporary(change) && change.until >= since ? { ...change, until: monthBefore(since) } : change);
   const earlierLoan = { ...loan, paymentChanges: earlierChanges };
   if (loanPaymentInMonth(earlierLoan, since) === amount) {
     return earlierLoan;
@@ -32,35 +72,68 @@ export function withLoanPaymentFrom(loan, { since, amount }) {
   return { ...loan, paymentChanges: [...earlierChanges, { since, amount }] };
 }
 
+// A temporary payment leaves the other changes untouched, except one that
+// starts in the same month, which it replaces.
+function withTemporaryPayment(loan, { since, until, amount }) {
+  const startMonth = since < loan.start ? loan.start : since;
+  if (until < startMonth) {
+    return withNormalizedPayments(loan);
+  }
+  const otherChanges = storedChanges(loan).filter(change => change.since !== startMonth);
+  return { ...loan, paymentChanges: [...otherChanges, { since: startMonth, until, amount }].sort(byStartMonth) };
+}
+
+export function withLoanPaymentFrom(loan, { since, until, amount }) {
+  if (until === undefined) {
+    return withLastingPaymentFrom(loan, { since, amount });
+  }
+  return withTemporaryPayment(loan, { since, until, amount });
+}
+
 // Corrects a mistaken entry: only that change goes; the others stay.
 export function withoutLoanPaymentChange(loan, since) {
   return { ...loan, paymentChanges: storedChanges(loan).filter(change => change.since !== since) };
 }
 
-// A plan's loan changes for the period starting `startMonth`, taken from each
-// loan's history: the payment in effect at the start (when a change set it),
-// then every later change. Loans that ended before the start add none.
+// A plan's loan changes for the period starting `startMonth`, as the months
+// each loan's payment steps to a new amount from the history: in effect at the
+// start, then each later start and the month after each temporary change.
+// Loans that ended before the start add none.
 export function loanChangesFromHistory(loans, startMonth) {
   return loans
     .filter(loan => loan.end >= startMonth)
     .flatMap(loan => {
-      const changes = storedChanges(loan);
-      const changeInEffect = changes.filter(change => change.since <= startMonth).at(-1);
-      const startChange = changeInEffect ? [{ loanId: loan.id, since: startMonth, amount: changeInEffect.amount }] : [];
-      const laterChanges = changes.filter(change => change.since > startMonth).map(({ since, amount }) => ({ loanId: loan.id, since, amount }));
-      return [...startChange, ...laterChanges];
+      const normalizedLoan = withNormalizedPayments(loan);
+      const stepMonths = new Set([startMonth]);
+      for (const change of normalizedLoan.paymentChanges) {
+        stepMonths.add(change.since);
+        if (isTemporary(change)) {
+          stepMonths.add(nextMonth(change.until));
+        }
+      }
+      const planChanges = [];
+      let previousAmount = normalizedLoan.payment;
+      for (const month of [...stepMonths].filter(stepMonth => stepMonth >= startMonth).sort()) {
+        const amount = loanPaymentInMonth(normalizedLoan, month);
+        if (amount !== previousAmount) {
+          planChanges.push({ loanId: loan.id, since: month, amount });
+          previousAmount = amount;
+        }
+      }
+      return planChanges;
     });
 }
 
-const k_monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
-
 function isPaymentChange(change) {
   const isRecord = change !== null && typeof change === 'object' && !Array.isArray(change);
-  return isRecord && k_monthPattern.test(change.since) && Number.isSafeInteger(change.amount) && change.amount >= 0;
+  if (!isRecord || !isMonthKey(change.since) || !Number.isSafeInteger(change.amount) || change.amount < 0) {
+    return false;
+  }
+  return change.until === undefined || (isMonthKey(change.until) && change.until >= change.since);
 }
 
 // Current ledgers keep a list of dated, non-negative integer-cent payments
-// with unique months on every loan; an empty list means no change.
+// with unique start months on every loan; an empty list means no change.
 export function isValidPaymentChanges(loan) {
   if (!Array.isArray(loan.paymentChanges) || !loan.paymentChanges.every(isPaymentChange)) {
     return false;

@@ -23,8 +23,7 @@ import { describeYearAmountConflicts, isYearAmountConflict, yearAmountConflictLi
 import { clearMissingTransactionCategories, migrateState, validateState } from './stateSchema.js';
 import MissingCategoryReview from './MissingCategoryReview.jsx';
 import SharedFileStatus from './SharedFileStatus.jsx';
-import { k_loanPaymentChangesField, paymentChangeConflictLines, paymentHistoryText } from './loanPaymentLabels.js';
-import { loanPaymentInMonth } from './loanPaymentHistory.js';
+import { k_loanPaymentChangesField, paymentChangeConflictLines } from './loanPaymentLabels.js';
 import { applyCategoryReviewEdits, categoryReviewRows } from './categoryReview.js';
 const k_backupMessages = {
   saved: 'Backup exported · local merge baseline saved',
@@ -128,7 +127,6 @@ export function Reimbursements() {
   </View>;
 }
 export {default as YearPlan} from './PlanScreen.jsx';
-export function Loans(){const {state,setModal,today}=useApp(),c=useContext(Theme);return <View style={{gap:20}}><Row style={{justifyContent:'space-between',gap:12}}><View style={{flex:1}}><H size={24}>Steady steps, month by month.</H><T style={{fontSize:12,color:c.sub,marginTop:8}}>Track an existing loan without changing any account balance.</T></View><Button small icon="Plus" onPress={()=>setModal({type:'loan'})}>Add loan</Button></Row>{state.loans.length?state.loans.map(l=>{const paid=state.transactions.filter(t=>t.type==='expense'&&t.category==='loan'&&(t.loanId===l.id||!t.loanId&&t.title===l.name)&&t.account===l.account&&t.date.slice(0,7)>=l.start&&t.date.slice(0,7)<=l.end).reduce((s,t)=>s+t.amount,0);return <Card key={l.id}><Row style={{gap:15}}><TileIcon name="Landmark" color="#C3A58D" size={49}/><View style={{flex:1}}><H size={23}>{l.name}</H><T style={{fontSize:11,color:c.muted,marginTop:4}}>{l.start} → {l.end} · {state.accounts.find(a=>a.id===l.account)?.name}</T></View><IB name="Pencil" label={`Edit ${l.name}`} onPress={()=>setModal({type:'loan',item:l})}/></Row><Row style={{gap:30,marginTop:26,flexWrap:'wrap'}}><View><T style={{fontSize:11,color:c.sub}}>Recorded remaining balance</T><H size={28} style={{marginTop:5}}>{euro(l.remaining)}</H></View><View><T style={{fontSize:11,color:c.sub}}>Monthly repayment</T><H size={28} style={{marginTop:5}}>{euro(loanPaymentInMonth(l,monthOf(today)))}</H></View><View><T style={{fontSize:11,color:c.sub}}>Payments recorded in Havensum</T><H size={28} style={{marginTop:5}}>{euro(paid)}</H></View></Row><T style={{fontSize:11,color:c.sub,marginTop:12}}>Payment history · {paymentHistoryText(l)}</T><Divider/><T style={{fontSize:11,color:c.sub}}>Repayments count as expenses when recorded. Your recorded remaining balance is manual; interest and principal allocations are not guessed.</T><Row style={{marginTop:17,justifyContent:'flex-end'}}><Button small kind="soft" icon="Plus" onPress={()=>setModal({type:'transaction',item:null,initialType:'expense',loan:l})}>Record payment</Button></Row></Card>}):<Card><Empty title="Room to start" description="Add a loan to forecast monthly repayments. Proceeds are optional."/></Card>}<Card><Row style={{gap:12}}><Icon name="Info" color={c.sub} size={20}/><T style={{flex:1,fontSize:12,color:c.sub}}>Adding a loan suggests a remaining-year plan revision. The frozen plan changes only when you approve a new snapshot.</T></Row></Card></View>}
 function mergeConflictTitle(conflict) {
   if (conflict.field === '$trackedExpense') {
     const expense = conflict.local.expense ?? conflict.remote.expense ?? conflict.base.expense;

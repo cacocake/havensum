@@ -3,6 +3,8 @@ import { sortedInterestPeriods } from './interestSchedule.js';
 import { isLoanActive, loanPaymentForMonth } from './expectedLoans.js';
 import { sumCents } from './money.js';
 
+const k_removedLoanName = 'Removed loan';
+
 function changesInYear(changes, year) {
   return [...(changes ?? [])]
     .filter(change => yearOfMonth(change.since) === year)
@@ -64,6 +66,26 @@ function activeLoansAcrossMonths(state, months) {
   });
 }
 
+// Each month a loan's predicted payment steps to a new amount after the first
+// forecast month, from its history or Prediction assumptions (P11), and the
+// predictions entered for loans that were removed.
+function loanChangesAcrossMonths(state, months, year) {
+  const loans = state.loans ?? [];
+  const steps = loans.flatMap(loan => {
+    const activeMonths = months.filter(month => isLoanActive(loan, month));
+    return activeMonths.slice(1).flatMap((month, index) => {
+      const amount = loanPaymentForMonth(state, loan, month);
+      const previousAmount = loanPaymentForMonth(state, loan, activeMonths[index]);
+      return amount === previousAmount ? [] : [{ loanId: loan.id, name: loan.name, since: month, amount }];
+    });
+  });
+  const loanIds = new Set(loans.map(loan => loan.id));
+  const removedLoanChanges = changesInYear(state.outlook?.loanChanges, year)
+    .filter(change => !loanIds.has(change.loanId))
+    .map(({ loanId, since, amount }) => ({ loanId, name: k_removedLoanName, since, amount }));
+  return [...steps, ...removedLoanChanges].sort((first, second) => first.since.localeCompare(second.since));
+}
+
 function namedCostsAcrossMonths(forecastMonths) {
   return forecastMonths.flatMap(month => month.prediction.events.map(event => ({
     id: event.id,
@@ -79,9 +101,7 @@ function namedCostsAcrossMonths(forecastMonths) {
 export function yearOutlookDrivers(state, year, forecastMonths) {
   const predictions = forecastMonths.map(month => month.prediction);
   const months = forecastMonths.map(month => month.month);
-  const loanNames = new Map((state.loans ?? []).map(loan => [loan.id, loan.name]));
-  const loanChanges = changesInYear(state.outlook?.loanChanges, year)
-    .map(({ loanId, since, amount }) => ({ loanId, name: loanNames.get(loanId) ?? 'Removed loan', since, amount }));
+  const loanChanges = loanChangesAcrossMonths(state, months, year);
   return {
     forecastMonths: months,
     incomeChanges: changesInYear(state.outlook?.incomeChanges, year).map(({ since, amount }) => ({ since, amount })),
