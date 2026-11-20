@@ -3,6 +3,7 @@ import { isRecordIdentifier } from './recordIdentity.js';
 import { movementFingerprint } from './movementFingerprint.js';
 import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
 import { hasLoanLink } from './expectedBills.js';
+import { isCashewTransferNoteHeading } from './cashewTransferHeadings.js';
 
 const k_cashewSource = 'cashew';
 const k_lendingType = 'credit';
@@ -14,14 +15,22 @@ const k_borrowingMessages = Object.freeze({
   proceeds: 'Record borrowed money as loan proceeds: an unlinked balance adjustment.',
   repayment: 'Record a borrowing repayment as an expense in the loan category.'
 });
-const k_objectiveLoanNote = 'This Cashew objective may be a loan. Pick the Havensum loan to record proceeds or a repayment, or classify it normally.';
+const k_objectiveLoanNote = 'This Cashew objective may be a loan. Pick a Havensum loan only for money you borrowed. For money you lent, skip the row or record it as an unlinked balance adjustment so it is not counted as spending or income.';
 const k_loanMeanings = Object.freeze({
   credit: 'Loan money received · adds to this account, never income',
   debit: 'Payment on the loan · a repayment expense in the loan category'
 });
 const k_scheduledNote = 'From a scheduled Cashew entry exported as paid.';
-const k_transferNoteHeading = 'Transferred Balance';
-const k_transferRouteSeparator = '→';
+const k_transferArrows = Object.freeze([
+  Object.freeze({ arrow: '→', isReversed: false }),
+  Object.freeze({ arrow: '←', isReversed: true })
+]);
+const k_timestampPattern = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/;
+const k_millisecondsPerSecond = 1000;
+// K15: Cashew saves the legs one second apart, at :30 and :31, and up to 61
+// seconds apart when an `A → B` save falls in the last second of a minute.
+const k_transferLegToleranceSeconds = 61;
+const k_transferLegToleranceMilliseconds = k_transferLegToleranceSeconds * k_millisecondsPerSecond;
 const k_readOnlySourceFields = ['budget', 'objective', 'extra'];
 const k_newAccountDefaults = { openingBalance: 0, tag: 'Personal', icon: 'Wallet', color: '#91A4CE' };
 
@@ -45,19 +54,40 @@ function sourceDetails(row) {
   return Object.keys(details).length > 0 ? details : undefined;
 }
 
-// K11: Cashew notes a transfer leg as `Transferred Balance` followed by
-// `from → to` source account names, in any app language.
+// K11/K14: Cashew notes a transfer leg with its translated `Transferred Balance`
+// heading, then `A → B` (money from A to B) or `A ← B` (money from B to A).
 function transferRoute(note) {
   const [heading = '', route = '', ...rest] = note.split(/\r?\n/);
-  if (heading.trim() !== k_transferNoteHeading || rest.some(line => line.trim())) {
+  if (!isCashewTransferNoteHeading(heading) || rest.some(line => line.trim())) {
     return undefined;
   }
-  const accounts = route.split(k_transferRouteSeparator);
-  if (accounts.length !== 2) {
+  const arrowsInRoute = k_transferArrows.filter(({ arrow }) => route.includes(arrow));
+  if (arrowsInRoute.length !== 1) {
     return undefined;
   }
-  const [from, to] = accounts.map(account => account.trim());
-  return from && to ? { from, to } : undefined;
+  const [{ arrow, isReversed }] = arrowsInRoute;
+  const accounts = route.split(arrow).map(account => account.trim());
+  if (accounts.length !== 2 || accounts.some(account => !account)) {
+    return undefined;
+  }
+  const [left, right] = accounts;
+  return isReversed ? { from: right, to: left } : { from: left, to: right };
+}
+
+// Cashew writes local wall-clock timestamps; both legs are compared on that
+// basis, ignoring any offset. A date-only value counts as midnight.
+function timestampMilliseconds(timestamp) {
+  const match = k_timestampPattern.exec(timestamp);
+  if (!match) {
+    return Number.NaN;
+  }
+  const [, year, month, day, hours = '0', minutes = '0', seconds = '0'] = match;
+  return Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hours), Number(minutes), Number(seconds));
+}
+
+function areCloseInTime(firstTimestamp, secondTimestamp) {
+  const difference = Math.abs(timestampMilliseconds(firstTimestamp) - timestampMilliseconds(secondTimestamp));
+  return difference <= k_transferLegToleranceMilliseconds;
 }
 
 function isTransferLeg(row, draft) {
@@ -81,7 +111,7 @@ function oppositeLegs(rows, drafts, index) {
       && candidateRoute.from === route.from && candidateRoute.to === route.to
       && candidate.movement.direction !== leg.movement.direction
       && candidate.movement.amount === leg.movement.amount
-      && candidate.timestamp === leg.timestamp
+      && areCloseInTime(candidate.timestamp, leg.timestamp)
       && candidate.account !== leg.account
       && String(drafts[candidateIndex].transaction.account) !== String(drafts[index].transaction.account);
     return isOpposite ? [candidateIndex] : [];

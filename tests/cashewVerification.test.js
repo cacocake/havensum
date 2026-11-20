@@ -206,7 +206,7 @@ test('Cashew suggests no transfer when the opposite Balance Correction row is am
   const state = createFinancialState();
   const cases = [
     [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Poupança', '10.0'), balanceCorrection('Poupança', '10.0')],
-    [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Poupança', '10.0', '2026-11-12 23:41:00.123')],
+    [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Poupança', '10.0', '2026-11-12 23:41:30.123')],
     [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Poupança', '10.01')],
     [balanceCorrection('Carteira', '-10.0'), balanceCorrection('Carteira', '10.0')],
     [balanceCorrection('Carteira', '-10.0'), publishedRow({ account: 'Poupança', amount: '10.0', income: 'true', title: 'Transfer', date: '2026-11-12 23:40:00.123', 'category name': 'Other' })]
