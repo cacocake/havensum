@@ -2,7 +2,7 @@
 // the `transferred-balance` translations shipped in Cashew's public source
 // (github.com/jameskokoska/Cashew, budget/assets/translations/generated, revision
 // 9cfbe50). They are only used to recognise a transfer note during review.
-export const k_cashewTransferNoteHeadings = Object.freeze(new Set([
+const k_cashewTransferNoteHeadings = new Set([
   'Aktarılan bakiye',
   'Baki yang dipindahkan',
   'Balanço transferido',
@@ -46,4 +46,8 @@ export const k_cashewTransferNoteHeadings = Object.freeze(new Set([
   '已转账余额',
   '振替済残高',
   '양도 된 잔액'
-]));
+]);
+
+export function isCashewTransferNoteHeading(heading) {
+  return k_cashewTransferNoteHeadings.has(heading.trim());
+}

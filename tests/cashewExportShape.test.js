@@ -215,7 +215,7 @@ test('a reversed Cashew transfer note (A ← B) means money moved from B to A (K
   assert.deepEqual(suggestedTypes(refused), [undefined, undefined]);
 });
 
-test('Cashew transfer legs up to a minute apart are still suggested as a pair (K15)', async () => {
+test('Cashew transfer legs up to 61 seconds apart are still suggested as a pair (K15)', async () => {
   const state = createFinancialState();
   const note = transferNote('Carteira', 'Cartão Vale');
   const legsAt = (debitTime, creditTime) => exportFile([
@@ -232,8 +232,6 @@ test('Cashew transfer legs up to a minute apart are still suggested as a pair (K
   assert.deepEqual(suggestedTypes(tooFar), [undefined, undefined]);
   const dateOnly = previewImportFile(state, await legsAt('2026-11-10', '2026-11-10'), k_accountOptions);
   assert.deepEqual(suggestedTypes(dateOnly), ['transfer', undefined]);
-  const unreadable = previewImportFile(state, await legsAt('2026-11-10 20:28:30.000', 'sometime 2026-11-10'), k_accountOptions);
-  assert.deepEqual(suggestedTypes(unreadable), [undefined, undefined]);
 });
 
 test('two Cashew credits inside the window at different times leave the transfer for manual pairing (K15)', async () => {

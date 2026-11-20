@@ -644,4 +644,7 @@ The implementation note below records how these were built; it stores only per-y
 ## Session handoff — IMPORT-2 source-informed transfer rules (19 November 2026)
 
 - **Why:** the owner asked to infer the remaining cases from Cashew's open-source code. Findings are in the last section of docs/CASHEW_IMPORT_RESEARCH.md. Owner answers K14 (translated note headings and the `←` arrow), K15 (legs up to 60 seconds apart) and K16 (lending guidance on objective rows) are in DECISIONS.md.
-- **Branch:** `codex/cashew-source-transfer-rules` from develop.
+- **Branch:** `codex/cashew-source-transfer-rules` from develop; merged into `develop` and pushed.
+- **Implemented:** transfer notes accepted with any of Cashew's 43 translated headings (`src/cashewTransferHeadings.js`, attributed, matching data only) and either arrow; legs up to 61 seconds apart (K15 raised from 60 after review); date-only timestamps compare at midnight; the objective note warns that Havensum loans are for money borrowed only (K16).
+- **Checks:** `npm run test:coverage`, `npm run test:browser`, `npm run build`, `npm run check:android` on the merged tree (counts in the merge commit message). Hermes export is compilation only.
+- **Review:** separate read-only Claude review (one should-fix: Cashew's minute rollover can put the legs 61 s apart, answered by the owner as K15 = 61 s; nits fixed); re-review found nothing blocking.

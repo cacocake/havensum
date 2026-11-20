@@ -3,7 +3,7 @@ import { isRecordIdentifier } from './recordIdentity.js';
 import { movementFingerprint } from './movementFingerprint.js';
 import { k_systemCategoryIds, k_transactionTypes } from './domainConstants.js';
 import { hasLoanLink } from './expectedBills.js';
-import { k_cashewTransferNoteHeadings } from './cashewTransferHeadings.js';
+import { isCashewTransferNoteHeading } from './cashewTransferHeadings.js';
 
 const k_cashewSource = 'cashew';
 const k_lendingType = 'credit';
@@ -28,7 +28,7 @@ const k_transferArrows = Object.freeze([
 const k_timestampPattern = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/;
 const k_millisecondsPerSecond = 1000;
 // K15: Cashew saves the legs one second apart, at :30 and :31, and up to 61
-// seconds apart when the save falls in the last second of a minute.
+// seconds apart when an `A → B` save falls in the last second of a minute.
 const k_transferLegToleranceSeconds = 61;
 const k_transferLegToleranceMilliseconds = k_transferLegToleranceSeconds * k_millisecondsPerSecond;
 const k_readOnlySourceFields = ['budget', 'objective', 'extra'];
@@ -58,7 +58,7 @@ function sourceDetails(row) {
 // heading, then `A → B` (money from A to B) or `A ← B` (money from B to A).
 function transferRoute(note) {
   const [heading = '', route = '', ...rest] = note.split(/\r?\n/);
-  if (!k_cashewTransferNoteHeadings.has(heading.trim()) || rest.some(line => line.trim())) {
+  if (!isCashewTransferNoteHeading(heading) || rest.some(line => line.trim())) {
     return undefined;
   }
   const arrowsInRoute = k_transferArrows.filter(({ arrow }) => route.includes(arrow));
