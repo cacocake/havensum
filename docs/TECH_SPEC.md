@@ -89,7 +89,7 @@ Workflow: branch `codex/<ticket>` from `develop` → failing test first → fix 
 ## 7. Known gaps
 
 - Deleting or editing an advance payment doesn't restore the loan's remaining balance, and CSV/Excel exports don't carry the advance mark.
-- Google Drive sync is not built yet (DRIVE-2b, needs your Google OAuth client).
+- Google Drive sync is not built yet (DRIVE-2b, needs your Google Cloud setup, listed in the DRIVE-2b ticket).
 - Physical-phone QA is not done (ANDROID-2); only startup has been confirmed on your phone.
 - Cashew support is verified only for the cases in `CASHEW_IMPORT_RESEARCH.md`.
 - ETF prices are parked.
