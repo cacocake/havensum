@@ -55,6 +55,8 @@ function validatePlan(plan) {
   requireValid(isRecord(plan.months), 'plan months');
   requireValid(Number.isInteger(plan.window) && plan.window > 0, 'plan history window');
   validateCentFields(plan, ['tolerance']);
+  // LOAN-1b (P22): a revision may restate loan lines of passed months from a month.
+  requireValid(plan.loanRestatedFrom === undefined || k_monthPattern.test(plan.loanRestatedFrom), 'plan loan restatement month');
   requireValid(typeof plan.drift === 'number' && Number.isFinite(plan.drift) && plan.drift > 0, 'plan drift');
   for (const collectionName of ['incomeChanges', 'loanChanges']) {
     requireValid(Array.isArray(plan[collectionName]), `plan ${collectionName}`);

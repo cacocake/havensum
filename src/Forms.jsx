@@ -18,7 +18,9 @@ import { k_transactionTypes, k_systemCategoryIds, k_entityIdPrefixes, k_spending
 import { createEntityId } from './identifiers';
 import { isPlannedCostLink, plannedCostOptions } from './plannedCosts.js';
 import { approvePlanRevision, k_planRevisionStartKinds, planRevisionStart } from './planArchive.js';
-import { localCalendarDate, yearOfMonth } from './calendar.js';
+import { localCalendarDate, monthNumberOf, yearOfMonth } from './calendar.js';
+import { longMonthLabel, monthNumberName } from './monthLabels.js';
+import { loanRevisionOffer, revisionWithRestatedLoanLines } from './loanPlanRevision.js';
 import { planDraftEstimates } from './planDraftEstimates.js';
 import PlanDraftEvidence, { PlanBillList } from './PlanDraftEvidence.jsx';
 import { DraftPlannedCosts, NewPlannedCostSuggestion } from './PlannedCostSuggestion.jsx';
@@ -255,12 +257,21 @@ function draftPlannedCost({ name, month, amount, year, repeatsEveryYear }) {
   return { id: k_draftEventId, name, month, amount, ...timing };
 }
 
-export function PlanForm({onClose}){
+// A revision offered after a loan payment change (LOAN-1b) drafts that year
+// from the offer's interview month; otherwise the selected month's year.
+function initialPlanStart(loanRevision, year, month) {
+  if (loanRevision) {
+    return loanRevision.interviewFromMonth;
+  }
+  return planRevisionStart(year, month, localCalendarDate()).fromMonth ?? 1;
+}
+
+export function PlanForm({onClose,loanRevision=null}){
  const dismissRef=useRef(null);
  const {state,setState,month,notify}=useApp(),c=useContext(Theme);
- const year=yearOfMonth(month);
+ const year=loanRevision?loanRevision.year:yearOfMonth(month);
  // Fixed when the draft opens; save rechecks the calendar before approval.
- const [from,setFrom]=useState(()=>planRevisionStart(year,month,localCalendarDate()).fromMonth??1);
+ const [from,setFrom]=useState(()=>initialPlanStart(loanRevision,year,month));
  // Assumptions carried from the latest earlier plan, read once when the draft opens.
  const [carried]=useState(()=>carriedPlanAssumptions(state,{year,fromMonth:from}));
  const [step,setStep]=useState(0),[income,setIncome]=useState(String((carried.income??k_defaultPlanIncome)/k_centsPerEuro)),[cushion,setCushion]=useState(()=>String(initialPlanCushion(state,carried,{year,fromMonth:from})/k_centsPerEuro)),[window,setWindow]=useState(String(carried.window??k_defaultHistoryWindow)),[eventName,setEventName]=useState(''),[eventAmount,setEventAmount]=useState(''),[eventMonth,setEventMonth]=useState('12'),[overrides,setOverrides]=useState(()=>Object.fromEntries(carried.overrides.filter(override=>override.keep).map(override=>[override.lineId,String(override.amount/k_centsPerEuro)]))),[error,setError]=useState('');
@@ -325,17 +336,22 @@ export function PlanForm({onClose}){
      setError(`${year} ${k_planYearReadOnlyMessage}`);
      return;
    }
-   if (start.fromMonth !== from) {
-     setFrom(start.fromMonth);
+   const loanOffer = loanRevision ? loanRevisionOffer(state, loanRevision.reviseFrom, today) : null;
+   const expectedFrom = loanRevision ? loanOffer?.interviewFromMonth : start.fromMonth;
+   if (expectedFrom !== from || (loanRevision && loanOffer.passedFrom !== loanRevision.passedFrom)) {
+     setFrom(expectedFrom ?? from);
      setError(k_planStartMovedMessage);
      return;
    }
-   const approvedRevision = { ...preview, tolerance: cents(tolerance), drift: Number(drift) / k_percentageScale };
+   const frozenRevision = { ...preview, tolerance: cents(tolerance), drift: Number(drift) / k_percentageScale };
+   // P22: passed months from the loan change get only their loan line restated.
+   const approvedRevision = loanOffer ? revisionWithRestatedLoanLines(frozenRevision, state, loanOffer) : frozenRevision;
+   const firstRevisedMonth = loanOffer?.passedFrom ? monthNumberOf(loanOffer.passedFrom) : from;
    const events = plannedEvents.map(event => event.id === k_draftEventId
      ? { ...event, id: createEntityId(k_entityIdPrefixes.event) }
      : event);
    const revisionId = createEntityId(k_entityIdPrefixes.plan);
-   const approval = { id: revisionId, fromMonth: from, today };
+   const approval = { id: revisionId, fromMonth: firstRevisedMonth, today };
    try {
      // Check against the ledger this preview was built from so a rejection is shown here.
      approvePlanRevision({ ...state, events }, approvedRevision, approval);
@@ -352,7 +368,7 @@ export function PlanForm({onClose}){
        return currentState;
      }
    });
-   const firstRevisedMonthName = from === 1 ? 'January' : new Date(year, from - 1, 1).toLocaleString('en', { month: 'long' });
+   const firstRevisedMonthName = monthNumberName(firstRevisedMonth);
    notify(`Plan frozen · ${firstRevisedMonthName} onwards`);
    onClose();
  }
@@ -364,7 +380,7 @@ export function PlanForm({onClose}){
  {eventName.trim()&&<NewPlannedCostSuggestion state={state} evaluationDate={evaluationDate} candidate={suggestionCandidate} likeValue={eventLike} onLikeChange={setEventLike} onUseAmount={setEventAmount}/>}
  {candidateEvent&&<Button small kind="soft" icon="Plus" onPress={addPlannedEvent}>Add another event</Button>}
  <DraftPlannedCosts state={state} evaluationDate={evaluationDate} events={[...plannedEvents.filter(event=>event.id!==k_draftEventId)]} year={year} fromMonth={from} onAccept={acceptYearAmount} onRevert={keepUsualAmount}/><Divider/><H size={18} style={{marginBottom:10}}>Loans and changes already accounted for</H><CarriedChanges loans={state.loans} startMonth={`${year}-${String(from).padStart(2,'0')}`} incomeChanges={carriedIncomeChanges} loanChanges={carriedLoanChanges} onRemoveIncomeChange={change=>setCarriedIncomeChanges(changes=>changes.filter(candidate=>candidate!==change))}/></>}
- {step===2&&<><H size={18} style={{marginBottom:15}}>Fine-tune the monthly amounts</H><PlanDraftEvidence evidence={preview.evidence} suggestedCushion={preview.suggestedCushion}/>{preview.months[`${year}-${String(from).padStart(2,'0')}`]?.lines.filter(l=>!['salary','interest','loan'].includes(l.category)).map(l=><Row key={l.id||l.category} style={{gap:14,marginBottom:6}}><View style={{flex:1}}><T style={{fontSize:12}}>{l.name}</T><T style={{fontSize:10,color:c.muted}}>{l.kind} · calculated {euro(l.amount)}</T>{l.kind===k_spendingBehaviors.fixed&&<PlanBillList bills={draftBills.filter(bill=>bill.category===l.category)} month={`${year}-${String(from).padStart(2,'0')}`}/>}<EarlierOverride override={carried.overrides.find(override=>override.lineId===(l.id||l.category)&&!override.stale)} value={overrides[l.id||l.category]} onKeep={amount=>setOverrides(o=>({...o,[l.id||l.category]:String(amount/k_centsPerEuro)}))} onDrop={()=>setOverrides(o=>({...o,[l.id||l.category]:''}))}/></View><Field value={overrides[l.id||l.category]??''} onChangeText={v=>setOverrides(o=>({...o,[l.id||l.category]:v}))} placeholder={(l.amount/k_centsPerEuro).toFixed(2)} label={`Override ${l.name}`} style={{width:150,marginBottom:6}}/></Row>)}<CarriedAssumptionNotes carried={carried} loans={state.loans} lineIds={(preview.months[`${year}-${String(from).padStart(2,'0')}`]?.lines||[]).map(line=>line.id||line.category)}/><PlanDraftPreview plan={preview} state={{...state,events:plannedEvents}} year={year} fromMonth={from}/><Divider/><Row style={{justifyContent:'space-between',marginBottom:15}}><T style={{fontSize:12}}>First revised month's balance</T><H size={24}>{euro(preview.months[`${year}-${String(from).padStart(2,'0')}`]?.balance||0)}</H></Row><T style={{fontSize:12,color:c.sub}}>Overrides take priority and are marked in the plan. Past months stay untouched. New transactions never silently rewrite this snapshot.</T></>}
+ {step===2&&<><H size={18} style={{marginBottom:15}}>Fine-tune the monthly amounts</H><PlanDraftEvidence evidence={preview.evidence} suggestedCushion={preview.suggestedCushion}/>{preview.months[`${year}-${String(from).padStart(2,'0')}`]?.lines.filter(l=>!['salary','interest','loan'].includes(l.category)).map(l=><Row key={l.id||l.category} style={{gap:14,marginBottom:6}}><View style={{flex:1}}><T style={{fontSize:12}}>{l.name}</T><T style={{fontSize:10,color:c.muted}}>{l.kind} · calculated {euro(l.amount)}</T>{l.kind===k_spendingBehaviors.fixed&&<PlanBillList bills={draftBills.filter(bill=>bill.category===l.category)} month={`${year}-${String(from).padStart(2,'0')}`}/>}<EarlierOverride override={carried.overrides.find(override=>override.lineId===(l.id||l.category)&&!override.stale)} value={overrides[l.id||l.category]} onKeep={amount=>setOverrides(o=>({...o,[l.id||l.category]:String(amount/k_centsPerEuro)}))} onDrop={()=>setOverrides(o=>({...o,[l.id||l.category]:''}))}/></View><Field value={overrides[l.id||l.category]??''} onChangeText={v=>setOverrides(o=>({...o,[l.id||l.category]:v}))} placeholder={(l.amount/k_centsPerEuro).toFixed(2)} label={`Override ${l.name}`} style={{width:150,marginBottom:6}}/></Row>)}<CarriedAssumptionNotes carried={carried} loans={state.loans} lineIds={(preview.months[`${year}-${String(from).padStart(2,'0')}`]?.lines||[]).map(line=>line.id||line.category)}/><PlanDraftPreview plan={preview} state={{...state,events:plannedEvents}} year={year} fromMonth={from}/><Divider/><Row style={{justifyContent:'space-between',marginBottom:15}}><T style={{fontSize:12}}>First revised month's balance</T><H size={24}>{euro(preview.months[`${year}-${String(from).padStart(2,'0')}`]?.balance||0)}</H></Row>{loanRevision?.passedFrom&&<T style={{fontSize:12,color:c.sub,marginBottom:8}}>{`Passed months from ${longMonthLabel(loanRevision.passedFrom)} get the new loan payments only; everything else in them stays as frozen.`}</T>}<T style={{fontSize:12,color:c.sub}}>Overrides take priority and are marked in the plan. {loanRevision?.passedFrom?'Other':'Past'} months stay untouched. New transactions never silently rewrite this snapshot.</T></>}
  {error&&<T style={{color:c.negative,marginTop:15}}>{error}</T>}<Row style={{justifyContent:'space-between',marginTop:25}}><Button kind="soft" onPress={()=>step?setStep(step-1):dismissRef.current?.()}>{step?'Back':'Cancel'}</Button><Button icon={step===2?'LockKeyhole':'ArrowRight'} onPress={()=>step<2?setStep(step+1):save()}>{step===2?'Freeze my plan':'Continue'}</Button></Row>
  </Dialog>;
 }

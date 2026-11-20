@@ -19,6 +19,7 @@ import { Loans } from './LoansScreen.jsx';
 import {AccountDetail,TransactionDetail} from './Details.jsx';
 import {TransactionForm,CategoryForm,PlanForm} from './Forms.jsx';
 import { LoanForm } from './LoanForm.jsx';
+import { LoanPlanPrompt } from './LoanPlanPrompt.jsx';
 import { loanPaymentInMonth } from './loanPaymentHistory.js';
 import { AccountForm } from './AccountForm.jsx';
 import InterestCorrection from './InterestCorrection.jsx';
@@ -154,7 +155,7 @@ export default function App(){
 
  </View>
  {modal?.type==='transaction'&&<TransactionForm key={modal.item?.id||modal.initialType||'new'} item={modal.item} initialType={modal.initialType} draft={modal.loan?{title:modal.loan.name,amount:loanPaymentInMonth(modal.loan,monthOf(today)),account:modal.loan.account,category:'loan',loanId:modal.loan.id}:modal.draft} onClose={()=>setModal(null)}/>}
- {modal?.type==='category'&&<CategoryForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='account'&&<AccountForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='loan'&&<LoanForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='plan'&&<PlanForm onClose={()=>setModal(null)}/>}
+ {modal?.type==='category'&&<CategoryForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='account'&&<AccountForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='loan'&&<LoanForm item={modal.item} onClose={()=>setModal(null)}/>}{modal?.type==='plan'&&<PlanForm loanRevision={modal.loanRevision} onClose={()=>setModal(null)}/>}{modal?.type==='loanPlanPrompt'&&<LoanPlanPrompt offer={modal.offer} loanName={modal.loanName} onClose={()=>setModal(null)}/>}
  {modal?.type==='transaction-detail'&&<TransactionDetail transactionId={modal.id} onClose={()=>setModal(null)}/>}
  {modal?.type==='interest-correction'&&<InterestCorrection accountId={modal.accountId} onClose={()=>setModal(null)}/>}
  {categoryReviewOpen && (

@@ -7,6 +7,7 @@ Read HANDOFF.md, DECISIONS.md and docs/HAVENSUM_REQUIREMENTS.md first. Current i
 - Linked reimbursements net against their original expense month; they never become earnings. Transfers never enter income or spending averages.
 - Existing loans do not credit an account unless explicitly selected. Actual repayments remain recorded transactions.
 - Never silently recalculate a plan or rewrite its historical months. Manual overrides take priority and must be marked.
+- Owner-approved exception (P09/P22): after a loan payment change, a revision the owner approves may restate only the loan line (and its totals) of passed months of the current year. It is marked on the revision, earlier revisions stay intact, and past years stay read-only.
 - Category budgets only drive overspend bars. Per-field inheritance and transaction behaviour overrides must remain intact.
 - Preserve custom category names/icons/colours. Use one clean, flat Lucide symbol family with consistent stroke weights. No emoji or glossy category icons.
 - UI is mobile first, playful and cozy, with quick entry and activity before account summaries. Respect reduced motion and safe areas.
