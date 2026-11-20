@@ -68,7 +68,24 @@ Cover: a repeating cost added to next year's draft does not appear in this year 
 
 ### LOAN-1 · Loan payment history and an owner-chosen plan revision (P09)
 
-**Status:** Queued, not started. **Depends on:** PLAN-3 follow-up b (merged). **Owner decision (20 November 2026, P09 in DECISIONS.md):**
+**Status:** Split by the owner into three slices (P10, 20 November 2026). **LOAN-1a** (payment history) is implemented on `codex/loan-payment-history`; see its handoff at the end. **LOAN-1b** and **LOAN-1c** are queued, not started. **Depends on:** PLAN-3 follow-up b (merged).
+
+**Owner answers (20 November 2026, recorded as P10–P15 in DECISIONS.md):**
+
+- **Split (P10):** LOAN-1a payment history; LOAN-1b the **Keep my plan** / **Revise from <month>** prompt and the revision including passed months; LOAN-1c one-off extra and advance/down-payments.
+- **Prediction assumptions (P11):** Year Plan's "Prediction assumptions" loan amounts keep working as today: an amount typed there wins from its month for Expected savings; otherwise Expected savings follows the loan's history. The owner wants to readjust the plan case by case when a payment changes permanently (LOAN-1b) rather than see "over budget" every month.
+- **Interview (P12):** shows each loan's payment history read-only and points to the loan to change it; no more plan-only loan payment fields.
+- **Advance payment (P13, LOAN-1c):** a **Record advance payment** action on the loan card records the payment marked as an advance, lowers the remaining balance in the same save, then asks whether the monthly payment changed and from when.
+- **Balance-only change (P14, LOAN-1b):** does not offer the plan revision.
+- **AGENTS.md (P15, LOAN-1b):** add one line naming the P09 exception in LOAN-1b.
+
+**LOAN-1a · Payment history (done on its branch).** Loans keep `paymentChanges` (schema version 5, docs/STATE_MIGRATIONS.md). The loan form prefills this month's payment; a different amount asks **New payment from · YYYY-MM** (default the current local month, past or future, up to the loan's last month) and replaces every later change; a mistaken entry can be removed. The loan card shows this month's payment and the history; **Record payment** prefills this month's amount. Drafts and new plans take loan payments from the history (superseding P05); the interview lists them read-only. Expected savings follows the history unless a Prediction-assumptions amount applies (P11). Legacy ledgers and backups migrate once from the latest plans' changes with P05's rule; frozen plans and `paymentEditedAt` are kept. Merge offers different histories as one readable conflict.
+
+**LOAN-1b · Keep my plan / Revise from <month> (queued).** After a monthly-payment change on the loan (not a balance-only change, P14), offer **Keep my plan** (nothing changes; every snapshot byte-identical) or **Revise from <month>**, opening the interview from the change month with the history prefilled and other budgets editable, freezing a new revision that rewrites passed months of the current year from that month (P09 exception; earlier revisions kept; past years read-only; AGENTS.md line, P15). Cover a past month entered late, the revision's past months, and that Expected savings is unchanged by a target-only edit.
+
+**LOAN-1c · One-off extra and advance payments (queued).** A one-off extra payment is only a recorded payment (overspend in its month; history and plan unchanged). **Record advance payment** on the loan card (P13) records the payment marked as an advance and lowers the remaining balance, then asks for a new monthly payment and its month via the LOAN-1a history (never calculated), then LOAN-1b's prompt.
+
+**Owner decision (20 November 2026, P09 in DECISIONS.md):**
 
 - **Payment history:** a loan's monthly payment changes over time, up or down (a new rate, an advance or down-payment). The loan keeps a payment history ("€1,200 from 2026-01, €1,050 from 2026-09"). The loan form asks from which month a new payment applies, defaulting to the current local month (L02); past and future months are allowed, and entries can be corrected.
 - **Later changes:** every payment from the chosen month on uses the new amount, so a later scheduled change for that loan (in the history or carried from a plan) no longer applies. Earlier months are untouched.
