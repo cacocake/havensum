@@ -54,7 +54,7 @@ The ledger is `{ version, demo, accounts, transactions, categories, loans, event
 | Frozen plans | `planning.js`, `planArchive.js`, `planDraftEstimates.js`, `planCarryForward.js`, `planInvitation.js`, `Forms.jsx` (interview) | Draft from history, approve, append a revision. Months before a revision are copied exactly. Past years are read-only. |
 | Planned costs | `plannedCosts.js`, `plannedCostMoves.js`, `comparableCosts.js` | Which month and year a cost occurs in, moves, and suggestions from comparable completed costs (median of recent ones, at least 3). |
 | Savings interest | `savingsInterest.js`, `interestSchedule.js`, `interestEntries.js`, `interestCorrection.js` | Effective annual rate compounded monthly. The app posts at most one interest entry per account per completed month, at startup. Bank-posted interest and correction entries are separate, and corrections never edit old entries. |
-| Loans | `loanPaymentHistory.js`, `loanPaymentMigration.js`, `loanPlanRevision.js`, `loanAdvancePayments.js`, `LoansScreen.jsx`, `LoanForm.jsx`, `LoanPlanPrompt.jsx`, `AdvancePaymentForm.jsx` | Each loan's payment in a month comes from its history (temporary change, else latest lasting change, else `payment`). After a change the owner picks Keep my plan or Revise from <month>; a revision restates only that loan's share in passed months. Advances lower `remaining` in the same save. |
+| Loans | `loanPaymentHistory.js`, `loanPaymentMigration.js`, `loanPlanRevision.js`, `loanAdvancePayments.js`, `expectedLoans.js`, `loanPaymentLabels.js`, `LoansScreen.jsx`, `LoanForm.jsx`, `LoanPaymentHistory.jsx`, `LoanPlanPrompt.jsx`, `AdvancePaymentForm.jsx` | Each loan's payment in a month comes from its history (temporary change, else latest lasting change, else `payment`). After a change the owner picks Keep my plan or Revise from <month>; a revision restates only that loan's share in passed months. This is the one deliberate exception to never rewriting passed plan months (recorded in AGENTS.md). Advances lower `remaining` in the same save. |
 | Paybacks | `paybackTasks.js`, `paybackState.js`, `AwaitingPaybacks.jsx` | Expected-payback tasks. Closing without payment changes task metadata only. |
 | Import | `importReview.js`, `importNormalization.js`, `realBankCsv.js`, `cashewCsv.js`, `csvExchange.js`, `ImportDialog.jsx` | Parse → normalize → editable preview → explicit decisions. New rows are appended; a matching existing record changes only when its edit is approved. Duplicates are scoped by source and account. |
 | Backup, merge, restore | `engine.js` (merge), `mergeReview.js`, `planMerge.js`, `interestMerge.js`, `fullRestore.js`, `RestoreBackup.jsx` | Three-way merge by record and field; conflicts are reviewed. A restore keeps a pre-restore copy first. |
@@ -88,7 +88,6 @@ Workflow: branch `codex/<ticket>` from `develop` → failing test first → fix 
 
 ## 7. Known gaps
 
-- Plans normally never rewrite passed months; the only exception is the owner-chosen loan restatement above (recorded in AGENTS.md).
 - Deleting or editing an advance payment doesn't restore the loan's remaining balance, and CSV/Excel exports don't carry the advance mark.
 - Google Drive sync is not built yet (DRIVE-2b, needs your Google OAuth client).
 - Physical-phone QA is not done (ANDROID-2); only startup has been confirmed on your phone.

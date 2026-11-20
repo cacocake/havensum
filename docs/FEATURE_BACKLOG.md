@@ -1,6 +1,6 @@
 # Havensum feature backlog
 
-**Board status (20 November 2026): every authorized ticket is done, reviewed, merged into `develop` and pushed** (`develop` at the merge after `4c1eb70`). What remains needs the owner: **DRIVE-2b** (Google Cloud OAuth client and both Google accounts as test users), **ANDROID-2** (QA on a physical phone), and **ETF-1/ETF-2** (parked). See "Session summary — 20 November 2026" at the end. A plain-language guide is in [USER_GUIDE.md](USER_GUIDE.md) and a short technical overview in [TECH_SPEC.md](TECH_SPEC.md). Older status lines below describe earlier snapshots.
+**Board status (20 November 2026): every authorized ticket is done, reviewed, merged into `develop` and pushed** (code at `4c1eb70`). What remains needs the owner: **DRIVE-2b** (the owner's Google Cloud setup listed in the DRIVE-2b ticket), **ANDROID-2** (QA on a physical phone), and **ETF-1/ETF-2** (parked). See "Session summary — 20 November 2026" at the end. A plain-language guide is in [USER_GUIDE.md](USER_GUIDE.md) and a short technical overview in [TECH_SPEC.md](TECH_SPEC.md). Older status lines below describe earlier snapshots.
 
 ## Starting point and workflow
 
@@ -804,19 +804,19 @@ The implementation note below records how these were built; it stores only per-y
 
 ## Session summary — 20 November 2026 (Claude cloud sessions)
 
-**Merged into `develop` and pushed since the 19 November summary** (each on its own `codex/` branch, test-first, the full check suite and a separate read-only Claude review):
+**Merged into `develop` and pushed since the 19 November summary** (each through a `codex/` branch, the full check suite and a separate read-only Claude review, test-first except where a handoff note says otherwise; IMPORT-1's closure and DRIVE-1 were decisions and docs only):
 - FORECAST-1 (full-year outlook), FORECAST-2 (comparable-cost suggestions) and its follow-ups F16–F18 (move a recurring planned cost) and F20 (readable year-amount conflicts).
 - LEDGER-1 (scheduled versus posted entries by the phone's local date, L01/L02), LEDGER-2 and LEDGER-2a (reviewed past-interest corrections and bank-interest choices).
 - PLAN-3 follow-ups: repeating planned costs from the plan's year (P04) and a draft loan payment from a newer loan edit (P05, superseded by LOAN-1). PLAN-3 follow-up c was cancelled by the owner.
 - LOAN-1a/1b/1c: loan payment history with until months (schema v5), **Keep my plan / Revise from <month>** after a payment change (the one owner-approved exception to never rewriting passed months, recorded in AGENTS.md), and advance and one-off extra payments.
 - IMPORT-2 (Cashew verification, K01–K16) and the closure of IMPORT-1 as not needed.
 - DRIVE-1 (shared-file access decisions) and DRIVE-2a (credential-free sync core; no Google transport yet).
-- ANDROID-1 (installable package configuration; the owner's release APK installs and starts on their phone) and the release startup-crash fix.
+- ANDROID-1 (installable package configuration; by the owner's report, the release APK installs and starts on their phone) and the release startup-crash fix.
 - BUG-1 (stale full-restore preview) and BUG-2 (legacy-rate past start).
-- Documentation: USER_GUIDE.md and TECH_SPEC.md, refreshed for LOAN-1; ARCHITECTURE.md now points to TECH_SPEC.md.
+- Documentation: USER_GUIDE.md and TECH_SPEC.md. This summary's commit refreshes them for LOAN-1 and points ARCHITECTURE.md to TECH_SPEC.md.
 
 **Still needs the owner:**
-- DRIVE-2b: a Google Cloud OAuth client and both Google accounts as test users; the app's own autosave must then use `writeStateIfUnchanged` while sync is wired.
+- DRIVE-2b: the owner's Google Cloud setup listed in the DRIVE-2b ticket (APIs, consent screen, client IDs, Picker key, both accounts as test users); the app's own autosave must then use `writeStateIfUnchanged` while sync is wired.
 - ANDROID-2: QA on a physical phone (only startup has been confirmed).
 - ETF-1/ETF-2: parked until the owner asks for them.
 
