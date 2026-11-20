@@ -47,27 +47,21 @@ export function loanPaymentInMonth(loan, month) {
   return changes.filter(change => !isTemporary(change)).at(-1)?.amount ?? loan.payment;
 }
 
-// Rewrites a temporary change from `fromMonth` on as the entries that keep
-// every month it wins: an entry starts at a month it wins and runs while the
-// changes winning in between still start later than the entry, so they keep
-// winning over it. Months it never wins drop out.
+// Rewrites a temporary change from `fromMonth` on as the entry from the
+// first to the last month it still wins. Every change winning a month in
+// between started later than that first month, so it keeps winning; months it
+// never wins drop out.
 function winningEntries(change, temporaryChanges, fromMonth) {
-  const winsMonth = month => temporaryChangeCovering(temporaryChanges, month) === change;
-  const entries = [];
-  let entry = null;
+  const wonMonths = [];
   for (let month = fromMonth > change.since ? fromMonth : change.since; month <= change.until; month = nextMonth(month)) {
-    if (entry && !winsMonth(month) && temporaryChangeCovering(temporaryChanges, month).since <= entry.since) {
-      entry = null;
-    }
-    if (!entry && winsMonth(month)) {
-      entry = { since: month, until: month, amount: change.amount };
-      entries.push(entry);
-    }
-    if (entry && winsMonth(month)) {
-      entry.until = month;
+    if (temporaryChangeCovering(temporaryChanges, month) === change) {
+      wonMonths.push(month);
     }
   }
-  return entries;
+  if (!wonMonths.length) {
+    return [];
+  }
+  return [{ since: wonMonths[0], until: wonMonths.at(-1), amount: change.amount }];
 }
 
 // Folds what lies at or before the loan's start into its starting payment:

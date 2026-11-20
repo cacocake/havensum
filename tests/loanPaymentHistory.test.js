@@ -249,3 +249,9 @@ test('moving the start rewrites only the temporary payments running at the new s
   assert.deepEqual(paymentsIn(movedStart, ['2027-03', '2027-04', '2027-06', '2027-08', '2028-01']), [70000, 50000, 0, 50000, 120000]);
   assert.deepEqual(movedStart.paymentChanges, [{ since: '2027-03', until: '2027-03', amount: 70000 }, { since: '2027-04', until: '2027-12', amount: 50000 }, { since: '2027-06', until: '2027-07', amount: 0 }]);
 });
+
+test('a temporary payment that wins no month after the new start is dropped', () => {
+  const covered = { ...k_homeLoan, start: '2027-03', paymentChanges: [{ since: '2027-01', until: '2027-05', amount: 50000 }, { since: '2027-02', until: '2027-06', amount: 70000 }] };
+
+  assert.deepEqual(withNormalizedPayments(covered).paymentChanges, [{ since: '2027-03', until: '2027-06', amount: 70000 }]);
+});
